@@ -17,7 +17,7 @@
 <features xmlns="http://karaf.apache.org/xmlns/features/v1.2.0" name="${project.artifactId}-${project.version}">
     <feature name="${project.artifactId}" version="${project.version}" description="${project.description}">
         <feature>onos-api</feature>
-        <bundle>mvn:${project.groupId}/onos-app-cordvtn/${project.version}</bundle>
+        <bundle>mvn:${project.groupId}/vtn/${project.version}</bundle>
         <bundle>wrap:mvn:com.jcraft/jsch/0.1.53$Bundle-SymbolicName=jsch&amp;Bundle-Version=0.1.53</bundle>
     </feature>
 </features>

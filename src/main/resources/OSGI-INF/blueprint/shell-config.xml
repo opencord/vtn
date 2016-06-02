@@ -17,19 +17,19 @@
 
     <command-bundle xmlns="http://karaf.apache.org/xmlns/shell/v1.1.0">
         <command>
-            <action class="org.onosproject.cordvtn.cli.CordVtnNodeListCommand"/>
+            <action class="org.opencord.cordvtn.cli.CordVtnNodeListCommand"/>
         </command>
         <command>
-            <action class="org.onosproject.cordvtn.cli.CordVtnNodeDeleteCommand"/>
+            <action class="org.opencord.cordvtn.cli.CordVtnNodeDeleteCommand"/>
         </command>
         <command>
-            <action class="org.onosproject.cordvtn.cli.CordVtnNodeInitCommand"/>
+            <action class="org.opencord.cordvtn.cli.CordVtnNodeInitCommand"/>
         </command>
         <command>
-            <action class="org.onosproject.cordvtn.cli.CordVtnNodeCheckCommand"/>
+            <action class="org.opencord.cordvtn.cli.CordVtnNodeCheckCommand"/>
         </command>
         <command>
-            <action class="org.onosproject.cordvtn.cli.CordVtnFlushRules"/>
+            <action class="org.opencord.cordvtn.cli.CordVtnFlushRules"/>
         </command>
     </command-bundle>
 </blueprint>

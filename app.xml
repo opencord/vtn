@@ -20,5 +20,5 @@
         features="${project.artifactId}"
         apps="org.onosproject.ovsdb-base,org.onosproject.dhcp,org.onosproject.xosclient,org.onosproject.cord-config">
     <description>${project.description}</description>
-    <artifact>mvn:${project.groupId}/onos-app-cordvtn/${project.version}</artifact>
+    <artifact>mvn:${project.groupId}/vtn/${project.version}</artifact>
 </app>

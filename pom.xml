@@ -21,17 +21,24 @@
 
     <parent>
         <groupId>org.onosproject</groupId>
-        <artifactId>onos-apps</artifactId>
-        <version>1.7.0-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
+        <artifactId>onos</artifactId>
+        <version>1.6.0-SNAPSHOT</version>
+        <relativePath></relativePath>
     </parent>
 
-    <artifactId>onos-app-cordvtn</artifactId>
+    <groupId>org.opencord</groupId>
+    <artifactId>vtn</artifactId>
+    <version>1.0-SNAPSHOT</version>
     <packaging>bundle</packaging>
 
     <description>Virtual tenant network service for CORD</description>
 
     <properties>
+        <onos.app.name>org.opencord.vtn</onos.app.name>
+        <onos.version>1.6.0-SNAPSHOT</onos.version>
+        <onos.app.title>VTN App</onos.app.title>
+        <onos.app.category>Traffic Steering</onos.app.category>
+        <onos.app.url>http://opencord.org</onos.app.url>
         <web.context>/onos/cordvtn</web.context>
         <api.version>1.0.0</api.version>
         <api.title>CORD VTN REST API</api.title>
@@ -49,21 +56,22 @@
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-api</artifactId>
+            <version>${onos.version}</version>
         </dependency>
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-core-serializers</artifactId>
-            <version>${project.version}</version>
+            <version>${onos.version}</version>
         </dependency>
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-ovsdb-api</artifactId>
-            <version>${project.version}</version>
+            <version>${onos.version}</version>
         </dependency>
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-cli</artifactId>
-            <version>${project.version}</version>
+            <version>${onos.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.karaf.shell</groupId>
@@ -73,12 +81,12 @@
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-rest</artifactId>
-            <version>${project.version}</version>
+            <version>${onos.version}</version>
         </dependency>
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onlab-rest</artifactId>
-            <version>${project.version}</version>
+            <version>${onos.version}</version>
         </dependency>
         <dependency>
             <groupId>javax.ws.rs</groupId>
@@ -100,16 +108,11 @@
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-app-dhcp-api</artifactId>
-            <version>${project.version}</version>
+            <version>${onos.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.onosproject</groupId>
-            <artifactId>onos-app-xos-client</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.onosproject</groupId>
-            <artifactId>onos-cord-config</artifactId>
+            <groupId>org.opencord</groupId>
+            <artifactId>config</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -117,10 +120,56 @@
             <artifactId>jsch</artifactId>
             <version>0.1.53</version>
         </dependency>
+        <dependency>
+            <groupId>org.onosproject</groupId>
+            <artifactId>onos-app-xos-client</artifactId>
+            <version>${onos.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.felix</groupId>
+            <artifactId>org.apache.felix.scr.annotations</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- TODO FIX ONOS ROOT POM to split thirdparty and onos dependencies -->
+        <dependency>
+            <groupId>org.onosproject</groupId>
+            <artifactId>onlab-osgi</artifactId>
+            <version>${onos.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.onosproject</groupId>
+            <artifactId>onlab-misc</artifactId>
+            <version>${onos.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.onosproject</groupId>
+            <artifactId>onos-core-common</artifactId>
+            <version>${onos.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.onosproject</groupId>
+            <artifactId>onos-incubator-api</artifactId>
+            <version>${onos.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.onosproject</groupId>
+            <artifactId>onos-ovsdb-rfc</artifactId>
+            <version>${onos.version}</version>
+        </dependency>
+
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.onosproject</groupId>
+                <artifactId>onos-maven-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.apache.felix</groupId>
                 <artifactId>maven-bundle-plugin</artifactId>
