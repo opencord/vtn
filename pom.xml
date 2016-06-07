@@ -54,7 +54,7 @@
         <api.description>
             APIs for interacting with the CORD VTN application.
         </api.description>
-        <api.package>org.onosproject.cordvtn.rest</api.package>
+        <api.package>org.opencord.cordvtn.rest</api.package>
     </properties>
 
     <dependencies>

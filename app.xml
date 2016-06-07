@@ -14,11 +14,11 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<app name="org.onosproject.cordvtn" origin="ON.Lab" version="${project.version}"
+<app name="org.opencord.cordvtn" origin="ON.Lab" version="${project.version}"
         category="Traffic Steering" url="http://onosproject.org" title="CORD Virtual Tenant Network"
         featuresRepo="mvn:${project.groupId}/${project.artifactId}/${project.version}/xml/features"
         features="${project.artifactId}"
-        apps="org.onosproject.ovsdb-base,org.onosproject.dhcp,org.onosproject.xosclient,org.onosproject.cord-config">
+        apps="org.onosproject.ovsdb-base,org.onosproject.dhcp,org.onosproject.xosclient,org.opencord.config">
     <description>${project.description}</description>
     <artifact>mvn:${project.groupId}/vtn/${project.version}</artifact>
 </app>

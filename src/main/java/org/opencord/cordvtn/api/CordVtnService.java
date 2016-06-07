@@ -22,7 +22,7 @@ import org.onosproject.xosclient.api.VtnServiceId;
  */
 public interface CordVtnService {
 
-    String CORDVTN_APP_ID = "org.onosproject.cordvtn";
+    String CORDVTN_APP_ID = "org.opencord.cordvtn";
 
     /**
      * Creates dependencies for a given tenant service.
