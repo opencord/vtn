@@ -1,5 +1,6 @@
 [gerrit]
 host=gerrit.onosproject.org
+port=29418
 project=vtn.git
 defaultremote=origin
 defaultbranch=master
