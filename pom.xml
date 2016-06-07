@@ -48,6 +48,13 @@
         <onos.app.title>VTN App</onos.app.title>
         <onos.app.category>Traffic Steering</onos.app.category>
         <onos.app.url>http://opencord.org</onos.app.url>
+        <onos.app.requires>
+            org.onosproject.ovsdb-base,
+            org.onosproject.drivers.ovsdb,
+            org.onosproject.dhcp,
+            org.onosproject.xosclient,
+            org.opencord.config
+        </onos.app.requires>
         <web.context>/onos/cordvtn</web.context>
         <api.version>1.0.0</api.version>
         <api.title>CORD VTN REST API</api.title>
@@ -137,7 +144,6 @@
         <dependency>
             <groupId>org.apache.felix</groupId>
             <artifactId>org.apache.felix.scr.annotations</artifactId>
-            <scope>provided</scope>
         </dependency>
 
         <!-- TODO FIX ONOS ROOT POM to split thirdparty and onos dependencies -->
@@ -178,6 +184,25 @@
             <plugin>
                 <groupId>org.onosproject</groupId>
                 <artifactId>onos-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.felix</groupId>
+                <artifactId>maven-scr-plugin</artifactId>
+                <version>1.21.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-scr-srcdescriptor</id>
+                        <goals>
+                            <goal>scr</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <supportedProjectTypes>
+                        <supportedProjectType>bundle</supportedProjectType>
+                        <supportedProjectType>war</supportedProjectType>
+                    </supportedProjectTypes>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.felix</groupId>
