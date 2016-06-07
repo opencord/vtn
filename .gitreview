@@ -1,0 +1,5 @@
+[gerrit]
+host=gerrit.onosproject.org
+project=vtn.git
+defaultremote=origin
+defaultbranch=master
