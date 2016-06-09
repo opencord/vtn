@@ -128,7 +128,7 @@
         </dependency>
         <dependency>
             <groupId>org.opencord</groupId>
-            <artifactId>config</artifactId>
+            <artifactId>cord-config</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
