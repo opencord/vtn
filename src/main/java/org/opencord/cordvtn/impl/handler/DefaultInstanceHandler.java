@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.impl.service;
+package org.opencord.cordvtn.impl.handler;
 
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 
 import org.apache.felix.scr.annotations.Deactivate;
+import org.apache.felix.scr.annotations.Reference;
+import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.Ip4Prefix;
@@ -34,12 +36,11 @@ import org.opencord.cordvtn.api.CordVtnNode;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
 import org.onosproject.xosclient.api.VtnService;
+import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
 import java.util.Optional;
 
-import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
-import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.DEFAULT;
 
 /**
@@ -48,10 +49,15 @@ import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.DEFAULT;
 @Component(immediate = true)
 public class DefaultInstanceHandler extends AbstractInstanceHandler implements InstanceHandler {
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnPipeline pipeline;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnNodeManager nodeManager;
+
     @Activate
     protected void activate() {
         serviceType = Optional.of(DEFAULT);
-        eventExecutor = newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-default", "event-handler"));
         super.activate();
     }
 
@@ -111,7 +117,6 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
                 .transition(CordVtnPipeline.TABLE_ACCESS_TYPE)
                 .build();
-
 
         FlowRule flowRule = DefaultFlowRule.builder()
                 .fromApp(appId)

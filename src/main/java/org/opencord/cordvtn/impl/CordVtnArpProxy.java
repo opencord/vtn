@@ -16,20 +16,27 @@
 package org.opencord.cordvtn.impl;
 
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.apache.felix.scr.annotations.Activate;
+import org.apache.felix.scr.annotations.Component;
+import org.apache.felix.scr.annotations.Deactivate;
+import org.apache.felix.scr.annotations.Reference;
+import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.ARP;
 import org.onlab.packet.EthType;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
+import org.onosproject.net.packet.PacketProcessor;
+import org.onosproject.xosclient.api.VtnService;
+import org.opencord.cordvtn.api.CordVtnConfig;
 import org.opencord.cordvtn.api.Instance;
-import org.onosproject.core.ApplicationId;
 import org.onosproject.net.Host;
 import org.onosproject.net.flow.DefaultTrafficSelector;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
-import org.onosproject.net.host.HostService;
 import org.onosproject.net.packet.DefaultOutboundPacket;
 import org.onosproject.net.packet.PacketContext;
 import org.onosproject.net.packet.PacketPriority;
@@ -42,37 +49,41 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.PRIVATE;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Handles ARP requests for virtual network service IPs.
  */
-public class CordVtnArpProxy {
+@Component(immediate = true)
+public class CordVtnArpProxy extends AbstractInstanceHandler {
     protected final Logger log = getLogger(getClass());
 
-    private final ApplicationId appId;
-    private final PacketService packetService;
-    private final HostService hostService;
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected PacketService packetService;
 
+    private final PacketProcessor packetProcessor = new InternalPacketProcessor();
     private final Map<Ip4Address, MacAddress> gateways = Maps.newConcurrentMap();
 
-    /**
-     * Default constructor.
-     *
-     * @param appId application id
-     * @param packetService packet service
-     * @param hostService host service reference
-     */
-    public CordVtnArpProxy(ApplicationId appId, PacketService packetService, HostService hostService) {
-        this.appId = appId;
-        this.packetService = packetService;
-        this.hostService = hostService;
+    private MacAddress privateGatewayMac = MacAddress.NONE;
+
+    @Activate
+    protected void activate() {
+        super.activate();
+        packetService.addProcessor(packetProcessor, PacketProcessor.director(0));
+        requestPacket();
+    }
+
+    @Deactivate
+    protected void deactivate() {
+        packetService.removeProcessor(packetProcessor);
+        super.deactivate();
     }
 
     /**
      * Requests ARP packet.
      */
-    public void requestPacket() {
+    private void requestPacket() {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(EthType.EtherType.ARP.ethType().toShort())
                 .build();
@@ -86,7 +97,7 @@ public class CordVtnArpProxy {
     /**
      * Cancels ARP packet.
      */
-    public void cancelPacket() {
+    private void cancelPacket() {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(EthType.EtherType.ARP.ethType().toShort())
                 .build();
@@ -103,7 +114,7 @@ public class CordVtnArpProxy {
      * @param gatewayIp gateway ip address
      * @param gatewayMac gateway mac address
      */
-    public void addGateway(IpAddress gatewayIp, MacAddress gatewayMac) {
+    private void addGateway(IpAddress gatewayIp, MacAddress gatewayMac) {
         checkNotNull(gatewayIp);
         checkNotNull(gatewayMac);
         gateways.put(gatewayIp.getIp4Address(), gatewayMac);
@@ -114,7 +125,7 @@ public class CordVtnArpProxy {
      *
      * @param gatewayIp gateway ip address
      */
-    public void removeGateway(IpAddress gatewayIp) {
+    private void removeGateway(IpAddress gatewayIp) {
         checkNotNull(gatewayIp);
         gateways.remove(gatewayIp.getIp4Address());
     }
@@ -128,7 +139,7 @@ public class CordVtnArpProxy {
      * @param context packet context
      * @param ethPacket ethernet packet
      */
-    public void processArpPacket(PacketContext context, Ethernet ethPacket) {
+    private void processArpPacket(PacketContext context, Ethernet ethPacket) {
         ARP arpPacket = (ARP) ethPacket.getPayload();
         if (arpPacket.getOpCode() != ARP.OP_REQUEST) {
            return;
@@ -169,7 +180,7 @@ public class CordVtnArpProxy {
      * @param gatewayIp gateway ip address to update MAC
      * @param instances set of instances to send gratuitous ARP packet
      */
-    public void sendGratuitousArpForGateway(IpAddress gatewayIp, Set<Instance> instances) {
+    private void sendGratuitousArp(IpAddress gatewayIp, Set<Instance> instances) {
         MacAddress gatewayMac = gateways.get(gatewayIp.getIp4Address());
         if (gatewayMac == null) {
             log.debug("Gateway {} is not registered to ARP proxy", gatewayIp.toString());
@@ -240,5 +251,70 @@ public class CordVtnArpProxy {
         } else {
             return MacAddress.NONE;
         }
+    }
+
+    private class InternalPacketProcessor implements PacketProcessor {
+
+        @Override
+        public void process(PacketContext context) {
+            if (context.isHandled()) {
+                return;
+            }
+            Ethernet ethPacket = context.inPacket().parsed();
+            if (ethPacket == null || ethPacket.getEtherType() != Ethernet.TYPE_ARP) {
+                return;
+            }
+            processArpPacket(context, ethPacket);
+        }
+    }
+
+    @Override
+    public void instanceDetected(Instance instance) {
+        VtnService service = getVtnService(instance.serviceId());
+        if (service == null) {
+            return;
+        }
+
+        if (service.networkType().equals(PRIVATE)) {
+            log.trace("Added IP:{} MAC:{}", service.serviceIp(), privateGatewayMac);
+            addGateway(service.serviceIp(), privateGatewayMac);
+            // send gratuitous ARP for the existing VMs when ONOS is restarted
+            sendGratuitousArp(service.serviceIp(), Sets.newHashSet(instance));
+        }
+    }
+
+    @Override
+    public void instanceRemoved(Instance instance) {
+        VtnService service = getVtnService(instance.serviceId());
+        if (service == null) {
+            return;
+        }
+
+        // remove this network gateway from proxy ARP if no instance presents
+        if (service.networkType().equals(PRIVATE) &&
+                getInstances(service.id()).isEmpty()) {
+            removeGateway(service.serviceIp());
+        }
+    }
+
+    @Override
+    protected void readConfiguration() {
+        CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
+        if (config == null) {
+            log.debug("No configuration found");
+            return;
+        }
+
+        privateGatewayMac = config.privateGatewayMac();
+        log.debug("Added private gateway MAC {}", privateGatewayMac);
+
+        config.publicGateways().entrySet().stream().forEach(entry -> {
+            addGateway(entry.getKey(), entry.getValue());
+            log.debug("Added public gateway IP {}, MAC {}",
+                      entry.getKey(), entry.getValue());
+        });
+        // TODO send gratuitous arp in case the MAC is changed
+
+        super.readConfiguration();
     }
 }

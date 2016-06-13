@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.impl.service;
+package org.opencord.cordvtn.impl.handler;
 
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
+import org.apache.felix.scr.annotations.Reference;
+import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.Ethernet;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.flow.DefaultFlowRule;
@@ -34,8 +36,6 @@ import org.opencord.cordvtn.impl.CordVtnPipeline;
 
 import java.util.Optional;
 
-import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
-import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.MANAGEMENT;
 
 /**
@@ -44,10 +44,12 @@ import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.MANAGEMENT
 @Component(immediate = true)
 public class ManagementInstanceHandler extends AbstractInstanceHandler implements InstanceHandler {
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnPipeline pipeline;
+
     @Activate
     protected void activate() {
         serviceType = Optional.of(MANAGEMENT);
-        eventExecutor = newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-mgmt", "event-handler"));
         super.activate();
     }
 
@@ -153,7 +155,7 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
                 .withTreatment(treatment)
                 .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
                 .forDevice(instance.deviceId())
-                .forTable(CordVtnPipeline.TABLE_ACCESS_TYPE)
+                .forTable(CordVtnPipeline.TABLE_ZERO)
                 .makePermanent()
                 .build();
 
@@ -178,6 +180,28 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
                 .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
                 .forDevice(instance.deviceId())
                 .forTable(CordVtnPipeline.TABLE_ZERO)
+                .makePermanent()
+                .build();
+
+        pipeline.processFlowRule(install, flowRule);
+
+        selector = DefaultTrafficSelector.builder()
+                .matchEthType(Ethernet.TYPE_IPV4)
+                .matchIPDst(instance.ipAddress().toIpPrefix())
+                .build();
+
+        treatment = DefaultTrafficTreatment.builder()
+                .setEthDst(instance.mac())
+                .setOutput(instance.portNumber())
+                .build();
+
+        flowRule = DefaultFlowRule.builder()
+                .fromApp(appId)
+                .withSelector(selector)
+                .withTreatment(treatment)
+                .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
+                .forDevice(instance.deviceId())
+                .forTable(CordVtnPipeline.TABLE_DST_IP)
                 .makePermanent()
                 .build();
 
