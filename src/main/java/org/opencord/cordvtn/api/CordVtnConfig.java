@@ -20,7 +20,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.IpAddress;
-import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.TpPort;
 import org.onosproject.core.ApplicationId;
@@ -42,33 +41,32 @@ public class CordVtnConfig extends Config<ApplicationId> {
 
     protected final Logger log = getLogger(getClass());
 
-    public static final String PRIVATE_GATEWAY_MAC = "privateGatewayMac";
-    public static final String PUBLIC_GATEWAYS = "publicGateways";
-    public static final String GATEWAY_IP = "gatewayIp";
-    public static final String GATEWAY_MAC = "gatewayMac";
-    public static final String LOCAL_MANAGEMENT_IP = "localManagementIp";
-    public static final String MANAGEMENT_IP = "managementIpRange";
-    public static final String OVSDB_PORT = "ovsdbPort";
+    private static final String PRIVATE_GATEWAY_MAC = "privateGatewayMac";
+    private static final String PUBLIC_GATEWAYS = "publicGateways";
+    private static final String GATEWAY_IP = "gatewayIp";
+    private static final String GATEWAY_MAC = "gatewayMac";
+    private static final String LOCAL_MANAGEMENT_IP = "localManagementIp";
+    private static final String OVSDB_PORT = "ovsdbPort";
 
-    public static final String CORDVTN_NODES = "nodes";
-    public static final String HOSTNAME = "hostname";
-    public static final String HOST_MANAGEMENT_IP = "hostManagementIp";
-    public static final String DATA_PLANE_IP = "dataPlaneIp";
-    public static final String DATA_PLANE_INTF = "dataPlaneIntf";
-    public static final String BRIDGE_ID = "bridgeId";
+    private static final String CORDVTN_NODES = "nodes";
+    private static final String HOSTNAME = "hostname";
+    private static final String HOST_MANAGEMENT_IP = "hostManagementIp";
+    private static final String DATA_PLANE_IP = "dataPlaneIp";
+    private static final String DATA_PLANE_INTF = "dataPlaneIntf";
+    private static final String BRIDGE_ID = "bridgeId";
 
-    public static final String SSH = "ssh";
-    public static final String SSH_PORT = "sshPort";
-    public static final String SSH_USER = "sshUser";
-    public static final String SSH_KEY_FILE = "sshKeyFile";
+    private static final String SSH = "ssh";
+    private static final String SSH_PORT = "sshPort";
+    private static final String SSH_USER = "sshUser";
+    private static final String SSH_KEY_FILE = "sshKeyFile";
 
-    public static final String OPENSTACK = "openstack";
-    public static final String XOS = "xos";
+    private static final String OPENSTACK = "openstack";
+    private static final String XOS = "xos";
 
-    public static final String ENDPOINT = "endpoint";
-    public static final String TENANT = "tenant";
-    public static final String USER = "user";
-    public static final String PASSWORD = "password";
+    private static final String ENDPOINT = "endpoint";
+    private static final String TENANT = "tenant";
+    private static final String USER = "user";
+    private static final String PASSWORD = "password";
 
     /**
      * Returns the set of nodes read from network config.
@@ -186,25 +184,6 @@ public class CordVtnConfig extends Config<ApplicationId> {
         });
 
         return publicGateways;
-    }
-
-    /**
-     * Returns management IP address range.
-     *
-     * @return management network ip prefix, or null
-     */
-    public IpPrefix managementIpRange() {
-        JsonNode jsonNode = object.get(MANAGEMENT_IP);
-        if (jsonNode == null) {
-            return null;
-        }
-
-        try {
-            return IpPrefix.valueOf(jsonNode.asText());
-        } catch (IllegalArgumentException e) {
-            log.error("{}:{} wrong address format", MANAGEMENT_IP, jsonNode);
-            return null;
-        }
     }
 
     /**

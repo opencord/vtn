@@ -28,9 +28,9 @@ import org.onlab.packet.IpAddress;
 import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
+import org.opencord.cordvtn.impl.AbstractInstanceHandler;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
-import org.opencord.cordvtn.impl.CordVtnInstanceHandler;
 import org.opencord.cordvtn.impl.CordVtnInstanceManager;
 import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.HostId;
@@ -50,12 +50,10 @@ import org.onosproject.net.flow.instructions.L2ModificationInstruction;
 import org.onosproject.net.host.DefaultHostDescription;
 import org.onosproject.net.host.HostDescription;
 import org.onosproject.xosclient.api.VtnPort;
-import org.onosproject.xosclient.api.VtnPortApi;
-import org.onosproject.xosclient.api.VtnPortId;
-import org.onosproject.xosclient.api.VtnService;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -63,13 +61,14 @@ import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.net.flow.criteria.Criterion.Type.IPV4_DST;
 import static org.onosproject.net.flow.instructions.L2ModificationInstruction.L2SubType.VLAN_PUSH;
+import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.VSG;
 
 /**
  * Provides network connectivity for vSG instances.
  */
 @Component(immediate = true)
 @Service(value = VsgInstanceHandler.class)
-public final class VsgInstanceHandler extends CordVtnInstanceHandler implements InstanceHandler {
+public final class VsgInstanceHandler extends AbstractInstanceHandler implements InstanceHandler {
 
     private static final String STAG = "stag";
     private static final String VSG_VM = "vsgVm";
@@ -82,7 +81,7 @@ public final class VsgInstanceHandler extends CordVtnInstanceHandler implements 
 
     @Activate
     protected void activate() {
-        serviceType = VtnService.ServiceType.VSG;
+        serviceType = Optional.of(VSG);
         eventExecutor = newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-vsg", "event-handler"));
         super.activate();
     }
@@ -100,7 +99,7 @@ public final class VsgInstanceHandler extends CordVtnInstanceHandler implements 
             // find vsg vm for this vsg container
             String vsgVmId = instance.getAnnotation(VSG_VM);
             if (Strings.isNullOrEmpty(vsgVmId)) {
-                log.warn("Failed to find VSG VM for {}", instance);
+                log.warn("Failed to find vSG VM for {}", instance);
                 return;
             }
 
@@ -121,6 +120,9 @@ public final class VsgInstanceHandler extends CordVtnInstanceHandler implements 
                 return;
             }
 
+            log.info("vSG VM detected {}", instance);
+
+            // insert vSG containers inside the vSG VM as a host
             vtnPort.addressPairs().entrySet().stream()
                     .forEach(pair -> addVsgContainer(
                             instance,
@@ -128,37 +130,35 @@ public final class VsgInstanceHandler extends CordVtnInstanceHandler implements 
                             pair.getValue(),
                             getStag(vtnPort).toString()
                     ));
-            super.instanceDetected(instance);
         }
     }
 
     @Override
     public void instanceRemoved(Instance instance) {
-        if (isVsgContainer(instance)) {
-            log.info("vSG container vanished {}", instance);
-
-            // find vsg vm for this vsg container
-            String vsgVmId = instance.getAnnotation(VSG_VM);
-            if (Strings.isNullOrEmpty(vsgVmId)) {
-                log.warn("Failed to find VSG VM for {}", instance);
-                return;
-            }
-
-            Instance vsgVm = Instance.of(hostService.getHost(HostId.hostId(vsgVmId)));
-            VtnPort vtnPort = getVtnPort(vsgVm);
-            if (vtnPort == null || getStag(vtnPort) == null) {
-                return;
-            }
-
-            populateVsgRules(vsgVm, getStag(vtnPort),
-                             nodeManager.dpPort(vsgVm.deviceId()),
-                             vtnPort.addressPairs().keySet(),
-                             false);
-
-        } else {
-            // TODO remove vsg vm related rules
-            super.instanceRemoved(instance);
+        if (!isVsgContainer(instance)) {
+            // nothing to do for the vSG VM itself
+            return;
         }
+
+        log.info("vSG container vanished {}", instance);
+
+        // find vsg vm for this vsg container
+        String vsgVmId = instance.getAnnotation(VSG_VM);
+        if (Strings.isNullOrEmpty(vsgVmId)) {
+            log.warn("Failed to find vSG VM for {}", instance);
+            return;
+        }
+
+        Instance vsgVm = Instance.of(hostService.getHost(HostId.hostId(vsgVmId)));
+        VtnPort vtnPort = getVtnPort(vsgVm);
+        if (vtnPort == null || getStag(vtnPort) == null) {
+            return;
+        }
+
+        populateVsgRules(vsgVm, getStag(vtnPort),
+                         nodeManager.dpPort(vsgVm.deviceId()),
+                         vtnPort.addressPairs().keySet(),
+                         false);
     }
 
     /**
@@ -318,20 +318,6 @@ public final class VsgInstanceHandler extends CordVtnInstanceHandler implements 
                 pipeline.processFlowRule(false, rule);
             }
         }
-    }
-
-    private VtnPort getVtnPort(Instance instance) {
-        checkNotNull(osAccess, OPENSTACK_ACCESS_ERROR);
-        checkNotNull(xosAccess, XOS_ACCESS_ERROR);
-
-        VtnPortId vtnPortId = instance.portId();
-        VtnPortApi portApi = xosClient.getClient(xosAccess).vtnPort();
-        VtnPort vtnPort = portApi.vtnPort(vtnPortId, osAccess);
-        if (vtnPort == null) {
-            log.warn("Failed to get port information of {}", instance);
-            return null;
-        }
-        return vtnPort;
     }
 
     // TODO get stag from XOS when XOS provides it, extract if from port name for now
