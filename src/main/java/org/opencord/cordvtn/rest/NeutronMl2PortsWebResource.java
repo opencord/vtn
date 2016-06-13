@@ -21,7 +21,7 @@ import com.google.common.collect.Maps;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
-import org.opencord.cordvtn.impl.service.VsgInstanceHandler;
+import org.opencord.cordvtn.impl.handler.VsgInstanceHandler;
 import org.onosproject.net.HostId;
 import org.onosproject.rest.AbstractWebResource;
 import org.slf4j.Logger;

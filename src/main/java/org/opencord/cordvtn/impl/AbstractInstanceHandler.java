@@ -37,8 +37,8 @@ import org.onosproject.xosclient.api.VtnServiceApi.ServiceType;
 import org.onosproject.xosclient.api.VtnServiceId;
 import org.onosproject.xosclient.api.XosAccess;
 import org.onosproject.xosclient.api.XosClientService;
+import org.opencord.cordvtn.api.Constants;
 import org.opencord.cordvtn.api.CordVtnConfig;
-import org.opencord.cordvtn.api.CordVtnService;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
 import org.slf4j.Logger;
@@ -51,6 +51,10 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
+import static org.onlab.util.Tools.groupedThreads;
+import static org.opencord.cordvtn.api.Constants.ERROR_OPENSTACK_ACCESS;
+import static org.opencord.cordvtn.api.Constants.ERROR_XOS_ACCESS;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -65,19 +69,16 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
     protected NetworkConfigRegistry configRegistry;
     protected HostService hostService;
     protected XosClientService xosClient;
-    protected CordVtnPipeline pipeline;
-    protected CordVtnNodeManager nodeManager;
 
     protected ApplicationId appId;
-    protected ExecutorService eventExecutor;
     protected Optional<ServiceType> serviceType = Optional.empty();
     protected NetworkConfigListener configListener = new InternalConfigListener();
     protected HostListener hostListener = new InternalHostListener();
 
-    private static final String OPENSTACK_ACCESS_ERROR = "OpenStack access is not configured";
-    private static final String XOS_ACCESS_ERROR = "XOS access is not configured";
     private XosAccess xosAccess = null;
     private OpenStackAccess osAccess = null;
+    private final ExecutorService eventExecutor = newSingleThreadScheduledExecutor(
+            groupedThreads(this.getClass().getSimpleName(), "event-handler"));
 
     protected void activate() {
         ServiceDirectory services = new DefaultServiceDirectory();
@@ -86,10 +87,8 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
         mastershipService = services.get(MastershipService.class);
         hostService = services.get(HostService.class);
         xosClient = services.get(XosClientService.class);
-        pipeline = services.get(CordVtnPipeline.class);
-        nodeManager = services.get(CordVtnNodeManager.class);
 
-        appId = coreService.registerApplication(CordVtnService.CORDVTN_APP_ID);
+        appId = coreService.registerApplication(Constants.CORDVTN_APP_ID);
         hostService.addListener(hostListener);
         configRegistry.addListener(configListener);
 
@@ -105,8 +104,8 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
     }
 
     protected VtnService getVtnService(VtnServiceId serviceId) {
-        checkNotNull(osAccess, OPENSTACK_ACCESS_ERROR);
-        checkNotNull(xosAccess, XOS_ACCESS_ERROR);
+        checkNotNull(osAccess, ERROR_OPENSTACK_ACCESS);
+        checkNotNull(xosAccess, ERROR_XOS_ACCESS);
 
         // TODO remove openstack access when XOS provides all information
         VtnServiceApi serviceApi = xosClient.getClient(xosAccess).vtnService();
@@ -118,8 +117,8 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
     }
 
     protected VtnPort getVtnPort(Instance instance) {
-        checkNotNull(osAccess, OPENSTACK_ACCESS_ERROR);
-        checkNotNull(xosAccess, XOS_ACCESS_ERROR);
+        checkNotNull(osAccess, ERROR_OPENSTACK_ACCESS);
+        checkNotNull(xosAccess, ERROR_XOS_ACCESS);
 
         VtnPortId vtnPortId = instance.portId();
         VtnPortApi portApi = xosClient.getClient(xosAccess).vtnPort();

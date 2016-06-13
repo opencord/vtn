@@ -18,11 +18,9 @@ package org.opencord.cordvtn.api;
 import org.onosproject.xosclient.api.VtnServiceId;
 
 /**
- * Service for provisioning overlay virtual networks on compute nodes.
+ * Provides dependency services.
  */
-public interface CordVtnService {
-
-    String CORDVTN_APP_ID = "org.opencord.vtn";
+public interface DependencyService {
 
     /**
      * Creates dependencies for a given tenant service.
@@ -31,8 +29,7 @@ public interface CordVtnService {
      * @param pServiceId id of the service which provide dependency
      * @param isBidirectional true to enable bidirectional connectivity between two services
      */
-    void createServiceDependency(VtnServiceId tServiceId, VtnServiceId pServiceId,
-                                 boolean isBidirectional);
+    void createDependency(VtnServiceId tServiceId, VtnServiceId pServiceId, boolean isBidirectional);
 
     /**
      * Removes all dependencies from a given tenant service.
@@ -40,5 +37,5 @@ public interface CordVtnService {
      * @param tServiceId id of the service which has a dependency
      * @param pServiceId id of the service which provide dependency
      */
-    void removeServiceDependency(VtnServiceId tServiceId, VtnServiceId pServiceId);
+    void removeDependency(VtnServiceId tServiceId, VtnServiceId pServiceId);
 }
