@@ -32,6 +32,9 @@ public final class Constants {
 
     public static final String PORT_NAME = "portName";
     public static final String DEFAULT_TUNNEL = "vxlan";
-    public static final String DEFAULT_BRIDGE = "br-int";
+    public static final String INTEGRATION_BRIDGE = "br-int";
+    public static final String MANAGEMENT_BRIDGE = "br-mgmt";
     public static final String VPORT_PREFIX = "tap";
+    public static final String PATCH_INTG_BRIDGE = "patch-intg";
+    public static final String PATCH_MGMT_BRIDGE = "patch-mgmt";
 }
