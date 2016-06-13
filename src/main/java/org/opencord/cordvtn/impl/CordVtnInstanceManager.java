@@ -82,9 +82,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.dhcp.IpAssignment.AssignmentStatus.Option_RangeNotEnforced;
-import static org.onosproject.xosclient.api.VtnService.NetworkType.MANAGEMENT;
-import static org.onosproject.xosclient.api.VtnService.NetworkType.PRIVATE;
-
+import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.MANAGEMENT;
+import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.PRIVATE;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**

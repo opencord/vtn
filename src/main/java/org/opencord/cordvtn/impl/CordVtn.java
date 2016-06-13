@@ -33,7 +33,6 @@ import org.opencord.cordvtn.api.Instance;
 import org.onosproject.core.DefaultGroupId;
 import org.onosproject.core.GroupId;
 import org.onosproject.net.DeviceId;
-import org.onosproject.net.Host;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.flow.DefaultFlowRule;
 import org.onosproject.net.flow.DefaultTrafficSelector;
@@ -50,8 +49,6 @@ import org.onosproject.net.group.GroupBuckets;
 import org.onosproject.net.group.GroupDescription;
 import org.onosproject.net.group.GroupKey;
 import org.onosproject.net.group.GroupService;
-import org.onosproject.net.host.HostEvent;
-import org.onosproject.net.host.HostListener;
 import org.onosproject.xosclient.api.VtnService;
 import org.onosproject.xosclient.api.VtnServiceId;
 import org.slf4j.Logger;
@@ -73,7 +70,7 @@ import static org.slf4j.LoggerFactory.getLogger;
  */
 @Component(immediate = true)
 @Service
-public class CordVtn extends CordVtnInstanceHandler implements CordVtnService {
+public class CordVtn extends AbstractInstanceHandler implements CordVtnService {
 
     protected final Logger log = getLogger(getClass());
 
@@ -83,7 +80,6 @@ public class CordVtn extends CordVtnInstanceHandler implements CordVtnService {
     @Activate
     protected void activate() {
         eventExecutor = newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn", "event-handler"));
-        hostListener = new InternalHostListener();
         super.activate();
     }
 
@@ -381,30 +377,5 @@ public class CordVtn extends CordVtnInstanceHandler implements CordVtnService {
             buckets.add(createSelectGroupBucket(tBuilder.build()));
         });
         return new GroupBuckets(buckets);
-    }
-
-    private class InternalHostListener implements HostListener {
-
-        @Override
-        public void event(HostEvent event) {
-            Host host = event.subject();
-            if (!mastershipService.isLocalMaster(host.location().deviceId())) {
-                // do not allow to proceed without mastership
-                return;
-            }
-
-            Instance instance = Instance.of(host);
-            switch (event.type()) {
-                case HOST_UPDATED:
-                case HOST_ADDED:
-                    eventExecutor.execute(() -> instanceDetected(instance));
-                    break;
-                case HOST_REMOVED:
-                    eventExecutor.execute(() -> instanceRemoved(instance));
-                    break;
-                default:
-                    break;
-            }
-        }
     }
 }

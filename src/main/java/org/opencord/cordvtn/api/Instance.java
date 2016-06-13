@@ -22,7 +22,7 @@ import org.onosproject.net.DeviceId;
 import org.onosproject.net.Host;
 import org.onosproject.net.PortNumber;
 import org.onosproject.xosclient.api.VtnPortId;
-import org.onosproject.xosclient.api.VtnService;
+import org.onosproject.xosclient.api.VtnServiceApi.ServiceType;
 import org.onosproject.xosclient.api.VtnServiceId;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -91,9 +91,9 @@ public final class Instance {
      *
      * @return vtn service type
      */
-    public VtnService.ServiceType serviceType() {
+    public ServiceType serviceType() {
         String serviceType = host.annotations().value(SERVICE_TYPE);
-        return VtnService.ServiceType.valueOf(serviceType);
+        return ServiceType.valueOf(serviceType);
     }
 
     /**

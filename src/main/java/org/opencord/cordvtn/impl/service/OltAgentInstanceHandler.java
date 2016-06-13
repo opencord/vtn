@@ -19,42 +19,33 @@ import com.google.common.collect.Maps;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
-import org.onlab.packet.Ethernet;
-import org.onlab.packet.IpPrefix;
 
+import org.opencord.cordvtn.impl.AbstractInstanceHandler;
 import org.opencord.cordvtn.api.CordVtnConfig;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
-import org.opencord.cordvtn.impl.CordVtnInstanceHandler;
 import org.onosproject.net.DeviceId;
-import org.onosproject.net.PortNumber;
 
 import org.onosproject.net.config.ConfigFactory;
 import org.onosproject.net.config.NetworkConfigEvent;
 import org.onosproject.net.config.NetworkConfigListener;
 import org.onosproject.net.config.basics.SubjectFactories;
-import org.onosproject.net.flow.DefaultFlowRule;
-import org.onosproject.net.flow.DefaultTrafficSelector;
-import org.onosproject.net.flow.DefaultTrafficTreatment;
-import org.onosproject.net.flow.FlowRule;
-import org.onosproject.net.flow.TrafficSelector;
-import org.onosproject.net.flow.TrafficTreatment;
-import org.onosproject.xosclient.api.VtnService;
 import org.opencord.cordconfig.access.AccessAgentConfig;
 import org.opencord.cordconfig.access.AccessAgentData;
-import org.opencord.cordvtn.impl.CordVtnPipeline;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.OLT_AGENT;
 
 /**
  * Provides network connectivity for OLT agent instances.
  */
 @Component(immediate = true)
-public class OltAgentInstanceHandler extends CordVtnInstanceHandler implements InstanceHandler {
+public class OltAgentInstanceHandler extends AbstractInstanceHandler implements InstanceHandler {
 
     private static final Class<AccessAgentConfig> CONFIG_CLASS = AccessAgentConfig.class;
     private ConfigFactory<DeviceId, AccessAgentConfig> configFactory =
@@ -67,12 +58,11 @@ public class OltAgentInstanceHandler extends CordVtnInstanceHandler implements I
             };
 
     private Map<DeviceId, AccessAgentData> oltAgentData = Maps.newConcurrentMap();
-    private IpPrefix mgmtIpRange = null;
 
     @Activate
     protected void activate() {
+        serviceType = Optional.of(OLT_AGENT);
         eventExecutor = newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-olt", "event-handler"));
-        serviceType = VtnService.ServiceType.OLT_AGENT;
 
         configRegistry.registerConfigFactory(configFactory);
         configListener = new InternalConfigListener();
@@ -88,47 +78,13 @@ public class OltAgentInstanceHandler extends CordVtnInstanceHandler implements I
     @Override
     public void instanceDetected(Instance instance) {
         log.info("OLT agent instance detected {}", instance);
-
-        managementAccessRule(instance.deviceId(), true);
         // TODO implement
     }
 
     @Override
     public void instanceRemoved(Instance instance) {
         log.info("OLT agent instance removed {}", instance);
-
-        if (getInstances(instance.serviceId()).isEmpty()) {
-            nodeManager.completeNodes().stream().forEach(node ->
-                managementAccessRule(node.intBrId(), false));
-        }
-
         // TODO implement
-    }
-
-    private void managementAccessRule(DeviceId deviceId, boolean install) {
-        // TODO remove this rule after long term management network is done
-        if (mgmtIpRange != null) {
-            TrafficSelector selector = DefaultTrafficSelector.builder()
-                    .matchEthType(Ethernet.TYPE_IPV4)
-                    .matchIPDst(mgmtIpRange)
-                    .build();
-
-            TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                    .setOutput(PortNumber.LOCAL)
-                    .build();
-
-            FlowRule flowRule = DefaultFlowRule.builder()
-                    .fromApp(appId)
-                    .withSelector(selector)
-                    .withTreatment(treatment)
-                    .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
-                    .forDevice(deviceId)
-                    .forTable(CordVtnPipeline.TABLE_ACCESS_TYPE)
-                    .makePermanent()
-                    .build();
-
-            pipeline.processFlowRule(install, flowRule);
-        }
     }
 
     private void readAccessAgentConfig() {
@@ -142,20 +98,7 @@ public class OltAgentInstanceHandler extends CordVtnInstanceHandler implements I
         });
     }
 
-    @Override
-    protected void readConfiguration() {
-        CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
-        if (config == null) {
-            log.debug("No configuration found");
-            return;
-        }
-
-        osAccess = config.openstackAccess();
-        xosAccess = config.xosAccess();
-        mgmtIpRange = config.managementIpRange();
-    }
-
-    public class InternalConfigListener implements NetworkConfigListener {
+    private class InternalConfigListener implements NetworkConfigListener {
 
         @Override
         public void event(NetworkConfigEvent event) {
