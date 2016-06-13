@@ -15,9 +15,9 @@
  */
 package org.opencord.cordvtn.rest;
 
-import org.opencord.cordvtn.api.CordVtnService;
 import org.onosproject.rest.AbstractWebResource;
 import org.onosproject.xosclient.api.VtnServiceId;
+import org.opencord.cordvtn.api.DependencyService;
 
 import javax.ws.rs.DELETE;
 import javax.ws.rs.POST;
@@ -33,7 +33,7 @@ import javax.ws.rs.core.Response;
 @Path("service-dependency")
 public class ServiceDependencyWebResource extends AbstractWebResource {
 
-    private final CordVtnService service = get(CordVtnService.class);
+    private final DependencyService service = get(DependencyService.class);
     private static final String BIDIRECTION = "b";
 
     /**
@@ -48,9 +48,9 @@ public class ServiceDependencyWebResource extends AbstractWebResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response createServiceDependency(@PathParam("tenantServiceId") String tServiceId,
                                             @PathParam("providerServiceId") String pServiceId) {
-        service.createServiceDependency(VtnServiceId.of(tServiceId),
-                                        VtnServiceId.of(pServiceId),
-                                        false);
+        service.createDependency(VtnServiceId.of(tServiceId),
+                                 VtnServiceId.of(pServiceId),
+                                 false);
         return Response.status(Response.Status.OK).build();
     }
 
@@ -68,9 +68,9 @@ public class ServiceDependencyWebResource extends AbstractWebResource {
     public Response createServiceDependency(@PathParam("tenantServiceId") String tServiceId,
                                             @PathParam("providerServiceId") String pServiceId,
                                             @PathParam("direction") String direction) {
-        service.createServiceDependency(VtnServiceId.of(tServiceId),
-                                        VtnServiceId.of(pServiceId),
-                                        direction.equals(BIDIRECTION));
+        service.createDependency(VtnServiceId.of(tServiceId),
+                                 VtnServiceId.of(pServiceId),
+                                 direction.equals(BIDIRECTION));
         return Response.status(Response.Status.OK).build();
     }
 
@@ -85,7 +85,7 @@ public class ServiceDependencyWebResource extends AbstractWebResource {
     @Path("{tenantServiceId}/{providerServiceId}")
     public Response removeServiceDependency(@PathParam("tenantServiceId") String tServiceId,
                                             @PathParam("providerServiceId") String pServiceId) {
-        service.removeServiceDependency(VtnServiceId.of(tServiceId), VtnServiceId.of(pServiceId));
+        service.removeDependency(VtnServiceId.of(tServiceId), VtnServiceId.of(pServiceId));
         return Response.noContent().build();
     }
 }

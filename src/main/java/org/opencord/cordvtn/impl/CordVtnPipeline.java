@@ -28,8 +28,8 @@ import org.onlab.packet.IpAddress;
 import org.onlab.packet.TpPort;
 import org.onlab.packet.VlanId;
 import org.onlab.util.ItemNotFoundException;
+import org.opencord.cordvtn.api.Constants;
 import org.opencord.cordvtn.api.CordVtnNode;
-import org.opencord.cordvtn.api.CordVtnService;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.net.Device;
@@ -90,14 +90,12 @@ public final class CordVtnPipeline {
 
     public static final int VXLAN_UDP_PORT = 4789;
     public static final VlanId VLAN_WAN = VlanId.vlanId((short) 500);
-    public static final String DEFAULT_TUNNEL = "vxlan";
-    private static final String PORT_NAME = "portName";
 
     private ApplicationId appId;
 
     @Activate
     protected void activate() {
-        appId = coreService.registerApplication(CordVtnService.CORDVTN_APP_ID);
+        appId = coreService.registerApplication(Constants.CORDVTN_APP_ID);
         log.info("Started");
     }
 
@@ -388,18 +386,17 @@ public final class CordVtnPipeline {
     public ExtensionTreatment tunnelDstTreatment(DeviceId deviceId, Ip4Address remoteIp) {
         try {
             Device device = deviceService.getDevice(deviceId);
-
-            if (device.is(ExtensionTreatmentResolver.class)) {
-                ExtensionTreatmentResolver resolver = device.as(ExtensionTreatmentResolver.class);
-                ExtensionTreatment treatment =
-                        resolver.getExtensionInstruction(NICIRA_SET_TUNNEL_DST.type());
-                treatment.setPropertyValue("tunnelDst", remoteIp);
-                return treatment;
-            } else {
-                log.warn("The extension treatment resolving behaviour is not supported in device {}",
-                         device.id().toString());
+            if (!device.is(ExtensionTreatmentResolver.class)) {
+                log.error("The extension treatment is not supported");
                 return null;
+
             }
+
+            ExtensionTreatmentResolver resolver = device.as(ExtensionTreatmentResolver.class);
+            ExtensionTreatment treatment =
+                    resolver.getExtensionInstruction(NICIRA_SET_TUNNEL_DST.type());
+            treatment.setPropertyValue("tunnelDst", remoteIp);
+            return treatment;
         } catch (ItemNotFoundException | UnsupportedOperationException |
                 ExtensionPropertyException e) {
             log.error("Failed to get extension instruction {}", deviceId);

@@ -22,19 +22,15 @@ import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.apache.felix.scr.annotations.Service;
-import org.onlab.packet.Ethernet;
 import org.onlab.packet.Ip4Address;
-import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
 import org.opencord.cordvtn.api.CordVtnConfig;
-import org.opencord.cordvtn.api.CordVtnService;
 import org.opencord.cordvtn.api.Instance;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.dhcp.DhcpService;
 import org.onosproject.dhcp.IpAssignment;
-import org.onosproject.mastership.MastershipService;
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.Host;
@@ -49,15 +45,10 @@ import org.onosproject.net.config.basics.SubjectFactories;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.host.DefaultHostDescription;
 import org.onosproject.net.host.HostDescription;
-import org.onosproject.net.host.HostEvent;
-import org.onosproject.net.host.HostListener;
 import org.onosproject.net.host.HostProvider;
 import org.onosproject.net.host.HostProviderRegistry;
 import org.onosproject.net.host.HostProviderService;
 import org.onosproject.net.host.HostService;
-import org.onosproject.net.packet.PacketContext;
-import org.onosproject.net.packet.PacketProcessor;
-import org.onosproject.net.packet.PacketService;
 import org.onosproject.net.provider.AbstractProvider;
 import org.onosproject.net.provider.ProviderId;
 import org.onosproject.xosclient.api.OpenStackAccess;
@@ -68,35 +59,30 @@ import org.onosproject.xosclient.api.VtnServiceApi;
 import org.onosproject.xosclient.api.VtnServiceId;
 import org.onosproject.xosclient.api.XosAccess;
 import org.onosproject.xosclient.api.XosClientService;
+import org.opencord.cordvtn.api.InstanceService;
 import org.slf4j.Logger;
 
 import java.util.Date;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.dhcp.IpAssignment.AssignmentStatus.Option_RangeNotEnforced;
 import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.MANAGEMENT;
-import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.PRIVATE;
+import static org.opencord.cordvtn.api.Constants.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Adds or removes instances to network services.
  */
 @Component(immediate = true)
-@Service(value = CordVtnInstanceManager.class)
-public class CordVtnInstanceManager extends AbstractProvider implements HostProvider {
+@Service
+public class InstanceManager extends AbstractProvider implements HostProvider,
+        InstanceService {
 
     protected final Logger log = getLogger(getClass());
 
-    private static final String XOS_ACCESS_ERROR = "XOS access is not configured";
-    private static final String OPENSTACK_ACCESS_ERROR = "OpenStack access is not configured";
     private static final Ip4Address DEFAULT_DNS = Ip4Address.valueOf("8.8.8.8");
     private static final int DHCP_INFINITE_LEASE = -1;
 
@@ -116,13 +102,7 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
     protected HostService hostService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected PacketService packetService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected DhcpService dhcpService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected MastershipService mastershipService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected XosClientService xosClient;
@@ -137,35 +117,25 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
 
     private final ExecutorService eventExecutor =
             newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-instance", "event-handler"));
-    private final PacketProcessor packetProcessor = new InternalPacketProcessor();
-    private final HostListener hostListener = new InternalHostListener();
     private final NetworkConfigListener configListener = new InternalConfigListener();
 
     private ApplicationId appId;
     private HostProviderService hostProvider;
-    private CordVtnArpProxy arpProxy; // TODO make it a component service
-    private MacAddress privateGatewayMac = MacAddress.NONE;
     private XosAccess xosAccess = null;
     private OpenStackAccess osAccess = null;
 
     /**
      * Creates an cordvtn host location provider.
      */
-    public CordVtnInstanceManager() {
-        super(new ProviderId("host", CordVtnService.CORDVTN_APP_ID));
+    public InstanceManager() {
+        super(new ProviderId("host", CORDVTN_APP_ID));
     }
 
     @Activate
     protected void activate() {
-        appId = coreService.registerApplication(CordVtnService.CORDVTN_APP_ID);
+        appId = coreService.registerApplication(CORDVTN_APP_ID);
 
-        arpProxy = new CordVtnArpProxy(appId, packetService, hostService);
-        packetService.addProcessor(packetProcessor, PacketProcessor.director(0));
-        arpProxy.requestPacket();
-
-        hostService.addListener(hostListener);
         hostProvider = hostProviderRegistry.register(this);
-
         configRegistry.registerConfigFactory(configFactory);
         configRegistry.addListener(configListener);
 
@@ -175,9 +145,6 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
     @Deactivate
     protected void deactivate() {
         hostProviderRegistry.unregister(this);
-        hostService.removeListener(hostListener);
-
-        packetService.removeProcessor(packetProcessor);
 
         configRegistry.unregisterConfigFactory(configFactory);
         configRegistry.removeListener(configListener);
@@ -194,11 +161,7 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
          */
     }
 
-    /**
-     * Adds a service instance at a given connect point.
-     *
-     * @param connectPoint connect point of the instance
-     */
+    @Override
     public void addInstance(ConnectPoint connectPoint) {
         Port port = deviceService.getPort(connectPoint.deviceId(), connectPoint.port());
         if (port == null) {
@@ -206,7 +169,7 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
             return;
         }
 
-        VtnPort vtnPort = getVtnPort(port.annotations().value("portName"));
+        VtnPort vtnPort = getVtnPort(port.annotations().value(PORT_NAME));
         if (vtnPort == null) {
             return;
         }
@@ -215,6 +178,9 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
         if (vtnService == null) {
             return;
         }
+
+        // register DHCP lease for the new instance
+        registerDhcpLease(vtnPort.mac(), vtnPort.ip().getIp4Address(), vtnService);
 
         // Added CREATE_TIME intentionally to trigger HOST_UPDATED event for the
         // existing instances.
@@ -235,73 +201,44 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
         hostProvider.hostDetected(hostId, hostDesc, false);
     }
 
-    /**
-     * Adds a service instance with given host ID and host description.
-     *
-     * @param hostId host id
-     * @param description host description
-     */
-    public void addInstance(HostId hostId, HostDescription description) {
-        hostProvider.hostDetected(hostId, description, false);
+    @Override
+    public void addNestedInstance(HostId hostId, HostDescription description) {
+        DefaultAnnotations annotations  = DefaultAnnotations.builder()
+                .set(Instance.NESTED_INSTANCE, Instance.TRUE)
+                .build();
+        annotations = annotations.merge(annotations, description.annotations());
+
+        HostDescription nestedHost = new DefaultHostDescription(
+                description.hwAddress(),
+                description.vlan(),
+                description.location(),
+                description.ipAddress(),
+                annotations);
+
+        hostProvider.hostDetected(hostId, nestedHost, false);
     }
 
-    /**
-     * Removes a service instance from a given connect point.
-     *
-     * @param connectPoint connect point
-     */
+    @Override
     public void removeInstance(ConnectPoint connectPoint) {
-        hostService.getConnectedHosts(connectPoint)
-                .stream()
-                .forEach(host -> hostProvider.hostVanished(host.id()));
+        hostService.getConnectedHosts(connectPoint).stream()
+                .forEach(host -> {
+                    dhcpService.removeStaticMapping(host.mac());
+                    hostProvider.hostVanished(host.id());
+                });
     }
 
-    /**
-     * Removes service instance with given host ID.
-     *
-     * @param hostId host id
-     */
-    public void removeInstance(HostId hostId) {
+    @Override
+    public void removeNestedInstance(HostId hostId) {
         hostProvider.hostVanished(hostId);
     }
 
-    private void instanceDetected(Instance instance) {
-        VtnService service = getVtnService(instance.serviceId());
-        if (service == null) {
-            return;
-        }
-
-        if (service.networkType().equals(PRIVATE)) {
-            arpProxy.addGateway(service.serviceIp(), privateGatewayMac);
-            arpProxy.sendGratuitousArpForGateway(service.serviceIp(), Sets.newHashSet(instance));
-        }
-        if (!instance.isNestedInstance()) {
-            registerDhcpLease(instance, service);
-        }
-    }
-
-    private void instanceRemoved(Instance instance) {
-        VtnService service = getVtnService(instance.serviceId());
-        if (service == null) {
-            return;
-        }
-
-        if (service.networkType().equals(PRIVATE) && getInstances(service.id()).isEmpty()) {
-            arpProxy.removeGateway(service.serviceIp());
-        }
-
-        if (!instance.isNestedInstance()) {
-            dhcpService.removeStaticMapping(instance.mac());
-        }
-    }
-
-    private void registerDhcpLease(Instance instance, VtnService service) {
+    private void registerDhcpLease(MacAddress macAddr, Ip4Address ipAddr, VtnService service) {
         Ip4Address broadcast = Ip4Address.makeMaskedAddress(
-                instance.ipAddress(),
+                ipAddr,
                 service.subnet().prefixLength());
 
         IpAssignment.Builder ipBuilder = IpAssignment.builder()
-                .ipAddress(instance.ipAddress())
+                .ipAddress(ipAddr)
                 .leasePeriod(DHCP_INFINITE_LEASE)
                 .timestamp(new Date())
                 .subnetMask(Ip4Address.makeMaskPrefix(service.subnet().prefixLength()))
@@ -313,13 +250,13 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
             ipBuilder = ipBuilder.routerAddress(service.serviceIp().getIp4Address());
         }
 
-        log.debug("Set static DHCP mapping for {} {}", instance.mac(), instance.ipAddress());
-        dhcpService.setStaticMapping(instance.mac(), ipBuilder.build());
+        log.debug("Set static DHCP mapping for {} {}", macAddr, ipAddr);
+        dhcpService.setStaticMapping(macAddr, ipBuilder.build());
     }
 
     private VtnService getVtnService(VtnServiceId serviceId) {
-        checkNotNull(osAccess, OPENSTACK_ACCESS_ERROR);
-        checkNotNull(xosAccess, XOS_ACCESS_ERROR);
+        checkNotNull(osAccess, ERROR_OPENSTACK_ACCESS);
+        checkNotNull(xosAccess, ERROR_XOS_ACCESS);
 
         // TODO remove openstack access when XOS provides all information
         VtnServiceApi serviceApi = xosClient.getClient(xosAccess).vtnService();
@@ -331,8 +268,8 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
     }
 
     private VtnPort getVtnPort(String portName) {
-        checkNotNull(osAccess, OPENSTACK_ACCESS_ERROR);
-        checkNotNull(xosAccess, XOS_ACCESS_ERROR);
+        checkNotNull(osAccess, ERROR_OPENSTACK_ACCESS);
+        checkNotNull(xosAccess, ERROR_XOS_ACCESS);
 
         // TODO remove openstack access when XOS provides all information
         VtnPortApi portApi = xosClient.getClient(xosAccess).vtnPort();
@@ -343,15 +280,6 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
         return vtnPort;
     }
 
-    private Set<Instance> getInstances(VtnServiceId serviceId) {
-        return StreamSupport.stream(hostService.getHosts().spliterator(), false)
-                .filter(host -> Objects.equals(
-                        serviceId.id(),
-                        host.annotations().value(Instance.SERVICE_ID)))
-                .map(Instance::of)
-                .collect(Collectors.toSet());
-    }
-
     private void readConfiguration() {
         CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
@@ -360,60 +288,8 @@ public class CordVtnInstanceManager extends AbstractProvider implements HostProv
         }
 
         log.info("Load CORD-VTN configurations");
-
         xosAccess = config.xosAccess();
         osAccess = config.openstackAccess();
-        privateGatewayMac = config.privateGatewayMac();
-
-        Map<IpAddress, MacAddress> publicGateways = config.publicGateways();
-        publicGateways.entrySet()
-                .stream()
-                .forEach(entry -> {
-                    arpProxy.addGateway(entry.getKey(), entry.getValue());
-                    log.debug("Added public gateway IP {}, MAC {}",
-                              entry.getKey(), entry.getValue());
-                });
-        // TODO notice gateway MAC change to VMs holds this gateway IP
-    }
-
-    private class InternalHostListener implements HostListener {
-
-        @Override
-        public void event(HostEvent event) {
-            Host host = event.subject();
-            if (!mastershipService.isLocalMaster(host.location().deviceId())) {
-                // do not allow to proceed without mastership
-                return;
-            }
-
-            Instance instance = Instance.of(host);
-            switch (event.type()) {
-                case HOST_UPDATED:
-                case HOST_ADDED:
-                    eventExecutor.execute(() -> instanceDetected(instance));
-                    break;
-                case HOST_REMOVED:
-                    eventExecutor.execute(() -> instanceRemoved(instance));
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-
-    private class InternalPacketProcessor implements PacketProcessor {
-
-        @Override
-        public void process(PacketContext context) {
-            if (context.isHandled()) {
-                return;
-            }
-            Ethernet ethPacket = context.inPacket().parsed();
-            if (ethPacket == null || ethPacket.getEtherType() != Ethernet.TYPE_ARP) {
-                return;
-            }
-            arpProxy.processArpPacket(context, ethPacket);
-        }
     }
 
     private class InternalConfigListener implements NetworkConfigListener {

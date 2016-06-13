@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.impl.service;
+package org.opencord.cordvtn.impl.handler;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
@@ -28,10 +28,10 @@ import org.onlab.packet.IpAddress;
 import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
+import org.opencord.cordvtn.api.InstanceService;
 import org.opencord.cordvtn.impl.AbstractInstanceHandler;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
-import org.opencord.cordvtn.impl.CordVtnInstanceManager;
 import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.HostId;
 import org.onosproject.net.PortNumber;
@@ -50,6 +50,7 @@ import org.onosproject.net.flow.instructions.L2ModificationInstruction;
 import org.onosproject.net.host.DefaultHostDescription;
 import org.onosproject.net.host.HostDescription;
 import org.onosproject.xosclient.api.VtnPort;
+import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
 import java.util.Map;
@@ -57,8 +58,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
-import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.net.flow.criteria.Criterion.Type.IPV4_DST;
 import static org.onosproject.net.flow.instructions.L2ModificationInstruction.L2SubType.VLAN_PUSH;
 import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.VSG;
@@ -70,6 +69,12 @@ import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.VSG;
 @Service(value = VsgInstanceHandler.class)
 public final class VsgInstanceHandler extends AbstractInstanceHandler implements InstanceHandler {
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnPipeline pipeline;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnNodeManager nodeManager;
+
     private static final String STAG = "stag";
     private static final String VSG_VM = "vsgVm";
 
@@ -77,12 +82,11 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
     protected FlowRuleService flowRuleService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnInstanceManager instanceManager;
+    protected InstanceService instanceService;
 
     @Activate
     protected void activate() {
         serviceType = Optional.of(VSG);
-        eventExecutor = newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-vsg", "event-handler"));
         super.activate();
     }
 
@@ -106,9 +110,9 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
             Instance vsgVm = Instance.of(hostService.getHost(HostId.hostId(vsgVmId)));
             VtnPort vtnPort = getVtnPort(vsgVm);
             if (vtnPort == null || getStag(vtnPort) == null) {
+                log.warn("Failed to get vSG information {}", vsgVm);
                 return;
             }
-
             populateVsgRules(vsgVm, getStag(vtnPort),
                              nodeManager.dpPort(vsgVm.deviceId()),
                              vtnPort.addressPairs().keySet(),
@@ -119,7 +123,6 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
             if (vtnPort == null || getStag(vtnPort) == null) {
                 return;
             }
-
             log.info("vSG VM detected {}", instance);
 
             // insert vSG containers inside the vSG VM as a host
@@ -197,7 +200,7 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
                 .filter(host -> !vsgInstances.values().contains(host.mac()))
                 .forEach(host -> {
                     log.info("Removed vSG {}", host.toString());
-                    instanceManager.removeInstance(host.id());
+                    instanceService.removeNestedInstance(host.id());
                 });
     }
 
@@ -212,7 +215,6 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
                 .set(Instance.SERVICE_TYPE, vsgVm.serviceType().toString())
                 .set(Instance.SERVICE_ID, vsgVm.serviceId().id())
                 .set(Instance.PORT_ID, vsgVm.portId().id())
-                .set(Instance.NESTED_INSTANCE, Instance.TRUE)
                 .set(STAG, stag)
                 .set(VSG_VM, vsgVm.host().id().toString())
                 .set(Instance.CREATE_TIME, String.valueOf(System.currentTimeMillis()));
@@ -224,7 +226,7 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
                 Sets.newHashSet(vsgWanIp),
                 annotations.build());
 
-        instanceManager.addInstance(hostId, hostDesc);
+        instanceService.addNestedInstance(hostId, hostDesc);
     }
 
     private void populateVsgRules(Instance vsgVm, VlanId stag, PortNumber dpPort,

@@ -33,7 +33,7 @@ import org.opencord.cordvtn.api.ConnectionHandler;
 import org.opencord.cordvtn.api.CordVtnConfig;
 import org.opencord.cordvtn.api.CordVtnNode;
 import org.opencord.cordvtn.api.CordVtnNodeState;
-import org.opencord.cordvtn.api.CordVtnService;
+import org.opencord.cordvtn.api.InstanceService;
 import org.opencord.cordvtn.api.NetworkAddress;
 import org.opencord.cordvtn.api.SshAccessInfo;
 import org.onosproject.core.ApplicationId;
@@ -85,9 +85,9 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onlab.util.Tools.groupedThreads;
-import static org.opencord.cordvtn.impl.CordVtnPipeline.DEFAULT_TUNNEL;
 import static org.onosproject.net.Device.Type.SWITCH;
 import static org.onosproject.net.behaviour.TunnelDescription.Type.VXLAN;
+import static org.opencord.cordvtn.api.Constants.*;
 import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -108,11 +108,6 @@ public class CordVtnNodeManager {
             .register(NodeState.class)
             .register(SshAccessInfo.class)
             .register(NetworkAddress.class);
-
-    private static final String DEFAULT_BRIDGE = "br-int";
-    private static final String VPORT_PREFIX = "tap";
-    private static final String OK = "OK";
-    private static final String NO = "NO";
 
     private static final Map<String, String> DEFAULT_TUNNEL_OPTIONS = new HashMap<String, String>() {
         {
@@ -154,7 +149,7 @@ public class CordVtnNodeManager {
     protected LeadershipService leadershipService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnInstanceManager instanceManager;
+    protected InstanceService instanceService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnPipeline pipeline;
@@ -219,7 +214,7 @@ public class CordVtnNodeManager {
 
     @Activate
     protected void activate() {
-        appId = coreService.getAppId(CordVtnService.CORDVTN_APP_ID);
+        appId = coreService.getAppId(CORDVTN_APP_ID);
 
         localNodeId = clusterService.getLocalNode().id();
         leadershipService.runForLeadership(appId.name());
@@ -315,13 +310,13 @@ public class CordVtnNodeManager {
                         "Data plane IP added to br-int : %s (%s)%n" +
                         "Local management IP added to br-int : %s (%s)",
                 node.state(),
-                isBrIntCreated(node) ? OK : NO, node.intBrId(),
-                isTunnelIntfCreated(node) ? OK : NO,
-                isDataPlaneIntfAdded(node) ? OK : NO, node.dpIntf(),
+                isBrIntCreated(node) ? MSG_OK : MSG_NO, node.intBrId(),
+                isTunnelIntfCreated(node) ? MSG_OK : MSG_NO,
+                isDataPlaneIntfAdded(node) ? MSG_OK : MSG_NO, node.dpIntf(),
                 isInterfaceUp(session, node.dpIntf()) &&
-                        getCurrentIps(session, node.dpIntf()).isEmpty() ? OK : NO, node.dpIntf(),
-                intBrIps.contains(node.dpIp().ip()) ? OK : NO, node.dpIp().cidr(),
-                intBrIps.contains(node.localMgmtIp().ip()) ? OK : NO, node.localMgmtIp().cidr());
+                        getCurrentIps(session, node.dpIntf()).isEmpty() ? MSG_OK : MSG_NO, node.dpIntf(),
+                intBrIps.contains(node.dpIp().ip()) ? MSG_OK : MSG_NO, node.dpIp().cidr(),
+                intBrIps.contains(node.localMgmtIp().ip()) ? MSG_OK : MSG_NO, node.localMgmtIp().cidr());
 
         disconnect(session);
 
@@ -449,12 +444,12 @@ public class CordVtnNodeManager {
         deviceService.getPorts(node.intBrId()).stream()
                 .filter(port -> portName(port).startsWith(VPORT_PREFIX) &&
                         port.isEnabled())
-                .forEach(port -> instanceManager.addInstance(connectPoint(port)));
+                .forEach(port -> instanceService.addInstance(connectPoint(port)));
 
         hostService.getHosts().forEach(host -> {
             if (deviceService.getPort(host.location().deviceId(),
                                       host.location().port()) == null) {
-                instanceManager.removeInstance(connectPoint(host));
+                instanceService.removeInstance(connectPoint(host));
             }
         });
 
@@ -872,7 +867,7 @@ public class CordVtnNodeManager {
 
             if (portName.startsWith(VPORT_PREFIX)) {
                 if (isNodeStateComplete(node)) {
-                    instanceManager.addInstance(connectPoint(port));
+                    instanceService.addInstance(connectPoint(port));
                 } else {
                     log.debug("VM is detected on incomplete node, ignore it.", portName);
                 }
@@ -900,7 +895,7 @@ public class CordVtnNodeManager {
 
             if (portName.startsWith(VPORT_PREFIX)) {
                 if (isNodeStateComplete(node)) {
-                    instanceManager.removeInstance(connectPoint(port));
+                    instanceService.removeInstance(connectPoint(port));
                 } else {
                     log.debug("VM is vanished from incomplete node, ignore it.", portName);
                 }

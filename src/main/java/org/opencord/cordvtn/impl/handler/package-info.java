@@ -17,4 +17,4 @@
 /**
  * Implementation of instance handlers for various network services.
  */
-package org.opencord.cordvtn.impl.service;
+package org.opencord.cordvtn.impl.handler;

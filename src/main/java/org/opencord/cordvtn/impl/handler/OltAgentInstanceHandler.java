@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.impl.service;
+package org.opencord.cordvtn.impl.handler;
 
 import com.google.common.collect.Maps;
 import org.apache.felix.scr.annotations.Activate;
@@ -37,8 +37,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
-import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.OLT_AGENT;
 
 /**
@@ -62,12 +60,10 @@ public class OltAgentInstanceHandler extends AbstractInstanceHandler implements 
     @Activate
     protected void activate() {
         serviceType = Optional.of(OLT_AGENT);
-        eventExecutor = newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-olt", "event-handler"));
+        configListener = new InternalConfigListener();
+        super.activate();
 
         configRegistry.registerConfigFactory(configFactory);
-        configListener = new InternalConfigListener();
-
-        super.activate();
     }
 
     @Deactivate

@@ -28,7 +28,7 @@ import org.onlab.packet.Ethernet;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.Ip4Prefix;
 import org.opencord.cordvtn.api.CordVtnNode;
-import org.opencord.cordvtn.api.CordVtnService;
+import org.opencord.cordvtn.api.DependencyService;
 import org.opencord.cordvtn.api.Instance;
 import org.onosproject.core.DefaultGroupId;
 import org.onosproject.core.GroupId;
@@ -59,8 +59,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
-import static org.onlab.util.Tools.groupedThreads;
 import static org.opencord.cordvtn.impl.CordVtnPipeline.*;
 import static org.onosproject.net.group.DefaultGroupBucket.createSelectGroupBucket;
 import static org.slf4j.LoggerFactory.getLogger;
@@ -70,16 +68,21 @@ import static org.slf4j.LoggerFactory.getLogger;
  */
 @Component(immediate = true)
 @Service
-public class CordVtn extends AbstractInstanceHandler implements CordVtnService {
+public class DependencyManager extends AbstractInstanceHandler implements DependencyService {
 
     protected final Logger log = getLogger(getClass());
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected GroupService groupService;
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnPipeline pipeline;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnNodeManager nodeManager;
+
     @Activate
     protected void activate() {
-        eventExecutor = newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn", "event-handler"));
         super.activate();
     }
 
@@ -89,7 +92,7 @@ public class CordVtn extends AbstractInstanceHandler implements CordVtnService {
     }
 
     @Override
-    public void createServiceDependency(VtnServiceId tServiceId, VtnServiceId pServiceId,
+    public void createDependency(VtnServiceId tServiceId, VtnServiceId pServiceId,
                                         boolean isBidirectional) {
         VtnService tService = getVtnService(tServiceId);
         VtnService pService = getVtnService(pServiceId);
@@ -105,7 +108,7 @@ public class CordVtn extends AbstractInstanceHandler implements CordVtnService {
     }
 
     @Override
-    public void removeServiceDependency(VtnServiceId tServiceId, VtnServiceId pServiceId) {
+    public void removeDependency(VtnServiceId tServiceId, VtnServiceId pServiceId) {
         VtnService tService = getVtnService(tServiceId);
         VtnService pService = getVtnService(pServiceId);
 
@@ -128,9 +131,9 @@ public class CordVtn extends AbstractInstanceHandler implements CordVtnService {
 
         // TODO get bidirectional information from XOS once XOS supports
         service.tenantServices().stream().forEach(
-                tServiceId -> createServiceDependency(tServiceId, service.id(), true));
+                tServiceId -> createDependency(tServiceId, service.id(), true));
         service.providerServices().stream().forEach(
-                pServiceId -> createServiceDependency(service.id(), pServiceId, true));
+                pServiceId -> createDependency(service.id(), pServiceId, true));
 
         updateProviderServiceInstances(service);
     }
@@ -180,6 +183,7 @@ public class CordVtn extends AbstractInstanceHandler implements CordVtnService {
                         groupKey,
                         new GroupBuckets(bucketsToRemove),
                         groupKey, appId);
+                log.debug("Removes instances from {} : {}", service.name(), bucketsToRemove);
             }
 
             List<GroupBucket> bucketsToAdd = Lists.newArrayList(newBuckets);
@@ -190,6 +194,7 @@ public class CordVtn extends AbstractInstanceHandler implements CordVtnService {
                         groupKey,
                         new GroupBuckets(bucketsToAdd),
                         groupKey, appId);
+                log.debug("Adds instances to {} : {}", service.name(), bucketsToRemove);
             }
         }
     }
