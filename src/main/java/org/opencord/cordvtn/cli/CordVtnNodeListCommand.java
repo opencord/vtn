@@ -47,12 +47,12 @@ public class CordVtnNodeListCommand extends AbstractShellCommand {
             print("%s", json(nodeManager, nodes));
         } else {
             for (CordVtnNode node : nodes) {
-                print("hostname=%s, hostMgmtIp=%s, dpIp=%s, br-int=%s, dpIntf=%s, init=%s",
+                print("hostname=%s, hostMgmtIp=%s, dataIp=%s, br-int=%s, dataIface=%s, init=%s",
                       node.hostname(),
                       node.hostMgmtIp().cidr(),
-                      node.dpIp().cidr(),
-                      node.intBrId().toString(),
-                      node.dpIntf(),
+                      node.dataIp().cidr(),
+                      node.integrationBridgeId().toString(),
+                      node.dataIface(),
                       getState(nodeManager, node));
             }
             print("Total %s nodes", nodeManager.getNodeCount());
@@ -66,9 +66,9 @@ public class CordVtnNodeListCommand extends AbstractShellCommand {
             result.add(mapper.createObjectNode()
                                .put("hostname", node.hostname())
                                .put("hostManagementIp", node.hostMgmtIp().cidr())
-                               .put("dataPlaneIp", node.dpIp().cidr())
-                               .put("bridgeId", node.intBrId().toString())
-                               .put("dataPlaneInterface", node.dpIntf())
+                               .put("dataPlaneIp", node.dataIp().cidr())
+                               .put("bridgeId", node.integrationBridgeId().toString())
+                               .put("dataPlaneInterface", node.dataIface())
                                .put("init", getState(nodeManager, node)));
         }
         return result;
