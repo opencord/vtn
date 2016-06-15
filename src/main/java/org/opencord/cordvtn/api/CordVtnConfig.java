@@ -16,14 +16,13 @@
 package org.opencord.cordvtn.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.onlab.packet.Ip4Address;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.TpPort;
 import org.onosproject.core.ApplicationId;
-import org.onosproject.net.DeviceId;
 import org.onosproject.net.config.Config;
 import org.onosproject.xosclient.api.OpenStackAccess;
 import org.onosproject.xosclient.api.XosAccess;
@@ -51,9 +50,10 @@ public class CordVtnConfig extends Config<ApplicationId> {
     private static final String CORDVTN_NODES = "nodes";
     private static final String HOSTNAME = "hostname";
     private static final String HOST_MANAGEMENT_IP = "hostManagementIp";
-    private static final String DATA_PLANE_IP = "dataPlaneIp";
-    private static final String DATA_PLANE_INTF = "dataPlaneIntf";
-    private static final String BRIDGE_ID = "bridgeId";
+    private static final String HOST_MANAGEMENT_IFACE = "hostManagementIface";
+    private static final String DATA_IP = "dataPlaneIp";
+    private static final String DATA_IFACE = "dataPlaneIntf";
+    private static final String INTEGRATION_BRIDGE_ID = "bridgeId";
 
     private static final String SSH = "ssh";
     private static final String SSH_PORT = "sshPort";
@@ -68,6 +68,8 @@ public class CordVtnConfig extends Config<ApplicationId> {
     private static final String USER = "user";
     private static final String PASSWORD = "password";
 
+    // TODO implement isValid
+
     /**
      * Returns the set of nodes read from network config.
      *
@@ -77,6 +79,7 @@ public class CordVtnConfig extends Config<ApplicationId> {
 
         Set<CordVtnNode> nodes = Sets.newHashSet();
 
+        // TODO implement isValid and move these blocks to it
         JsonNode cordvtnNodes = object.get(CORDVTN_NODES);
         if (cordvtnNodes == null) {
             log.debug("No CORD VTN nodes found");
@@ -90,37 +93,42 @@ public class CordVtnConfig extends Config<ApplicationId> {
         }
 
         for (JsonNode cordvtnNode : cordvtnNodes) {
-            try {
-                NetworkAddress hostMgmt = NetworkAddress.valueOf(getConfig(cordvtnNode, HOST_MANAGEMENT_IP));
-                NetworkAddress localMgmt = NetworkAddress.valueOf(getConfig(object, LOCAL_MANAGEMENT_IP));
-                if (hostMgmt.prefix().contains(localMgmt.prefix()) ||
-                        localMgmt.prefix().contains(hostMgmt.prefix())) {
-                    log.error("hostMamt and localMgmt cannot be overlapped, skip this node");
-                    continue;
-                }
-
-                Ip4Address hostMgmtIp = hostMgmt.ip().getIp4Address();
-                SshAccessInfo sshInfo = new SshAccessInfo(
-                        hostMgmtIp,
-                        TpPort.tpPort(Integer.parseInt(getConfig(sshNode, SSH_PORT))),
-                        getConfig(sshNode, SSH_USER), getConfig(sshNode, SSH_KEY_FILE));
-
-                String hostname = getConfig(cordvtnNode, HOSTNAME);
-                CordVtnNode newNode = new CordVtnNode(
-                        hostname, hostMgmt, localMgmt,
-                        NetworkAddress.valueOf(getConfig(cordvtnNode, DATA_PLANE_IP)),
-                        TpPort.tpPort(Integer.parseInt(getConfig(object, OVSDB_PORT))),
-                        sshInfo,
-                        DeviceId.deviceId(getConfig(cordvtnNode, BRIDGE_ID)),
-                        getConfig(cordvtnNode, DATA_PLANE_INTF),
-                        CordVtnNodeState.noState());
-
-                nodes.add(newNode);
-            } catch (IllegalArgumentException | NullPointerException e) {
-                log.error("{}", e);
+            // TODO implement isValid and move this block to it
+            NetworkAddress hostMgmt = NetworkAddress.valueOf(getConfig(cordvtnNode, HOST_MANAGEMENT_IP));
+            NetworkAddress localMgmt = NetworkAddress.valueOf(getConfig(object, LOCAL_MANAGEMENT_IP));
+            if (hostMgmt.prefix().contains(localMgmt.prefix()) ||
+                    localMgmt.prefix().contains(hostMgmt.prefix())) {
+                log.error("hostMamt and localMgmt cannot be overlapped, skip this node");
+                continue;
             }
-        }
 
+            String hostname = getConfig(cordvtnNode, HOSTNAME);
+            SshAccessInfo sshInfo = new SshAccessInfo(
+                    hostMgmt.ip().getIp4Address(),
+                    TpPort.tpPort(Integer.parseInt(getConfig(sshNode, SSH_PORT))),
+                    getConfig(sshNode, SSH_USER), getConfig(sshNode, SSH_KEY_FILE));
+
+            CordVtnNode.Builder nodeBuilder = CordVtnNode.builder()
+                    .hostname(hostname)
+                    .hostMgmtIp(hostMgmt)
+                    .localMgmtIp(localMgmt)
+                    .dataIp(getConfig(cordvtnNode, DATA_IP))
+                    .sshInfo(sshInfo)
+                    .integrationBridgeId(getConfig(cordvtnNode, INTEGRATION_BRIDGE_ID))
+                    .dataIface(getConfig(cordvtnNode, DATA_IFACE));
+
+            String ovsdbPort = getConfig(object, OVSDB_PORT);
+            if (!Strings.isNullOrEmpty(ovsdbPort)) {
+                nodeBuilder.ovsdbPort(Integer.parseInt(ovsdbPort));
+            }
+
+            String hostMgmtIface = getConfig(cordvtnNode, HOST_MANAGEMENT_IFACE);
+            if (!Strings.isNullOrEmpty(hostMgmtIface)) {
+                nodeBuilder.hostMgmtIface(hostMgmtIface);
+            }
+
+            nodes.add(nodeBuilder.build());
+        }
         return nodes;
     }
 
@@ -135,7 +143,7 @@ public class CordVtnConfig extends Config<ApplicationId> {
         jsonNode = jsonNode.path(path);
 
         if (jsonNode.isMissingNode()) {
-            log.error("{} is not configured", path);
+            log.debug("{} is not configured", path);
             return null;
         } else {
             return jsonNode.asText();
