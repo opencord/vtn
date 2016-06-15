@@ -121,13 +121,13 @@ public final class CordVtnPipeline {
     public void initPipeline(CordVtnNode node, PortNumber dpPort, PortNumber tunnelPort) {
         checkNotNull(node);
 
-        processTableZero(node.intBrId(), dpPort, node.dpIp().ip());
-        processInPortTable(node.intBrId(), tunnelPort, dpPort);
-        processAccessTypeTable(node.intBrId(), dpPort);
-        processVlanTable(node.intBrId(), dpPort);
+        processTableZero(node.integrationBridgeId(), dpPort, node.dataIp().ip());
+        processInPortTable(node.integrationBridgeId(), tunnelPort, dpPort);
+        processAccessTypeTable(node.integrationBridgeId(), dpPort);
+        processVlanTable(node.integrationBridgeId(), dpPort);
     }
 
-    private void processTableZero(DeviceId deviceId, PortNumber dpPort, IpAddress dpIp) {
+    private void processTableZero(DeviceId deviceId, PortNumber dpPort, IpAddress dataIp) {
         // take vxlan packet out onto the physical port
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchInPort(PortNumber.LOCAL)
@@ -177,7 +177,7 @@ public final class CordVtnPipeline {
         selector = DefaultTrafficSelector.builder()
                 .matchInPort(dpPort)
                 .matchEthType(Ethernet.TYPE_IPV4)
-                .matchIPDst(dpIp.toIpPrefix())
+                .matchIPDst(dataIp.toIpPrefix())
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()
@@ -200,7 +200,7 @@ public final class CordVtnPipeline {
         selector = DefaultTrafficSelector.builder()
                 .matchInPort(dpPort)
                 .matchEthType(Ethernet.TYPE_ARP)
-                .matchArpTpa(dpIp.getIp4Address())
+                .matchArpTpa(dataIp.getIp4Address())
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()

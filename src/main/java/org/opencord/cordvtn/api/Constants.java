@@ -15,6 +15,8 @@
  */
 package org.opencord.cordvtn.api;
 
+import org.onlab.packet.TpPort;
+
 /**
  * Provides constants used in CORD VTN services.
  */
@@ -30,8 +32,10 @@ public final class Constants {
     public static final String MSG_OK = "OK";
     public static final String MSG_NO = "NO";
 
-    public static final String PORT_NAME = "portName";
     public static final String DEFAULT_TUNNEL = "vxlan";
-    public static final String DEFAULT_BRIDGE = "br-int";
+    public static final String INTEGRATION_BRIDGE = "br-int";
     public static final String VPORT_PREFIX = "tap";
+
+    public static final int OF_PORT = 6653;
+    public static final TpPort OVSDB_PORT = TpPort.tpPort(6640);
 }
