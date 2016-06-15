@@ -114,7 +114,7 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
                 return;
             }
             populateVsgRules(vsgVm, getStag(vtnPort),
-                             nodeManager.dpPort(vsgVm.deviceId()),
+                             nodeManager.dataPort(vsgVm.deviceId()),
                              vtnPort.addressPairs().keySet(),
                              true);
 
@@ -159,7 +159,7 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
         }
 
         populateVsgRules(vsgVm, getStag(vtnPort),
-                         nodeManager.dpPort(vsgVm.deviceId()),
+                         nodeManager.dataPort(vsgVm.deviceId()),
                          vtnPort.addressPairs().keySet(),
                          false);
     }
@@ -229,11 +229,11 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
         instanceService.addNestedInstance(hostId, hostDesc);
     }
 
-    private void populateVsgRules(Instance vsgVm, VlanId stag, PortNumber dpPort,
+    private void populateVsgRules(Instance vsgVm, VlanId stag, PortNumber dataPort,
                                   Set<IpAddress> vsgWanIps, boolean install) {
         // for traffics with s-tag, strip the tag and take through the vSG VM
         TrafficSelector selector = DefaultTrafficSelector.builder()
-                .matchInPort(dpPort)
+                .matchInPort(dataPort)
                 .matchVlanId(stag)
                 .build();
 
@@ -261,7 +261,7 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()
-                .setOutput(dpPort)
+                .setOutput(dataPort)
                 .build();
 
         flowRule = DefaultFlowRule.builder()

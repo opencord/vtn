@@ -204,7 +204,7 @@ public final class RemoteIpCommandUtil {
      * @param session session
      */
     public static void disconnect(Session session) {
-        if (session.isConnected()) {
+        if (session != null && session.isConnected()) {
             session.disconnect();
         }
     }
