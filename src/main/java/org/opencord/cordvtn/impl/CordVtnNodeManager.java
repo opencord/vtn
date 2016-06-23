@@ -15,7 +15,7 @@
  */
 package org.opencord.cordvtn.impl;
 
-import com.google.common.base.Strings;
+import com.google.common.collect.Sets;
 import com.jcraft.jsch.Session;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
@@ -24,13 +24,11 @@ import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.apache.felix.scr.annotations.Service;
 import org.onlab.packet.IpAddress;
+import org.onlab.util.ItemNotFoundException;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.cluster.ClusterService;
 import org.onosproject.cluster.LeadershipService;
 import org.onosproject.cluster.NodeId;
-import org.onosproject.net.behaviour.BridgeDescription;
-import org.onosproject.net.behaviour.DefaultBridgeDescription;
-import org.onosproject.net.behaviour.InterfaceConfig;
 import org.opencord.cordvtn.api.ConnectionHandler;
 import org.opencord.cordvtn.api.CordVtnConfig;
 import org.opencord.cordvtn.api.CordVtnNode;
@@ -41,15 +39,19 @@ import org.opencord.cordvtn.api.SshAccessInfo;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.net.ConnectPoint;
+import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
+import org.onosproject.net.Host;
 import org.onosproject.net.Port;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.behaviour.BridgeConfig;
 import org.onosproject.net.behaviour.BridgeName;
 import org.onosproject.net.behaviour.ControllerInfo;
 import org.onosproject.net.behaviour.DefaultTunnelDescription;
+import org.onosproject.net.behaviour.TunnelConfig;
 import org.onosproject.net.behaviour.TunnelDescription;
+import org.onosproject.net.behaviour.TunnelName;
 import org.onosproject.net.config.NetworkConfigEvent;
 import org.onosproject.net.config.NetworkConfigListener;
 import org.onosproject.net.config.NetworkConfigRegistry;
@@ -71,7 +73,10 @@ import org.onosproject.store.service.StorageService;
 import org.onosproject.store.service.Versioned;
 import org.slf4j.Logger;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -80,7 +85,6 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onlab.util.Tools.groupedThreads;
-import static org.onosproject.net.AnnotationKeys.PORT_NAME;
 import static org.onosproject.net.Device.Type.SWITCH;
 import static org.onosproject.net.behaviour.TunnelDescription.Type.VXLAN;
 import static org.opencord.cordvtn.api.Constants.*;
@@ -105,7 +109,14 @@ public class CordVtnNodeManager {
             .register(SshAccessInfo.class)
             .register(NetworkAddress.class);
 
+    private static final Map<String, String> DEFAULT_TUNNEL_OPTIONS = new HashMap<String, String>() {
+        {
+            put("key", "flow");
+            put("remote_ip", "flow");
+        }
+    };
     private static final int DPID_BEGIN = 3;
+    private static final int OFPORT = 6653;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CoreService coreService;
@@ -123,7 +134,7 @@ public class CordVtnNodeManager {
     protected DeviceAdminService adminService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected OvsdbController ovsdbController;
+    protected OvsdbController controller;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected ClusterService clusterService;
@@ -162,27 +173,21 @@ public class CordVtnNodeManager {
         INIT {
             @Override
             public void process(CordVtnNodeManager nodeManager, CordVtnNode node) {
-                // make sure there is OVSDB connection
                 if (!nodeManager.isOvsdbConnected(node)) {
                     nodeManager.connectOvsdb(node);
-                    return;
+                } else {
+                    nodeManager.createIntegrationBridge(node);
                 }
-                nodeManager.createIntegrationBridge(node);
             }
         },
         BRIDGE_CREATED {
             @Override
             public void process(CordVtnNodeManager nodeManager, CordVtnNode node) {
-                // make sure there is OVSDB connection
                 if (!nodeManager.isOvsdbConnected(node)) {
                     nodeManager.connectOvsdb(node);
-                    return;
-                }
-
-                nodeManager.createTunnelInterface(node);
-                nodeManager.addSystemInterface(node, node.dataIface());
-                if (node.hostMgmtIface().isPresent()) {
-                    nodeManager.addSystemInterface(node, node.hostMgmtIface().get());
+                } else {
+                    nodeManager.createTunnelInterface(node);
+                    nodeManager.addDataPlaneInterface(node);
                 }
             }
         },
@@ -256,10 +261,11 @@ public class CordVtnNodeManager {
      */
     public void deleteNode(CordVtnNode node) {
         checkNotNull(node);
-        OvsdbClientService ovsdbClient = getOvsdbClient(node);
-        if (ovsdbClient != null && ovsdbClient.isConnected()) {
-            ovsdbClient.disconnect();
+
+        if (isOvsdbConnected(node)) {
+            disconnectOvsdb(node);
         }
+
         nodeStore.remove(node.hostname());
     }
 
@@ -271,7 +277,50 @@ public class CordVtnNodeManager {
      */
     public boolean isNodeInitComplete(CordVtnNode node) {
         checkNotNull(node);
-        return getNodeState(node).equals(NodeState.COMPLETE);
+        return nodeStore.containsKey(node.hostname()) && getNodeState(node).equals(NodeState.COMPLETE);
+    }
+
+    /**
+     * Returns detailed node initialization state.
+     *
+     * @param node cordvtn node
+     * @return string including detailed node init state
+     */
+    public String checkNodeInitState(CordVtnNode node) {
+        checkNotNull(node);
+
+        if (!nodeStore.containsKey(node.hostname())) {
+            log.warn("Node {} does not exist, add node first", node.hostname());
+            return null;
+        }
+
+        Session session = connect(node.sshInfo());
+        if (session == null) {
+            log.debug("Failed to SSH to {}", node.hostname());
+            return null;
+        }
+
+        Set<IpAddress> intBrIps = getCurrentIps(session, DEFAULT_BRIDGE);
+        String result = String.format(
+                "Current state : %s%n" +
+                        "br-int created and connected to ONOS : %s (%s)%n" +
+                        "VXLAN interface added to br-int : %s%n" +
+                        "Data plane interface is added to br-int and enabled : %s (%s)%n" +
+                        "IP flushed from data plane interface : %s (%s)%n" +
+                        "Data plane IP added to br-int : %s (%s)%n" +
+                        "Local management IP added to br-int : %s (%s)",
+                node.state(),
+                isBrIntCreated(node) ? MSG_OK : MSG_NO, node.intBrId(),
+                isTunnelIntfCreated(node) ? MSG_OK : MSG_NO,
+                isDataPlaneIntfAdded(node) ? MSG_OK : MSG_NO, node.dpIntf(),
+                isInterfaceUp(session, node.dpIntf()) &&
+                        getCurrentIps(session, node.dpIntf()).isEmpty() ? MSG_OK : MSG_NO, node.dpIntf(),
+                intBrIps.contains(node.dpIp().ip()) ? MSG_OK : MSG_NO, node.dpIp().cidr(),
+                intBrIps.contains(node.localMgmtIp().ip()) ? MSG_OK : MSG_NO, node.localMgmtIp().cidr());
+
+        disconnect(session);
+
+        return result;
     }
 
     /**
@@ -298,8 +347,7 @@ public class CordVtnNodeManager {
      * @return set of nodes
      */
     public Set<CordVtnNode> completeNodes() {
-        return getNodes().stream().filter(this::isNodeStateComplete)
-                .collect(Collectors.toSet());
+        return getNodes().stream().filter(this::isNodeInitComplete).collect(Collectors.toSet());
     }
 
     /**
@@ -308,14 +356,14 @@ public class CordVtnNodeManager {
      * @param deviceId integration bridge device id
      * @return port number; null otherwise
      */
-    public PortNumber dataPort(DeviceId deviceId) {
+    public PortNumber dpPort(DeviceId deviceId) {
         CordVtnNode node = nodeByBridgeId(deviceId);
         if (node == null) {
             log.warn("Failed to get node for {}", deviceId);
             return null;
         }
         Port port = deviceService.getPorts(deviceId).stream()
-                .filter(p -> portName(p).contains(node.dataIface()) &&
+                .filter(p -> portName(p).contains(node.dpIntf()) &&
                         p.isEnabled())
                 .findFirst().orElse(null);
 
@@ -328,13 +376,13 @@ public class CordVtnNodeManager {
      * @param deviceId integration bridge device id
      * @return ip address; null otherwise
      */
-    public IpAddress dataIp(DeviceId deviceId) {
+    public IpAddress dpIp(DeviceId deviceId) {
         CordVtnNode node = nodeByBridgeId(deviceId);
         if (node == null) {
             log.warn("Failed to get node for {}", deviceId);
             return null;
         }
-        return node.dataIp().ip();
+        return node.dpIp().ip();
     }
 
     /**
@@ -390,29 +438,18 @@ public class CordVtnNodeManager {
      * @param node cordvtn node
      */
     private void postInit(CordVtnNode node) {
-        checkNotNull(node);
+        disconnectOvsdb(node);
+        pipeline.initPipeline(node, dpPort(node.intBrId()), tunnelPort(node.intBrId()));
 
-        // disconnect OVSDB session once the node bootstrap is done
-        OvsdbClientService ovsdbClient = getOvsdbClient(node);
-        if (ovsdbClient != null && ovsdbClient.isConnected()) {
-            ovsdbClient.disconnect();
-        }
-
-        pipeline.initPipeline(node, dataPort(node.integrationBridgeId()),
-                              tunnelPort(node.integrationBridgeId()));
-
-        // adds existing instances to the host list
-        deviceService.getPorts(node.integrationBridgeId()).stream()
+        deviceService.getPorts(node.intBrId()).stream()
                 .filter(port -> portName(port).startsWith(VPORT_PREFIX) &&
                         port.isEnabled())
                 .forEach(port -> instanceService.addInstance(connectPoint(port)));
 
-        // removes stale instances from the host list
         hostService.getHosts().forEach(host -> {
-            if (deviceService.getPort(
-                    host.location().deviceId(),
-                    host.location().port()) == null) {
-                instanceService.removeInstance(host.location());
+            if (deviceService.getPort(host.location().deviceId(),
+                                      host.location().port()) == null) {
+                instanceService.removeInstance(connectPoint(host));
             }
         });
 
@@ -427,6 +464,7 @@ public class CordVtnNodeManager {
      */
     private void setNodeState(CordVtnNode node, NodeState newState) {
         checkNotNull(node);
+
         log.debug("Changed {} state: {}", node.hostname(), newState);
         nodeStore.put(node.hostname(), CordVtnNode.getUpdatedNode(node, newState));
     }
@@ -439,18 +477,17 @@ public class CordVtnNodeManager {
      */
     private NodeState getNodeState(CordVtnNode node) {
         checkNotNull(node);
-        if (!isIntegrationBridgeCreated(node)) {
+
+        if (isBrIntCreated(node) && isTunnelIntfCreated(node) &&
+                isDataPlaneIntfAdded(node) && isIpAddressSet(node)) {
+            return NodeState.COMPLETE;
+        } else if (isDataPlaneIntfAdded(node) && isTunnelIntfCreated(node)) {
+            return NodeState.PORTS_ADDED;
+        } else if (isBrIntCreated(node)) {
+            return NodeState.BRIDGE_CREATED;
+        } else {
             return NodeState.INIT;
         }
-        for (String iface : node.systemIfaces()) {
-            if (!isIfaceCreated(node, iface)) {
-                return NodeState.BRIDGE_CREATED;
-            }
-        }
-        if (!isIpAddressSet(node)) {
-            return NodeState.PORTS_ADDED;
-        }
-        return NodeState.COMPLETE;
     }
 
     /**
@@ -461,10 +498,10 @@ public class CordVtnNodeManager {
      */
     private boolean isOvsdbConnected(CordVtnNode node) {
         checkNotNull(node);
+
         OvsdbClientService ovsdbClient = getOvsdbClient(node);
         return deviceService.isAvailable(node.ovsdbId()) &&
-                ovsdbClient != null &&
-                ovsdbClient.isConnected();
+                ovsdbClient != null && ovsdbClient.isConnected();
     }
 
     /**
@@ -474,82 +511,150 @@ public class CordVtnNodeManager {
      */
     private void connectOvsdb(CordVtnNode node) {
         checkNotNull(node);
-        ovsdbController.connect(node.hostMgmtIp().ip(), node.ovsdbPort());
+
+        if (!nodeStore.containsKey(node.hostname())) {
+            log.warn("Node {} does not exist", node.hostname());
+            return;
+        }
+
+        if (!isOvsdbConnected(node)) {
+            controller.connect(node.hostMgmtIp().ip(), node.ovsdbPort());
+        }
+    }
+
+    /**
+     * Disconnects OVSDB server for a given node.
+     *
+     * @param node cordvtn node
+     */
+    private void disconnectOvsdb(CordVtnNode node) {
+        checkNotNull(node);
+
+        if (!nodeStore.containsKey(node.hostname())) {
+            log.warn("Node {} does not exist", node.hostname());
+            return;
+        }
+
+        if (isOvsdbConnected(node)) {
+            OvsdbClientService ovsdbClient = getOvsdbClient(node);
+            ovsdbClient.disconnect();
+        }
     }
 
     /**
      * Returns OVSDB client for a given node.
      *
      * @param node cordvtn node
-     * @return ovsdb client, or null if there's no ovsdb connection
+     * @return OVSDB client, or null if it fails to get OVSDB client
      */
     private OvsdbClientService getOvsdbClient(CordVtnNode node) {
         checkNotNull(node);
-        OvsdbNodeId ovsdb = new OvsdbNodeId(
-                node.hostMgmtIp().ip(), node.ovsdbPort().toInt());
-        return ovsdbController.getOvsdbClient(ovsdb);
+
+        OvsdbClientService ovsdbClient = controller.getOvsdbClient(
+                new OvsdbNodeId(node.hostMgmtIp().ip(), node.ovsdbPort().toInt()));
+        if (ovsdbClient == null) {
+            log.trace("Couldn't find OVSDB client for {}", node.hostname());
+        }
+        return ovsdbClient;
     }
 
+    /**
+     * Creates an integration bridge for a given node.
+     *
+     * @param node cordvtn node
+     */
     private void createIntegrationBridge(CordVtnNode node) {
-        Device device = deviceService.getDevice(node.ovsdbId());
-        if (device == null || !device.is(BridgeConfig.class)) {
-            log.error("Failed to create integration bridge on {}", node.ovsdbId());
+        if (isBrIntCreated(node)) {
             return;
         }
 
-        List<ControllerInfo> controllers = clusterService.getNodes().stream()
-                .map(controller -> new ControllerInfo(controller.ip(), OF_PORT, "tcp"))
-                .collect(Collectors.toList());
+        List<ControllerInfo> controllers = new ArrayList<>();
+        Sets.newHashSet(clusterService.getNodes()).stream()
+                .forEach(controller -> {
+                    ControllerInfo ctrlInfo = new ControllerInfo(controller.ip(), OFPORT, "tcp");
+                    controllers.add(ctrlInfo);
+                });
 
-        String dpid = node.integrationBridgeId().toString().substring(DPID_BEGIN);
-        BridgeDescription bridgeDesc = DefaultBridgeDescription.builder()
-                .name(INTEGRATION_BRIDGE)
-                .failMode(BridgeDescription.FailMode.SECURE)
-                .datapathId(dpid)
-                .disableInBand()
-                .controllers(controllers)
-                .build();
+        String dpid = node.intBrId().toString().substring(DPID_BEGIN);
 
-        BridgeConfig bridgeConfig =  device.as(BridgeConfig.class);
-        bridgeConfig.addBridge(bridgeDesc);
+        try {
+            Device device = deviceService.getDevice(node.ovsdbId());
+            if (device.is(BridgeConfig.class)) {
+                BridgeConfig bridgeConfig =  device.as(BridgeConfig.class);
+                bridgeConfig.addBridge(BridgeName.bridgeName(DEFAULT_BRIDGE), dpid, controllers);
+            } else {
+                log.warn("The bridging behaviour is not supported in device {}", device.id());
+            }
+        } catch (ItemNotFoundException e) {
+            log.warn("Failed to create integration bridge on {}", node.hostname());
+        }
     }
 
+    /**
+     * Creates tunnel interface to the integration bridge for a given node.
+     *
+     * @param node cordvtn node
+     */
     private void createTunnelInterface(CordVtnNode node) {
-        Device device = deviceService.getDevice(node.ovsdbId());
-        if (device == null || !device.is(InterfaceConfig.class)) {
-            log.error("Failed to create tunnel interface on {}", node.ovsdbId());
+        if (isTunnelIntfCreated(node)) {
             return;
         }
 
-        TunnelDescription tunnelDesc = DefaultTunnelDescription.builder()
-                .name(DEFAULT_TUNNEL)
-                .type(VXLAN)
-                .enableFlowDst()
-                .enableFlowKey()
-                .build();
+        DefaultAnnotations.Builder optionBuilder = DefaultAnnotations.builder();
+        for (String key : DEFAULT_TUNNEL_OPTIONS.keySet()) {
+            optionBuilder.set(key, DEFAULT_TUNNEL_OPTIONS.get(key));
+        }
 
-        InterfaceConfig ifaceConfig =  device.as(InterfaceConfig.class);
-        ifaceConfig.addTunnelInterface(BridgeName.of(INTEGRATION_BRIDGE), tunnelDesc);
+        TunnelDescription description = new DefaultTunnelDescription(
+                null, null, VXLAN, TunnelName.tunnelName(DEFAULT_TUNNEL),
+                optionBuilder.build());
+
+        try {
+            Device device = deviceService.getDevice(node.ovsdbId());
+            if (device.is(TunnelConfig.class)) {
+                TunnelConfig tunnelConfig =  device.as(TunnelConfig.class);
+                tunnelConfig.createTunnelInterface(BridgeName.bridgeName(DEFAULT_BRIDGE), description);
+            } else {
+                log.warn("The tunneling behaviour is not supported in device {}", device.id());
+            }
+        } catch (ItemNotFoundException e) {
+            log.warn("Failed to create tunnel interface on {}", node.hostname());
+        }
     }
 
-    private void addSystemInterface(CordVtnNode node, String ifaceName) {
+    /**
+     * Adds data plane interface to a given node.
+     *
+     * @param node cordvtn node
+     */
+    private void addDataPlaneInterface(CordVtnNode node) {
+        if (isDataPlaneIntfAdded(node)) {
+            return;
+        }
+
         Session session = connect(node.sshInfo());
-        if (session == null || !isInterfaceUp(session, ifaceName)) {
-            log.warn("Interface {} is not available on {}", ifaceName, node.hostname());
-            disconnect(session);
-            return;
-        } else {
-            disconnect(session);
-        }
-
-        Device device = deviceService.getDevice(node.ovsdbId());
-        if (!device.is(BridgeConfig.class)) {
-            log.error("BridgeConfig is not supported for {}", node.ovsdbId());
+        if (session == null) {
+            log.debug("Failed to SSH to {}", node.hostname());
             return;
         }
 
-        BridgeConfig bridgeConfig = device.as(BridgeConfig.class);
-        bridgeConfig.addPort(BridgeName.of(INTEGRATION_BRIDGE), ifaceName);
+        if (!isInterfaceUp(session, node.dpIntf())) {
+            log.warn("Interface {} is not available", node.dpIntf());
+            return;
+        }
+        disconnect(session);
+
+        try {
+            Device device = deviceService.getDevice(node.ovsdbId());
+            if (device.is(BridgeConfig.class)) {
+                BridgeConfig bridgeConfig =  device.as(BridgeConfig.class);
+                bridgeConfig.addPort(BridgeName.bridgeName(DEFAULT_BRIDGE), node.dpIntf());
+            } else {
+                log.warn("The bridging behaviour is not supported in device {}", device.id());
+            }
+        } catch (ItemNotFoundException e) {
+            log.warn("Failed to add {} on {}", node.dpIntf(), node.hostname());
+        }
     }
 
     /**
@@ -564,37 +669,62 @@ public class CordVtnNodeManager {
             log.debug("Failed to SSH to {}", node.hostname());
             return;
         }
-        getCurrentIps(session, INTEGRATION_BRIDGE).stream()
-                .filter(ip -> !ip.equals(node.localMgmtIp().ip()))
-                .filter(ip -> !ip.equals(node.dataIp().ip()))
-                .forEach(ip -> deleteIp(session, ip, INTEGRATION_BRIDGE));
 
-        boolean result = flushIp(session, node.dataIface()) &&
-                setInterfaceUp(session, node.dataIface()) &&
-                addIp(session, node.dataIp(), INTEGRATION_BRIDGE) &&
-                addIp(session, node.localMgmtIp(), INTEGRATION_BRIDGE) &&
-                setInterfaceUp(session, INTEGRATION_BRIDGE);
+        getCurrentIps(session, DEFAULT_BRIDGE).stream()
+                .filter(ip -> !ip.equals(node.localMgmtIp().ip()))
+                .filter(ip -> !ip.equals(node.dpIp().ip()))
+                .forEach(ip -> deleteIp(session, ip, DEFAULT_BRIDGE));
+
+        boolean result = flushIp(session, node.dpIntf()) &&
+                setInterfaceUp(session, node.dpIntf()) &&
+                addIp(session, node.dpIp(), DEFAULT_BRIDGE) &&
+                addIp(session, node.localMgmtIp(), DEFAULT_BRIDGE) &&
+                setInterfaceUp(session, DEFAULT_BRIDGE);
 
         disconnect(session);
+
         if (result) {
             setNodeState(node, NodeState.COMPLETE);
         }
     }
 
-    private boolean isIntegrationBridgeCreated(CordVtnNode node) {
-        return deviceService.getDevice(node.integrationBridgeId()) != null &&
-                deviceService.isAvailable(node.integrationBridgeId());
+    /**
+     * Checks if integration bridge exists and available.
+     *
+     * @param node cordvtn node
+     * @return true if the bridge is available, false otherwise
+     */
+    private boolean isBrIntCreated(CordVtnNode node) {
+        return (deviceService.getDevice(node.intBrId()) != null
+                && deviceService.isAvailable(node.intBrId()));
     }
 
-    private boolean isIfaceCreated(CordVtnNode node, String ifaceName) {
-        if (Strings.isNullOrEmpty(ifaceName)) {
-            return false;
-        }
-        return deviceService.getPorts(node.integrationBridgeId()).stream()
-                .filter(p -> portName(p).contains(ifaceName) &&
-                        p.isEnabled())
-                .findAny()
-                .isPresent();
+    /**
+     * Checks if tunnel interface exists.
+     *
+     * @param node cordvtn node
+     * @return true if the interface exists, false otherwise
+     */
+    private boolean isTunnelIntfCreated(CordVtnNode node) {
+        return deviceService.getPorts(node.intBrId())
+                    .stream()
+                    .filter(p -> portName(p).contains(DEFAULT_TUNNEL) &&
+                            p.isEnabled())
+                    .findAny().isPresent();
+    }
+
+    /**
+     * Checks if data plane interface exists.
+     *
+     * @param node cordvtn node
+     * @return true if the interface exists, false otherwise
+     */
+    private boolean isDataPlaneIntfAdded(CordVtnNode node) {
+        return deviceService.getPorts(node.intBrId())
+                    .stream()
+                    .filter(p -> portName(p).contains(node.dpIntf()) &&
+                            p.isEnabled())
+                    .findAny().isPresent();
     }
 
     /**
@@ -610,12 +740,12 @@ public class CordVtnNodeManager {
             return false;
         }
 
-        Set<IpAddress> intBrIps = getCurrentIps(session, INTEGRATION_BRIDGE);
-        boolean result = getCurrentIps(session, node.dataIface()).isEmpty() &&
-                isInterfaceUp(session, node.dataIface()) &&
-                intBrIps.contains(node.dataIp().ip()) &&
+        Set<IpAddress> intBrIps = getCurrentIps(session, DEFAULT_BRIDGE);
+        boolean result = getCurrentIps(session, node.dpIntf()).isEmpty() &&
+                isInterfaceUp(session, node.dpIntf()) &&
+                intBrIps.contains(node.dpIp().ip()) &&
                 intBrIps.contains(node.localMgmtIp().ip()) &&
-                isInterfaceUp(session, INTEGRATION_BRIDGE);
+                isInterfaceUp(session, DEFAULT_BRIDGE);
 
         disconnect(session);
         return result;
@@ -629,6 +759,16 @@ public class CordVtnNodeManager {
      */
     private ConnectPoint connectPoint(Port port) {
         return new ConnectPoint(port.element().id(), port.number());
+    }
+
+    /**
+     * Returns connect point of a given host.
+     *
+     * @param host host
+     * @return connect point
+     */
+    private ConnectPoint connectPoint(Host host) {
+        return new ConnectPoint(host.location().deviceId(), host.location().port());
     }
 
     /**
@@ -651,7 +791,7 @@ public class CordVtnNodeManager {
      */
     private CordVtnNode nodeByBridgeId(DeviceId bridgeId) {
         return getNodes().stream()
-                .filter(node -> node.integrationBridgeId().equals(bridgeId))
+                .filter(node -> node.intBrId().equals(bridgeId))
                 .findFirst().orElse(null);
     }
 
@@ -662,7 +802,7 @@ public class CordVtnNodeManager {
      * @return port name
      */
     private String portName(Port port) {
-        return port.annotations().value(PORT_NAME);
+        return port.annotations().value("portName");
     }
 
     private class OvsdbHandler implements ConnectionHandler<Device> {
@@ -679,8 +819,10 @@ public class CordVtnNodeManager {
 
         @Override
         public void disconnected(Device device) {
-            log.debug("Device {} is disconnected", device.id());
-            adminService.removeDevice(device.id());
+            if (!deviceService.isAvailable(device.id())) {
+                log.debug("Device {} is disconnected", device.id());
+                adminService.removeDevice(device.id());
+            }
         }
     }
 
@@ -700,7 +842,7 @@ public class CordVtnNodeManager {
         public void disconnected(Device device) {
             CordVtnNode node = nodeByBridgeId(device.id());
             if (node != null) {
-                log.warn("Integration Bridge is disconnected from {}", node.hostname());
+                log.debug("Integration Bridge is disconnected from {}", node.hostname());
                 setNodeState(node, NodeState.INCOMPLETE);
             }
         }
@@ -727,9 +869,9 @@ public class CordVtnNodeManager {
                 if (isNodeStateComplete(node)) {
                     instanceService.addInstance(connectPoint(port));
                 } else {
-                    log.warn("VM is detected on incomplete node, ignore it.", portName);
+                    log.debug("VM is detected on incomplete node, ignore it.", portName);
                 }
-            } else if (node.systemIfaces().contains(portName)) {
+            } else if (portName.contains(DEFAULT_TUNNEL) || portName.equals(node.dpIntf())) {
                 setNodeState(node, getNodeState(node));
             }
         }
@@ -755,9 +897,9 @@ public class CordVtnNodeManager {
                 if (isNodeStateComplete(node)) {
                     instanceService.removeInstance(connectPoint(port));
                 } else {
-                    log.warn("VM is vanished from incomplete node, ignore it.", portName);
+                    log.debug("VM is vanished from incomplete node, ignore it.", portName);
                 }
-            } else if (node.systemIfaces().contains(portName)) {
+            } else if (portName.contains(DEFAULT_TUNNEL) || portName.equals(node.dpIntf())) {
                 setNodeState(node, NodeState.INCOMPLETE);
             }
         }

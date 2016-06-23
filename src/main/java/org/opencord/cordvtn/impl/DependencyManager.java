@@ -157,7 +157,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         GroupKey groupKey = getGroupKey(service.id());
 
         Set<DeviceId> devices = nodeManager.completeNodes().stream()
-                .map(CordVtnNode::integrationBridgeId)
+                .map(CordVtnNode::intBrId)
                 .collect(Collectors.toSet());
 
         for (DeviceId deviceId : devices) {
@@ -217,7 +217,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         Map<DeviceId, Set<PortNumber>> inPorts = Maps.newHashMap();
 
         nodeManager.completeNodes().stream().forEach(node -> {
-            DeviceId deviceId = node.integrationBridgeId();
+            DeviceId deviceId = node.intBrId();
             GroupId groupId = createServiceGroup(deviceId, pService);
             outGroups.put(deviceId, groupId);
 
@@ -279,7 +279,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                 .build();
 
         nodeManager.completeNodes().stream().forEach(node -> {
-            DeviceId deviceId = node.integrationBridgeId();
+            DeviceId deviceId = node.intBrId();
             FlowRule flowRuleDirect = DefaultFlowRule.builder()
                     .fromApp(appId)
                     .withSelector(selector)
@@ -365,7 +365,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                                                 Set<Instance> instances) {
         List<GroupBucket> buckets = Lists.newArrayList();
         instances.stream().forEach(instance -> {
-            Ip4Address tunnelIp = nodeManager.dataIp(instance.deviceId()).getIp4Address();
+            Ip4Address tunnelIp = nodeManager.dpIp(instance.deviceId()).getIp4Address();
             TrafficTreatment.Builder tBuilder = DefaultTrafficTreatment.builder();
 
             if (deviceId.equals(instance.deviceId())) {
