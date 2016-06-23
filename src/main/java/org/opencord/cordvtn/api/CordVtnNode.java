@@ -16,20 +16,13 @@
 package org.opencord.cordvtn.api;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Strings;
-import com.google.common.collect.Sets;
 import org.onlab.packet.TpPort;
 import org.onosproject.net.DeviceId;
 
 import java.util.Comparator;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.opencord.cordvtn.api.Constants.DEFAULT_TUNNEL;
-import static org.opencord.cordvtn.api.Constants.OVSDB_PORT;
 
 /**
  * Representation of a compute infrastructure node for CORD VTN service.
@@ -39,12 +32,11 @@ public final class CordVtnNode {
     private final String hostname;
     private final NetworkAddress hostMgmtIp;
     private final NetworkAddress localMgmtIp;
-    private final NetworkAddress dataIp;
-    private final Optional<TpPort> ovsdbPort;
+    private final NetworkAddress dpIp;
+    private final TpPort ovsdbPort;
     private final SshAccessInfo sshInfo;
-    private final DeviceId integrationBridgeId;
-    private final String dataIface;
-    private final Optional<String> hostMgmtIface;
+    private final DeviceId bridgeId;
+    private final String dpIntf;
     private final CordVtnNodeState state;
 
     public static final Comparator<CordVtnNode> CORDVTN_NODE_COMPARATOR =
@@ -56,33 +48,24 @@ public final class CordVtnNode {
      * @param hostname hostname
      * @param hostMgmtIp host management network address
      * @param localMgmtIp local management network address
-     * @param dataIp data network address
-     * @param ovsdbPort port number for ovsdb connection
-     * @param sshInfo ssh access information
-     * @param integrationBridgeId integration bridge identifier
-     * @param dataIface data plane interface name
-     * @param hostMgmtIface host management network interface
+     * @param dpIp data plane network address
+     * @param ovsdbPort port number for OVSDB connection
+     * @param sshInfo SSH access information
+     * @param bridgeId integration bridge identifier
+     * @param dpIntf data plane interface name
      * @param state cordvtn node state
      */
-    private CordVtnNode(String hostname,
-                        NetworkAddress hostMgmtIp,
-                        NetworkAddress localMgmtIp,
-                        NetworkAddress dataIp,
-                        Optional<TpPort> ovsdbPort,
-                        SshAccessInfo sshInfo,
-                        DeviceId integrationBridgeId,
-                        String dataIface,
-                        Optional<String> hostMgmtIface,
-                        CordVtnNodeState state) {
-        this.hostname = hostname;
-        this.hostMgmtIp = hostMgmtIp;
-        this.localMgmtIp = localMgmtIp;
-        this.dataIp = dataIp;
-        this.ovsdbPort = ovsdbPort;
-        this.sshInfo = sshInfo;
-        this.integrationBridgeId = integrationBridgeId;
-        this.dataIface = dataIface;
-        this.hostMgmtIface = hostMgmtIface;
+    public CordVtnNode(String hostname, NetworkAddress hostMgmtIp, NetworkAddress localMgmtIp,
+                       NetworkAddress dpIp, TpPort ovsdbPort, SshAccessInfo sshInfo,
+                       DeviceId bridgeId, String dpIntf, CordVtnNodeState state) {
+        this.hostname = checkNotNull(hostname, "hostname cannot be null");
+        this.hostMgmtIp = checkNotNull(hostMgmtIp, "hostMgmtIp cannot be null");
+        this.localMgmtIp = checkNotNull(localMgmtIp, "localMgmtIp cannot be null");
+        this.dpIp = checkNotNull(dpIp, "dpIp cannot be null");
+        this.ovsdbPort = checkNotNull(ovsdbPort, "ovsdbPort cannot be null");
+        this.sshInfo = checkNotNull(sshInfo, "sshInfo cannot be null");
+        this.bridgeId = checkNotNull(bridgeId, "bridgeId cannot be null");
+        this.dpIntf = checkNotNull(dpIntf, "dpIntf cannot be null");
         this.state = state;
     }
 
@@ -95,12 +78,11 @@ public final class CordVtnNode {
      */
     public static CordVtnNode getUpdatedNode(CordVtnNode node, CordVtnNodeState state) {
         return new CordVtnNode(node.hostname,
-                               node.hostMgmtIp, node.localMgmtIp, node.dataIp,
+                               node.hostMgmtIp, node.localMgmtIp, node.dpIp,
                                node.ovsdbPort,
                                node.sshInfo,
-                               node.integrationBridgeId,
-                               node.dataIface, node.hostMgmtIface,
-                               state);
+                               node.bridgeId,
+                               node.dpIntf, state);
     }
 
     /**
@@ -131,26 +113,21 @@ public final class CordVtnNode {
     }
 
     /**
-     * Returns the data network address.
+     * Returns the data plane network address.
      *
      * @return network address
      */
-    public NetworkAddress dataIp() {
-        return this.dataIp;
+    public NetworkAddress dpIp() {
+        return this.dpIp;
     }
 
     /**
      * Returns the port number used for OVSDB connection.
-     * It returns default OVSDB port 6640, if it's not specified.
      *
      * @return port number
      */
     public TpPort ovsdbPort() {
-        if (this.ovsdbPort.isPresent()) {
-            return this.ovsdbPort.get();
-        } else {
-            return OVSDB_PORT;
-        }
+        return this.ovsdbPort;
     }
 
     /**
@@ -167,8 +144,8 @@ public final class CordVtnNode {
      *
      * @return device id
      */
-    public DeviceId integrationBridgeId() {
-        return this.integrationBridgeId;
+    public DeviceId intBrId() {
+        return this.bridgeId;
     }
 
     /**
@@ -181,34 +158,12 @@ public final class CordVtnNode {
     }
 
     /**
-     * Returns data network interface name.
+     * Returns data plane interface name.
      *
-     * @return data network interface name
+     * @return data plane interface name
      */
-    public String dataIface() {
-        return this.dataIface;
-    }
-
-    /**
-     * Returns host management network interface name.
-     *
-     * @return host management network interface name
-     */
-    public Optional<String> hostMgmtIface() {
-        return this.hostMgmtIface;
-    }
-
-    /**
-     * Returns a set of network interfaces for the VTN service to work properly.
-     *
-     * @return set of interface names
-     */
-    public Set<String> systemIfaces() {
-        Set<String> ifaces = Sets.newHashSet(DEFAULT_TUNNEL, dataIface);
-        if (hostMgmtIface.isPresent()) {
-            ifaces.add(hostMgmtIface.get());
-        }
-        return ifaces;
+    public String dpIntf() {
+        return this.dpIntf;
     }
 
     /**
@@ -231,12 +186,11 @@ public final class CordVtnNode {
             if (Objects.equals(hostname, that.hostname) &&
                     Objects.equals(hostMgmtIp, that.hostMgmtIp) &&
                     Objects.equals(localMgmtIp, that.localMgmtIp) &&
-                    Objects.equals(dataIp, that.dataIp) &&
+                    Objects.equals(dpIp, that.dpIp) &&
                     Objects.equals(ovsdbPort, that.ovsdbPort) &&
                     Objects.equals(sshInfo, that.sshInfo) &&
-                    Objects.equals(integrationBridgeId, that.integrationBridgeId) &&
-                    Objects.equals(dataIface, that.dataIface) &&
-                    Objects.equals(hostMgmtIface, that.hostMgmtIface)) {
+                    Objects.equals(bridgeId, that.bridgeId) &&
+                    Objects.equals(dpIntf, that.dpIntf)) {
                 return true;
             }
         }
@@ -245,15 +199,8 @@ public final class CordVtnNode {
 
     @Override
     public int hashCode() {
-        return Objects.hash(hostname,
-                            hostMgmtIp,
-                            localMgmtIp,
-                            dataIp,
-                            ovsdbPort,
-                            sshInfo,
-                            integrationBridgeId,
-                            dataIface,
-                            hostMgmtIface);
+        return Objects.hash(hostname, hostMgmtIp, localMgmtIp, dpIp,
+                            ovsdbPort, sshInfo, bridgeId, dpIntf);
     }
 
     @Override
@@ -262,240 +209,12 @@ public final class CordVtnNode {
                 .add("hostname", hostname)
                 .add("hostMgmtIp", hostMgmtIp)
                 .add("localMgmtIp", localMgmtIp)
-                .add("dataIp", dataIp)
+                .add("dpIp", dpIp)
                 .add("port", ovsdbPort)
                 .add("sshInfo", sshInfo)
-                .add("integrationBridgeId", integrationBridgeId)
-                .add("dataIface", dataIface)
-                .add("hostMgmtIface", hostMgmtIface)
+                .add("bridgeId", bridgeId)
+                .add("dpIntf", dpIntf)
                 .add("state", state)
                 .toString();
-    }
-
-    /**
-     * Returns new node builder instance.
-     *
-     * @return cordvtn node builder
-     */
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    /**
-     * Builder of node entities.
-     */
-    public static final class Builder {
-        private String hostname;
-        private NetworkAddress hostMgmtIp;
-        private NetworkAddress localMgmtIp;
-        private NetworkAddress dataIp;
-        private Optional<TpPort> ovsdbPort = Optional.of(OVSDB_PORT);
-        private SshAccessInfo sshInfo;
-        private DeviceId integrationBridgeId;
-        private String dataIface;
-        private Optional<String> hostMgmtIface = Optional.empty();
-        private CordVtnNodeState state = CordVtnNodeState.noState();
-
-        private Builder() {
-        }
-
-        /**
-         * Builds an immutable cordvtn node.
-         *
-         * @return cordvtn node
-         */
-        public CordVtnNode build() {
-            // validate attributes
-            checkArgument(!Strings.isNullOrEmpty(hostname));
-            checkNotNull(hostMgmtIp);
-            checkNotNull(localMgmtIp);
-            checkNotNull(dataIp);
-            checkNotNull(ovsdbPort);
-            checkNotNull(sshInfo);
-            checkNotNull(integrationBridgeId);
-            checkNotNull(dataIface);
-            checkNotNull(hostMgmtIface);
-            return new CordVtnNode(hostname,
-                                   hostMgmtIp, localMgmtIp, dataIp,
-                                   ovsdbPort,
-                                   sshInfo,
-                                   integrationBridgeId,
-                                   dataIface,
-                                   hostMgmtIface,
-                                   state);
-        }
-
-        /**
-         * Returns cordvtn node builder with hostname.
-         *
-         * @param hostname hostname
-         * @return cordvtn node builder
-         */
-        public Builder hostname(String hostname) {
-            checkArgument(!Strings.isNullOrEmpty(hostname));
-            this.hostname = hostname;
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with host management network IP address.
-         *
-         * @param hostMgmtIp host management netework ip address
-         * @return cordvtn node builder
-         */
-        public Builder hostMgmtIp(NetworkAddress hostMgmtIp) {
-            checkNotNull(hostMgmtIp);
-            this.hostMgmtIp = hostMgmtIp;
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with host management network IP address.
-         *
-         * @param cidr string value of the host management network ip address
-         * @return cordvtn node builder
-         */
-        public Builder hostMgmtIp(String cidr) {
-            this.hostMgmtIp = NetworkAddress.valueOf(cidr);
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with local management network IP address.
-         *
-         * @param localMgmtIp local management network ip address
-         * @return cordvtn node builder
-         */
-        public Builder localMgmtIp(NetworkAddress localMgmtIp) {
-            checkNotNull(localMgmtIp);
-            this.localMgmtIp = localMgmtIp;
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with local management netework IP address.
-         *
-         * @param cidr string value of the local management network ip address
-         * @return cordvtn node builder
-         */
-        public Builder localMgmtIp(String cidr) {
-            this.localMgmtIp = NetworkAddress.valueOf(cidr);
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with data network IP address.
-         *
-         * @param dataIp data network ip address
-         * @return cordvtn node builder
-         */
-        public Builder dataIp(NetworkAddress dataIp) {
-            checkNotNull(dataIp);
-            this.dataIp = dataIp;
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with data network IP address.
-         *
-         * @param cidr string value of the data network ip address
-         * @return cordvtn node builder
-         */
-        public Builder dataIp(String cidr) {
-            this.dataIp = NetworkAddress.valueOf(cidr);
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with OVSDB server listen port number.
-         *
-         * @param port ovsdb server listen port number
-         * @return cordvtn node builder
-         */
-        public Builder ovsdbPort(TpPort port) {
-            checkNotNull(port);
-            this.ovsdbPort = Optional.of(port);
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with OVSDB server listen port number.
-         *
-         * @param port int value of the ovsdb server listen port number
-         * @return cordvtn node builder
-         */
-        public Builder ovsdbPort(int port) {
-            this.ovsdbPort = Optional.of(TpPort.tpPort(port));
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with SSH access information.
-         * @param sshInfo ssh access information
-         * @return cordvtn node builder
-         */
-        public Builder sshInfo(SshAccessInfo sshInfo) {
-            checkNotNull(sshInfo);
-            this.sshInfo = sshInfo;
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with integration bridge ID.
-         *
-         * @param deviceId device id of the integration bridge
-         * @return cordvtn node builder
-         */
-        public Builder integrationBridgeId(DeviceId deviceId) {
-            checkNotNull(deviceId);
-            this.integrationBridgeId = deviceId;
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with integration bridge ID.
-         *
-         * @param deviceId string value of the integration bridge device id
-         * @return cordvtn node builder
-         */
-        public Builder integrationBridgeId(String deviceId) {
-            this.integrationBridgeId = DeviceId.deviceId(deviceId);
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with data network interface name.
-         *
-         * @param dataIface data network interface name
-         * @return cordvtn node builder
-         */
-        public Builder dataIface(String dataIface) {
-            checkArgument(!Strings.isNullOrEmpty(dataIface));
-            this.dataIface = dataIface;
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with host management network interface.
-         *
-         * @param hostMgmtIface host management network interface name
-         * @return cordvtn node builder
-         */
-        public Builder hostMgmtIface(String hostMgmtIface) {
-            this.hostMgmtIface = Optional.ofNullable(hostMgmtIface);
-            return this;
-        }
-
-        /**
-         * Returns cordvtn node builder with init state.
-         *
-         * @param state init state
-         * @return cordvtn node builder
-         */
-        public Builder state(CordVtnNodeState state) {
-            checkNotNull(state);
-            this.state = state;
-            return this;
-        }
     }
 }

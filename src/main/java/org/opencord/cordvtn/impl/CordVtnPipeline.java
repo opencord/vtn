@@ -115,26 +115,26 @@ public final class CordVtnPipeline {
      * Installs table miss rule to a give device.
      *
      * @param node cordvtn node
-     * @param dataPort data plane port number
+     * @param dpPort data plane port number
      * @param tunnelPort tunnel port number
      */
-    public void initPipeline(CordVtnNode node, PortNumber dataPort, PortNumber tunnelPort) {
+    public void initPipeline(CordVtnNode node, PortNumber dpPort, PortNumber tunnelPort) {
         checkNotNull(node);
 
-        processTableZero(node.integrationBridgeId(), dataPort, node.dataIp().ip());
-        processInPortTable(node.integrationBridgeId(), tunnelPort, dataPort);
-        processAccessTypeTable(node.integrationBridgeId(), dataPort);
-        processVlanTable(node.integrationBridgeId(), dataPort);
+        processTableZero(node.intBrId(), dpPort, node.dpIp().ip());
+        processInPortTable(node.intBrId(), tunnelPort, dpPort);
+        processAccessTypeTable(node.intBrId(), dpPort);
+        processVlanTable(node.intBrId(), dpPort);
     }
 
-    private void processTableZero(DeviceId deviceId, PortNumber dataPort, IpAddress dataIp) {
+    private void processTableZero(DeviceId deviceId, PortNumber dpPort, IpAddress dpIp) {
         // take vxlan packet out onto the physical port
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchInPort(PortNumber.LOCAL)
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .setOutput(dataPort)
+                .setOutput(dpPort)
                 .build();
 
         FlowRule flowRule = DefaultFlowRule.builder()
@@ -151,7 +151,7 @@ public final class CordVtnPipeline {
 
         // take a vxlan encap'd packet through the Linux stack
         selector = DefaultTrafficSelector.builder()
-                .matchInPort(dataPort)
+                .matchInPort(dpPort)
                 .matchEthType(Ethernet.TYPE_IPV4)
                 .matchIPProtocol(IPv4.PROTOCOL_UDP)
                 .matchUdpDst(TpPort.tpPort(VXLAN_UDP_PORT))
@@ -175,9 +175,9 @@ public final class CordVtnPipeline {
 
         // take a packet to the data plane ip through Linux stack
         selector = DefaultTrafficSelector.builder()
-                .matchInPort(dataPort)
+                .matchInPort(dpPort)
                 .matchEthType(Ethernet.TYPE_IPV4)
-                .matchIPDst(dataIp.toIpPrefix())
+                .matchIPDst(dpIp.toIpPrefix())
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()
@@ -198,9 +198,9 @@ public final class CordVtnPipeline {
 
         // take an arp packet from physical through Linux stack
         selector = DefaultTrafficSelector.builder()
-                .matchInPort(dataPort)
+                .matchInPort(dpPort)
                 .matchEthType(Ethernet.TYPE_ARP)
-                .matchArpTpa(dataIp.getIp4Address())
+                .matchArpTpa(dpIp.getIp4Address())
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()
@@ -261,7 +261,7 @@ public final class CordVtnPipeline {
         processFlowRule(true, flowRule);
     }
 
-    private void processInPortTable(DeviceId deviceId, PortNumber tunnelPort, PortNumber dataPort) {
+    private void processInPortTable(DeviceId deviceId, PortNumber tunnelPort, PortNumber dpPort) {
         checkNotNull(tunnelPort);
 
         TrafficSelector selector = DefaultTrafficSelector.builder()
@@ -285,7 +285,7 @@ public final class CordVtnPipeline {
         processFlowRule(true, flowRule);
 
         selector = DefaultTrafficSelector.builder()
-                .matchInPort(dataPort)
+                .matchInPort(dpPort)
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()
@@ -305,12 +305,12 @@ public final class CordVtnPipeline {
         processFlowRule(true, flowRule);
     }
 
-    private void processAccessTypeTable(DeviceId deviceId, PortNumber dataPort) {
+    private void processAccessTypeTable(DeviceId deviceId, PortNumber dpPort) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .setOutput(dataPort)
+                .setOutput(dpPort)
                 .build();
 
         FlowRule flowRule = DefaultFlowRule.builder()
@@ -326,7 +326,7 @@ public final class CordVtnPipeline {
         processFlowRule(true, flowRule);
     }
 
-    private void processVlanTable(DeviceId deviceId, PortNumber dataPort) {
+    private void processVlanTable(DeviceId deviceId, PortNumber dpPort) {
         // for traffic going out to WAN, strip vid 500 and take through data plane interface
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchVlanId(VLAN_WAN)
@@ -334,7 +334,7 @@ public final class CordVtnPipeline {
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
                 .popVlan()
-                .setOutput(dataPort)
+                .setOutput(dpPort)
                 .build();
 
         FlowRule flowRule = DefaultFlowRule.builder()
