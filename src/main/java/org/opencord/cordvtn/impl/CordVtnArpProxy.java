@@ -28,8 +28,6 @@ import org.onlab.packet.Ethernet;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
-import org.onosproject.net.DeviceId;
-import org.onosproject.net.PortNumber;
 import org.onosproject.net.packet.PacketProcessor;
 import org.onosproject.xosclient.api.VtnService;
 import org.opencord.cordvtn.api.CordVtnConfig;
@@ -52,7 +50,6 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.PRIVATE;
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.MANAGEMENT;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -64,9 +61,6 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected PacketService packetService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnNodeManager nodeManager;
 
     private final PacketProcessor packetProcessor = new InternalPacketProcessor();
     private final Map<Ip4Address, MacAddress> gateways = Maps.newConcurrentMap();
@@ -138,26 +132,31 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
 
     /**
      * Emits ARP reply with fake MAC address for a given ARP request.
-     * It only handles requests for the registered gateway IPs and host IPs.
+     * It only handles requests for the registered service IPs, and the other
+     * requests can be handled by other ARP handlers like openstackSwitching or
+     * proxyArp, for example.
      *
      * @param context packet context
      * @param ethPacket ethernet packet
      */
-    private void processArpRequest(PacketContext context, Ethernet ethPacket) {
+    private void processArpPacket(PacketContext context, Ethernet ethPacket) {
         ARP arpPacket = (ARP) ethPacket.getPayload();
+        if (arpPacket.getOpCode() != ARP.OP_REQUEST) {
+           return;
+        }
+
         Ip4Address targetIp = Ip4Address.valueOf(arpPacket.getTargetProtocolAddress());
 
         MacAddress gatewayMac = gateways.get(targetIp);
-        MacAddress replyMac = gatewayMac != null ? gatewayMac :
-                getMacFromHostService(targetIp);
+        MacAddress replyMac = gatewayMac != null ? gatewayMac : getMacFromHostService(targetIp);
 
         if (replyMac.equals(MacAddress.NONE)) {
-            log.trace("Failed to find MAC for {}", targetIp);
-            forwardManagementArpRequest(context, ethPacket);
+            log.debug("Failed to find MAC for {}", targetIp.toString());
+            context.block();
             return;
         }
 
-        log.trace("Send ARP reply for {} with {}", targetIp, replyMac);
+        log.trace("Send ARP reply for {} with {}", targetIp.toString(), replyMac.toString());
         Ethernet ethReply = ARP.buildArpReply(
                 targetIp,
                 replyMac,
@@ -175,62 +174,6 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
         context.block();
     }
 
-    private void processArpReply(PacketContext context, Ethernet ethPacket) {
-        ARP arpPacket = (ARP) ethPacket.getPayload();
-        Ip4Address targetIp = Ip4Address.valueOf(arpPacket.getTargetProtocolAddress());
-
-        DeviceId deviceId = context.inPacket().receivedFrom().deviceId();
-        Host host = hostService.getHostsByIp(targetIp).stream()
-                .filter(h -> h.location().deviceId().equals(deviceId))
-                .findFirst()
-                .orElse(null);
-
-        if (host == null) {
-            // do nothing for the unknown ARP reply
-            log.trace("No host found for {} in {}", targetIp, deviceId);
-            context.block();
-            return;
-        }
-
-        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .setOutput(host.location().port())
-                .build();
-
-        packetService.emit(new DefaultOutboundPacket(
-                deviceId,
-                treatment,
-                ByteBuffer.wrap(ethPacket.serialize())));
-
-        context.block();
-    }
-
-    private void forwardManagementArpRequest(PacketContext context, Ethernet ethPacket) {
-        DeviceId deviceId = context.inPacket().receivedFrom().deviceId();
-        PortNumber hostMgmtPort = nodeManager.hostManagementPort(deviceId);
-        Host host = hostService.getConnectedHosts(context.inPacket().receivedFrom())
-                .stream()
-                .findFirst().orElse(null);
-
-        if (host == null ||
-                !Instance.of(host).serviceType().equals(MANAGEMENT) ||
-                hostMgmtPort == null) {
-            context.block();
-            return;
-        }
-
-        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .setOutput(hostMgmtPort)
-                .build();
-
-        packetService.emit(new DefaultOutboundPacket(
-                context.inPacket().receivedFrom().deviceId(),
-                treatment,
-                ByteBuffer.wrap(ethPacket.serialize())));
-
-        log.trace("Forward ARP request to management network");
-        context.block();
-    }
-
     /**
      * Emits gratuitous ARP when a gateway mac address has been changed.
      *
@@ -240,7 +183,7 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
     private void sendGratuitousArp(IpAddress gatewayIp, Set<Instance> instances) {
         MacAddress gatewayMac = gateways.get(gatewayIp.getIp4Address());
         if (gatewayMac == null) {
-            log.debug("Gateway {} is not registered to ARP proxy", gatewayIp);
+            log.debug("Gateway {} is not registered to ARP proxy", gatewayIp.toString());
             return;
         }
 
@@ -303,7 +246,7 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
                 .orElse(null);
 
         if (host != null) {
-            log.trace("Found MAC from host service for {}", targetIp);
+            log.trace("Found MAC from host service for {}", targetIp.toString());
             return host.mac();
         } else {
             return MacAddress.NONE;
@@ -321,18 +264,7 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
             if (ethPacket == null || ethPacket.getEtherType() != Ethernet.TYPE_ARP) {
                 return;
             }
-
-            ARP arpPacket = (ARP) ethPacket.getPayload();
-            switch (arpPacket.getOpCode()) {
-                case ARP.OP_REQUEST:
-                    processArpRequest(context, ethPacket);
-                    break;
-                case ARP.OP_REPLY:
-                    processArpReply(context, ethPacket);
-                    break;
-                default:
-                    break;
-            }
+            processArpPacket(context, ethPacket);
         }
     }
 

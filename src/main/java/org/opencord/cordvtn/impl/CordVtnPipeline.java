@@ -27,8 +27,7 @@ import org.onlab.packet.Ip4Address;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.TpPort;
 import org.onlab.packet.VlanId;
-import org.onosproject.net.AnnotationKeys;
-import org.onosproject.net.Port;
+import org.onlab.util.ItemNotFoundException;
 import org.opencord.cordvtn.api.Constants;
 import org.opencord.cordvtn.api.CordVtnNode;
 import org.onosproject.core.ApplicationId;
@@ -51,11 +50,8 @@ import org.onosproject.net.flow.instructions.ExtensionPropertyException;
 import org.onosproject.net.flow.instructions.ExtensionTreatment;
 import org.slf4j.Logger;
 
-import java.util.Optional;
-
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.onosproject.net.flow.instructions.ExtensionTreatmentType.ExtensionTreatmentTypes.NICIRA_SET_TUNNEL_DST;
-import static org.opencord.cordvtn.api.Constants.DEFAULT_TUNNEL;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -95,8 +91,6 @@ public final class CordVtnPipeline {
     public static final int VXLAN_UDP_PORT = 4789;
     public static final VlanId VLAN_WAN = VlanId.vlanId((short) 500);
 
-    public static final String PROPERTY_TUNNEL_DST = "tunnelDst";
-
     private ApplicationId appId;
 
     @Activate
@@ -121,84 +115,19 @@ public final class CordVtnPipeline {
      * Installs table miss rule to a give device.
      *
      * @param node cordvtn node
+     * @param dataPort data plane port number
+     * @param tunnelPort tunnel port number
      */
-    public void initPipeline(CordVtnNode node) {
+    public void initPipeline(CordVtnNode node, PortNumber dataPort, PortNumber tunnelPort) {
         checkNotNull(node);
 
-        Optional<PortNumber> dataPort = getPortNumber(node.integrationBridgeId(), node.dataIface());
-        Optional<PortNumber> tunnelPort = getPortNumber(node.integrationBridgeId(), DEFAULT_TUNNEL);
-        if (!dataPort.isPresent() || !tunnelPort.isPresent()) {
-            log.warn("Node is not in COMPLETE state");
-            return;
-        }
-
-        Optional<PortNumber> hostMgmtPort = Optional.empty();
-        if (node.hostMgmtIface().isPresent()) {
-            hostMgmtPort = getPortNumber(node.integrationBridgeId(), node.hostMgmtIface().get());
-        }
-
-        processTableZero(node.integrationBridgeId(),
-                         dataPort.get(),
-                         node.dataIp().ip(),
-                         node.localMgmtIp().ip());
-
-        processInPortTable(node.integrationBridgeId(),
-                           tunnelPort.get(),
-                           dataPort.get(),
-                           hostMgmtPort);
-
-        processAccessTypeTable(node.integrationBridgeId(), dataPort.get());
-        processVlanTable(node.integrationBridgeId(), dataPort.get());
+        processTableZero(node.integrationBridgeId(), dataPort, node.dataIp().ip());
+        processInPortTable(node.integrationBridgeId(), tunnelPort, dataPort);
+        processAccessTypeTable(node.integrationBridgeId(), dataPort);
+        processVlanTable(node.integrationBridgeId(), dataPort);
     }
 
-    private void processTableZero(DeviceId deviceId, PortNumber dataPort, IpAddress dataIp,
-                                  IpAddress localMgmtIp) {
-        vxlanShuttleRule(deviceId, dataPort, dataIp);
-        localManagementBaseRule(deviceId, localMgmtIp.getIp4Address());
-
-        // take all vlan tagged packet to the VLAN table
-        TrafficSelector selector = DefaultTrafficSelector.builder()
-                .matchVlanId(VlanId.ANY)
-                .build();
-
-        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .transition(TABLE_VLAN)
-                .build();
-
-        FlowRule flowRule = DefaultFlowRule.builder()
-                .fromApp(appId)
-                .withSelector(selector)
-                .withTreatment(treatment)
-                .withPriority(PRIORITY_MANAGEMENT)
-                .forDevice(deviceId)
-                .forTable(TABLE_ZERO)
-                .makePermanent()
-                .build();
-
-        processFlowRule(true, flowRule);
-
-        // take all other packets to the next table
-        selector = DefaultTrafficSelector.builder()
-                .build();
-
-        treatment = DefaultTrafficTreatment.builder()
-                .transition(TABLE_IN_PORT)
-                .build();
-
-        flowRule = DefaultFlowRule.builder()
-                .fromApp(appId)
-                .withSelector(selector)
-                .withTreatment(treatment)
-                .withPriority(PRIORITY_ZERO)
-                .forDevice(deviceId)
-                .forTable(TABLE_ZERO)
-                .makePermanent()
-                .build();
-
-        processFlowRule(true, flowRule);
-    }
-
-    private void vxlanShuttleRule(DeviceId deviceId, PortNumber dataPort, IpAddress dataIp) {
+    private void processTableZero(DeviceId deviceId, PortNumber dataPort, IpAddress dataIp) {
         // take vxlan packet out onto the physical port
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchInPort(PortNumber.LOCAL)
@@ -289,98 +218,52 @@ public final class CordVtnPipeline {
                 .build();
 
         processFlowRule(true, flowRule);
-    }
 
-    private void localManagementBaseRule(DeviceId deviceId, Ip4Address localMgmtIp) {
-        TrafficSelector selector = DefaultTrafficSelector.builder()
-                .matchEthType(Ethernet.TYPE_ARP)
-                .matchArpTpa(localMgmtIp)
-                .build();
-
-        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .setOutput(PortNumber.LOCAL)
-                .build();
-
-        FlowRule flowRule = DefaultFlowRule.builder()
-                .fromApp(appId)
-                .withSelector(selector)
-                .withTreatment(treatment)
-                .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
-                .forDevice(deviceId)
-                .forTable(CordVtnPipeline.TABLE_ZERO)
-                .makePermanent()
-                .build();
-
-        processFlowRule(true, flowRule);
-
+        // take all else to the next table
         selector = DefaultTrafficSelector.builder()
-                .matchInPort(PortNumber.LOCAL)
-                .matchEthType(Ethernet.TYPE_IPV4)
-                .matchIPSrc(localMgmtIp.toIpPrefix())
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()
-                .transition(CordVtnPipeline.TABLE_DST_IP)
+                .transition(TABLE_IN_PORT)
                 .build();
 
         flowRule = DefaultFlowRule.builder()
                 .fromApp(appId)
                 .withSelector(selector)
                 .withTreatment(treatment)
-                .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
+                .withPriority(PRIORITY_ZERO)
                 .forDevice(deviceId)
-                .forTable(CordVtnPipeline.TABLE_ZERO)
+                .forTable(TABLE_ZERO)
                 .makePermanent()
                 .build();
 
         processFlowRule(true, flowRule);
 
+        // take all vlan tagged packet to the VLAN table
         selector = DefaultTrafficSelector.builder()
-                .matchEthType(Ethernet.TYPE_IPV4)
-                .matchIPDst(localMgmtIp.toIpPrefix())
+                .matchVlanId(VlanId.ANY)
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()
-                .setOutput(PortNumber.LOCAL)
+                .transition(TABLE_VLAN)
                 .build();
 
         flowRule = DefaultFlowRule.builder()
                 .fromApp(appId)
                 .withSelector(selector)
                 .withTreatment(treatment)
-                .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
+                .withPriority(PRIORITY_MANAGEMENT)
                 .forDevice(deviceId)
-                .forTable(CordVtnPipeline.TABLE_ZERO)
-                .makePermanent()
-                .build();
-
-        processFlowRule(true, flowRule);
-
-        selector = DefaultTrafficSelector.builder()
-                .matchInPort(PortNumber.LOCAL)
-                .matchEthType(Ethernet.TYPE_ARP)
-                .matchArpSpa(localMgmtIp)
-                .build();
-
-        treatment = DefaultTrafficTreatment.builder()
-                .setOutput(PortNumber.CONTROLLER)
-                .build();
-
-        flowRule = DefaultFlowRule.builder()
-                .fromApp(appId)
-                .withSelector(selector)
-                .withTreatment(treatment)
-                .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
-                .forDevice(deviceId)
-                .forTable(CordVtnPipeline.TABLE_ZERO)
+                .forTable(TABLE_ZERO)
                 .makePermanent()
                 .build();
 
         processFlowRule(true, flowRule);
     }
 
-    private void processInPortTable(DeviceId deviceId, PortNumber tunnelPort, PortNumber dataPort,
-                                    Optional<PortNumber> hostMgmtPort) {
+    private void processInPortTable(DeviceId deviceId, PortNumber tunnelPort, PortNumber dataPort) {
+        checkNotNull(tunnelPort);
+
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchInPort(tunnelPort)
                 .build();
@@ -420,28 +303,6 @@ public final class CordVtnPipeline {
                 .build();
 
         processFlowRule(true, flowRule);
-
-        if (hostMgmtPort.isPresent()) {
-            selector = DefaultTrafficSelector.builder()
-                    .matchInPort(hostMgmtPort.get())
-                    .build();
-
-            treatment = DefaultTrafficTreatment.builder()
-                    .transition(TABLE_DST_IP)
-                    .build();
-
-            flowRule = DefaultFlowRule.builder()
-                    .fromApp(appId)
-                    .withSelector(selector)
-                    .withTreatment(treatment)
-                    .withPriority(PRIORITY_DEFAULT)
-                    .forDevice(deviceId)
-                    .forTable(TABLE_IN_PORT)
-                    .makePermanent()
-                    .build();
-
-            processFlowRule(true, flowRule);
-        }
     }
 
     private void processAccessTypeTable(DeviceId deviceId, PortNumber dataPort) {
@@ -523,30 +384,23 @@ public final class CordVtnPipeline {
     }
 
     public ExtensionTreatment tunnelDstTreatment(DeviceId deviceId, Ip4Address remoteIp) {
-        Device device = deviceService.getDevice(deviceId);
-        if (device != null && !device.is(ExtensionTreatmentResolver.class)) {
-            log.error("The extension treatment is not supported");
-            return null;
-        }
-
-        ExtensionTreatmentResolver resolver = device.as(ExtensionTreatmentResolver.class);
-        ExtensionTreatment treatment = resolver.getExtensionInstruction(NICIRA_SET_TUNNEL_DST.type());
         try {
-            treatment.setPropertyValue(PROPERTY_TUNNEL_DST, remoteIp);
+            Device device = deviceService.getDevice(deviceId);
+            if (!device.is(ExtensionTreatmentResolver.class)) {
+                log.error("The extension treatment is not supported");
+                return null;
+
+            }
+
+            ExtensionTreatmentResolver resolver = device.as(ExtensionTreatmentResolver.class);
+            ExtensionTreatment treatment =
+                    resolver.getExtensionInstruction(NICIRA_SET_TUNNEL_DST.type());
+            treatment.setPropertyValue("tunnelDst", remoteIp);
             return treatment;
-        } catch (ExtensionPropertyException e) {
-            log.warn("Failed to get tunnelDst extension treatment for {}", deviceId);
+        } catch (ItemNotFoundException | UnsupportedOperationException |
+                ExtensionPropertyException e) {
+            log.error("Failed to get extension instruction {}", deviceId);
             return null;
         }
-    }
-
-    private Optional<PortNumber> getPortNumber(DeviceId deviceId, String portName) {
-        PortNumber port = deviceService.getPorts(deviceId).stream()
-                .filter(p -> p.annotations().value(AnnotationKeys.PORT_NAME).equals(portName) &&
-                        p.isEnabled())
-                .map(Port::number)
-                .findAny()
-                .orElse(null);
-        return Optional.ofNullable(port);
     }
 }
