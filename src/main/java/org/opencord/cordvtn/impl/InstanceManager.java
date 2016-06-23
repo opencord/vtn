@@ -70,7 +70,7 @@ import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.dhcp.IpAssignment.AssignmentStatus.Option_RangeNotEnforced;
 import static org.onosproject.net.AnnotationKeys.PORT_NAME;
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.MANAGEMENT;
+import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.MANAGEMENT;
 import static org.opencord.cordvtn.api.Constants.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -247,7 +247,7 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
                 .domainServer(DEFAULT_DNS)
                 .assignmentStatus(Option_RangeNotEnforced);
 
-        if (service.serviceType() != MANAGEMENT) {
+        if (service.networkType() != MANAGEMENT) {
             ipBuilder = ipBuilder.routerAddress(service.serviceIp().getIp4Address());
         }
 

@@ -32,7 +32,6 @@ import org.onosproject.xosclient.api.VtnService;
 import org.opencord.cordvtn.impl.AbstractInstanceHandler;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
-import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
 import java.util.Optional;
@@ -48,9 +47,6 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnPipeline pipeline;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnNodeManager nodeManager;
-
     @Activate
     protected void activate() {
         serviceType = Optional.of(MANAGEMENT);
@@ -64,85 +60,50 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
 
     @Override
     public void instanceDetected(Instance instance) {
+        log.info("Instance is detected {}", instance);
+
         VtnService service = getVtnService(instance.serviceId());
         if (service == null) {
             log.warn("Failed to get VtnService for {}", instance);
             return;
         }
-
-        switch (service.networkType()) {
-            case MANAGEMENT_LOCAL:
-                log.info("LOCAL management instance detected {}", instance);
-                localManagementRules(instance, true);
-                break;
-            case MANAGEMENT_HOSTS:
-                log.info("HOSTS management instance detected {}", instance);
-                hostsManagementRules(instance, true);
-                break;
-            default:
-                break;
-        }
+        localMgmtNetworkRules(instance, service, true);
     }
 
     @Override
     public void instanceRemoved(Instance instance) {
+        log.info("Instance is removed {}", instance);
+
         VtnService service = getVtnService(instance.serviceId());
         if (service == null) {
             log.warn("Failed to get VtnService for {}", instance);
             return;
         }
 
-        switch (service.networkType()) {
-            case MANAGEMENT_LOCAL:
-                log.info("LOCAL management instance removed {}", instance);
-                localManagementRules(instance, false);
-                break;
-            case MANAGEMENT_HOSTS:
-                log.info("HOSTS management instance removed {}", instance);
-                hostsManagementRules(instance, false);
-                break;
-            default:
-                break;
+        // TODO check if any stale management network rules are
+        localMgmtNetworkRules(instance, service, false);
+    }
+
+    private void localMgmtNetworkRules(Instance instance, VtnService service, boolean install) {
+        managementPerInstanceRule(instance, install);
+        if (install) {
+            managementBaseRule(instance, service, true);
+        } else if (!hostService.getConnectedHosts(instance.deviceId()).stream()
+                .filter(host -> Instance.of(host).serviceId().equals(service.id()))
+                .findAny()
+                .isPresent()) {
+            managementBaseRule(instance, service, false);
         }
     }
 
-    private void localManagementRules(Instance instance, boolean install) {
+    private void managementBaseRule(Instance instance, VtnService service, boolean install) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
-                .matchEthType(Ethernet.TYPE_IPV4)
-                .matchIPDst(instance.ipAddress().toIpPrefix())
+                .matchEthType(Ethernet.TYPE_ARP)
+                .matchArpTpa(service.serviceIp().getIp4Address())
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .setEthDst(instance.mac())
-                .setOutput(instance.portNumber())
-                .build();
-
-        FlowRule flowRule = DefaultFlowRule.builder()
-                .fromApp(appId)
-                .withSelector(selector)
-                .withTreatment(treatment)
-                .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
-                .forDevice(instance.deviceId())
-                .forTable(CordVtnPipeline.TABLE_DST_IP)
-                .makePermanent()
-                .build();
-
-        pipeline.processFlowRule(install, flowRule);
-    }
-
-    private void hostsManagementRules(Instance instance, boolean install) {
-        PortNumber hostMgmtPort = nodeManager.hostManagementPort(instance.deviceId());
-        if (hostMgmtPort == null) {
-            log.warn("Can not find host management port in {}", instance.deviceId());
-            return;
-        }
-
-        TrafficSelector selector = DefaultTrafficSelector.builder()
-                .matchInPort(instance.portNumber())
-                .build();
-
-        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .setOutput(hostMgmtPort)
+                .setOutput(PortNumber.LOCAL)
                 .build();
 
         FlowRule flowRule = DefaultFlowRule.builder()
@@ -151,7 +112,74 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
                 .withTreatment(treatment)
                 .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
                 .forDevice(instance.deviceId())
-                .forTable(CordVtnPipeline.TABLE_IN_PORT)
+                .forTable(CordVtnPipeline.TABLE_ZERO)
+                .makePermanent()
+                .build();
+
+        pipeline.processFlowRule(install, flowRule);
+
+        selector = DefaultTrafficSelector.builder()
+                .matchInPort(PortNumber.LOCAL)
+                .matchEthType(Ethernet.TYPE_IPV4)
+                .matchIPDst(service.subnet())
+                .build();
+
+        treatment = DefaultTrafficTreatment.builder()
+                .transition(CordVtnPipeline.TABLE_DST_IP)
+                .build();
+
+        flowRule = DefaultFlowRule.builder()
+                .fromApp(appId)
+                .withSelector(selector)
+                .withTreatment(treatment)
+                .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
+                .forDevice(instance.deviceId())
+                .forTable(CordVtnPipeline.TABLE_ZERO)
+                .makePermanent()
+                .build();
+
+        pipeline.processFlowRule(install, flowRule);
+
+        selector = DefaultTrafficSelector.builder()
+                .matchEthType(Ethernet.TYPE_IPV4)
+                .matchIPDst(service.serviceIp().toIpPrefix())
+                .build();
+
+        treatment = DefaultTrafficTreatment.builder()
+                .setOutput(PortNumber.LOCAL)
+                .build();
+
+        flowRule = DefaultFlowRule.builder()
+                .fromApp(appId)
+                .withSelector(selector)
+                .withTreatment(treatment)
+                .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
+                .forDevice(instance.deviceId())
+                .forTable(CordVtnPipeline.TABLE_ZERO)
+                .makePermanent()
+                .build();
+
+        pipeline.processFlowRule(install, flowRule);
+    }
+
+    private void managementPerInstanceRule(Instance instance, boolean install) {
+        TrafficSelector selector = DefaultTrafficSelector.builder()
+                .matchInPort(PortNumber.LOCAL)
+                .matchEthType(Ethernet.TYPE_ARP)
+                .matchArpTpa(instance.ipAddress().getIp4Address())
+                .build();
+
+        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+                .setOutput(instance.portNumber())
+                .build();
+
+        FlowRule flowRule = DefaultFlowRule.builder()
+                .fromApp(appId)
+                .withSelector(selector)
+                .withTreatment(treatment)
+                .withPriority(CordVtnPipeline.PRIORITY_MANAGEMENT)
+                .forDevice(instance.deviceId())
+                .forTable(CordVtnPipeline.TABLE_ZERO)
                 .makePermanent()
                 .build();
 
