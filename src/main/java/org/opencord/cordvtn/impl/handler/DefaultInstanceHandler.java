@@ -115,7 +115,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .transition(CordVtnPipeline.TABLE_ACCESS_TYPE)
+                .transition(CordVtnPipeline.TABLE_ACCESS)
                 .build();
 
         FlowRule flowRule = DefaultFlowRule.builder()
@@ -170,7 +170,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                 .withTreatment(treatment)
                 .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
                 .forDevice(instance.deviceId())
-                .forTable(CordVtnPipeline.TABLE_DST_IP)
+                .forTable(CordVtnPipeline.TABLE_DST)
                 .makePermanent()
                 .build();
 
@@ -200,7 +200,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                     .withTreatment(treatment)
                     .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
                     .forDevice(node.integrationBridgeId())
-                    .forTable(CordVtnPipeline.TABLE_DST_IP)
+                    .forTable(CordVtnPipeline.TABLE_DST)
                     .makePermanent()
                     .build();
 
@@ -239,7 +239,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .transition(CordVtnPipeline.TABLE_DST_IP)
+                .transition(CordVtnPipeline.TABLE_DST)
                 .build();
 
 
@@ -250,7 +250,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                     .withTreatment(treatment)
                     .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
                     .forDevice(node.integrationBridgeId())
-                    .forTable(CordVtnPipeline.TABLE_ACCESS_TYPE)
+                    .forTable(CordVtnPipeline.TABLE_ACCESS)
                     .makePermanent()
                     .build();
 
@@ -275,7 +275,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                     .withTreatment(treatment)
                     .withPriority(CordVtnPipeline.PRIORITY_LOW)
                     .forDevice(node.integrationBridgeId())
-                    .forTable(CordVtnPipeline.TABLE_ACCESS_TYPE)
+                    .forTable(CordVtnPipeline.TABLE_ACCESS)
                     .makePermanent()
                     .build();
 
