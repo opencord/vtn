@@ -79,9 +79,9 @@ public final class CordVtnPipeline {
     // tables
     public static final int TABLE_ZERO = 0;
     public static final int TABLE_IN_PORT = 1;
-    public static final int TABLE_ACCESS = 2;
+    public static final int TABLE_ACCESS_TYPE = 2;
     public static final int TABLE_IN_SERVICE = 3;
-    public static final int TABLE_DST = 4;
+    public static final int TABLE_DST_IP = 4;
     public static final int TABLE_TUNNEL_IN = 5;
     public static final int TABLE_VLAN = 6;
 
@@ -320,7 +320,7 @@ public final class CordVtnPipeline {
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()
-                .transition(CordVtnPipeline.TABLE_DST)
+                .transition(CordVtnPipeline.TABLE_DST_IP)
                 .build();
 
         flowRule = DefaultFlowRule.builder()
@@ -406,7 +406,7 @@ public final class CordVtnPipeline {
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()
-                .transition(TABLE_DST)
+                .transition(TABLE_DST_IP)
                 .build();
 
         flowRule = DefaultFlowRule.builder()
@@ -427,7 +427,7 @@ public final class CordVtnPipeline {
                     .build();
 
             treatment = DefaultTrafficTreatment.builder()
-                    .transition(TABLE_DST)
+                    .transition(TABLE_DST_IP)
                     .build();
 
             flowRule = DefaultFlowRule.builder()
@@ -458,7 +458,7 @@ public final class CordVtnPipeline {
                 .withTreatment(treatment)
                 .withPriority(PRIORITY_ZERO)
                 .forDevice(deviceId)
-                .forTable(TABLE_ACCESS)
+                .forTable(TABLE_ACCESS_TYPE)
                 .makePermanent()
                 .build();
 
