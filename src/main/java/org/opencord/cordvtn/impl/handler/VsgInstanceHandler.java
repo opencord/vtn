@@ -297,7 +297,7 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
                     .withTreatment(downstreamTreatment)
                     .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
                     .forDevice(vsgVm.deviceId())
-                    .forTable(CordVtnPipeline.TABLE_DST)
+                    .forTable(CordVtnPipeline.TABLE_DST_IP)
                     .makePermanent()
                     .build();
 

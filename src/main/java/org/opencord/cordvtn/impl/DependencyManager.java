@@ -259,7 +259,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                     .withTreatment(treatment)
                     .withPriority(PRIORITY_HIGH)
                     .forDevice(outGroup.getKey())
-                    .forTable(TABLE_ACCESS)
+                    .forTable(TABLE_ACCESS_TYPE)
                     .makePermanent()
                     .build();
 
@@ -275,7 +275,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .transition(TABLE_DST)
+                .transition(TABLE_DST_IP)
                 .build();
 
         nodeManager.completeNodes().stream().forEach(node -> {
@@ -286,7 +286,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                     .withTreatment(treatment)
                     .withPriority(PRIORITY_DEFAULT)
                     .forDevice(deviceId)
-                    .forTable(TABLE_ACCESS)
+                    .forTable(TABLE_ACCESS_TYPE)
                     .makePermanent()
                     .build();
 

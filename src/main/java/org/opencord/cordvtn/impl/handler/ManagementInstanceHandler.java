@@ -123,7 +123,7 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
                 .withTreatment(treatment)
                 .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
                 .forDevice(instance.deviceId())
-                .forTable(CordVtnPipeline.TABLE_DST)
+                .forTable(CordVtnPipeline.TABLE_DST_IP)
                 .makePermanent()
                 .build();
 
@@ -173,7 +173,7 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
                 .withTreatment(treatment)
                 .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
                 .forDevice(instance.deviceId())
-                .forTable(CordVtnPipeline.TABLE_DST)
+                .forTable(CordVtnPipeline.TABLE_DST_IP)
                 .makePermanent()
                 .build();
 

@@ -429,8 +429,7 @@ public class CordVtnNodeManager {
 
         // adds existing instances to the host list
         deviceService.getPorts(node.integrationBridgeId()).stream()
-                .filter(port -> !node.systemIfaces().contains(portName(port)) &&
-                        !port.number().equals(PortNumber.LOCAL) &&
+                .filter(port -> portName(port).startsWith(VPORT_PREFIX) &&
                         port.isEnabled())
                 .forEach(port -> instanceService.addInstance(connectPoint(port)));
 
@@ -750,12 +749,14 @@ public class CordVtnNodeManager {
 
             log.info("Port {} is added to {}", portName, node.hostname());
 
-            if (node.systemIfaces().contains(portName)) {
+            if (portName.startsWith(VPORT_PREFIX)) {
+                if (isNodeStateComplete(node)) {
+                    instanceService.addInstance(connectPoint(port));
+                } else {
+                    log.warn("VM is detected on incomplete node, ignore it.", portName);
+                }
+            } else if (node.systemIfaces().contains(portName)) {
                 setNodeState(node, getNodeState(node));
-            } else if (isNodeStateComplete(node)) {
-                instanceService.addInstance(connectPoint(port));
-            } else {
-                log.warn("Instance is detected on incomplete node, ignore it.", portName);
             }
         }
 
@@ -776,12 +777,14 @@ public class CordVtnNodeManager {
 
             log.info("Port {} is removed from {}", portName, node.hostname());
 
-            if (node.systemIfaces().contains(portName)) {
+            if (portName.startsWith(VPORT_PREFIX)) {
+                if (isNodeStateComplete(node)) {
+                    instanceService.removeInstance(connectPoint(port));
+                } else {
+                    log.warn("VM is vanished from incomplete node, ignore it.", portName);
+                }
+            } else if (node.systemIfaces().contains(portName)) {
                 setNodeState(node, NodeState.INCOMPLETE);
-            } else if (isNodeStateComplete(node)) {
-                instanceService.removeInstance(connectPoint(port));
-            } else {
-                log.warn("VM is vanished from incomplete node, ignore it.", portName);
             }
         }
     }

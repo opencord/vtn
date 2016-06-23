@@ -15,7 +15,6 @@
  */
 package org.opencord.cordvtn.api;
 
-import org.onlab.packet.Ip4Address;
 import org.onlab.packet.TpPort;
 
 /**
@@ -35,10 +34,8 @@ public final class Constants {
 
     public static final String DEFAULT_TUNNEL = "vxlan";
     public static final String INTEGRATION_BRIDGE = "br-int";
-    public static final String NOT_APPLICABLE = "N/A";
+    public static final String VPORT_PREFIX = "tap";
 
     public static final int OF_PORT = 6653;
     public static final TpPort OVSDB_PORT = TpPort.tpPort(6640);
-    public static final Ip4Address DEFAULT_DNS = Ip4Address.valueOf("8.8.8.8");
-    public static final int DHCP_INFINITE_LEASE = -1;
 }
