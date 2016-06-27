@@ -83,7 +83,12 @@ class SyncPortAddresses(SyncStep):
                 continue
             try:
                 driver = self.driver.admin_driver(controller = controller)
-                ports = driver.shell.quantum.list_ports()["ports"]
+                # FIXME: after LTS merge, use neutron (new name) instead of quantum (old name)
+                # the following if is a workaround
+                if hasattr( driver.shell, "neutron"):
+                    ports = driver.shell.neutron.list_ports()["ports"]
+                else:
+                    ports = driver.shell.quantum.list_ports()["ports"]
             except:
                 logger.log_exc("failed to get ports from controller %s" % controller)
                 continue
@@ -123,11 +128,9 @@ class SyncPortAddresses(SyncStep):
 
             if changed:
                 logger.info("updating port %s" % port)
-                driver.shell.quantum.update_port(port.port_id, {"port": {"allowed_address_pairs": aaps}})
-
-
-
-
-
-
+                # FIXME: See FIXME above, remove after LTS merge
+                if hasattr( driver.shell, "neutron"):
+                    driver.shell.neutron.update_port(port.port_id, {"port": {"allowed_address_pairs": aaps}})
+                else:
+                    driver.shell.quantum.update_port(port.port_id, {"port": {"allowed_address_pairs": aaps}})
 
