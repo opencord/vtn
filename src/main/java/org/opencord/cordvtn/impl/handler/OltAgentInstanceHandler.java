@@ -20,6 +20,7 @@ import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
 
+import org.onosproject.xosclient.api.VtnServiceApi;
 import org.opencord.cordvtn.impl.AbstractInstanceHandler;
 import org.opencord.cordvtn.api.CordVtnConfig;
 import org.opencord.cordvtn.api.Instance;
@@ -36,8 +37,6 @@ import org.opencord.cordconfig.access.AccessAgentData;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.OLT_AGENT;
 
 /**
  * Provides network connectivity for OLT agent instances.
@@ -59,7 +58,7 @@ public class OltAgentInstanceHandler extends AbstractInstanceHandler implements 
 
     @Activate
     protected void activate() {
-        serviceType = Optional.of(OLT_AGENT);
+        serviceType = Optional.of(VtnServiceApi.ServiceType.ACCESS_AGENT);
         configListener = new InternalConfigListener();
         super.activate();
 

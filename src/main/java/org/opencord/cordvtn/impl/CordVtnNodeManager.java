@@ -155,7 +155,7 @@ public class CordVtnNodeManager {
     protected CordVtnPipeline pipeline;
 
     private final ExecutorService eventExecutor =
-            newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-node", "event-handler"));
+            newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-node", "event-handler", log));
 
     private final NetworkConfigListener configListener = new InternalConfigListener();
     private final DeviceListener deviceListener = new InternalDeviceListener();
