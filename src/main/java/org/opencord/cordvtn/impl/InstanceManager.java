@@ -66,7 +66,7 @@ import java.util.Date;
 import java.util.concurrent.ExecutorService;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.dhcp.IpAssignment.AssignmentStatus.Option_RangeNotEnforced;
 import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.MANAGEMENT;
@@ -116,7 +116,7 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
             };
 
     private final ExecutorService eventExecutor =
-            newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-instance", "event-handler"));
+            newSingleThreadExecutor(groupedThreads("onos/cordvtn-instance", "event-handler", log));
     private final NetworkConfigListener configListener = new InternalConfigListener();
 
     private ApplicationId appId;

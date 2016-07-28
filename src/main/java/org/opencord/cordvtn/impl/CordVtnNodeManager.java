@@ -83,7 +83,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.net.Device.Type.SWITCH;
 import static org.onosproject.net.behaviour.TunnelDescription.Type.VXLAN;
@@ -155,7 +155,7 @@ public class CordVtnNodeManager {
     protected CordVtnPipeline pipeline;
 
     private final ExecutorService eventExecutor =
-            newSingleThreadScheduledExecutor(groupedThreads("onos/cordvtn-node", "event-handler"));
+            newSingleThreadExecutor(groupedThreads("onos/cordvtn-node", "event-handler", log));
 
     private final NetworkConfigListener configListener = new InternalConfigListener();
     private final DeviceListener deviceListener = new InternalDeviceListener();
