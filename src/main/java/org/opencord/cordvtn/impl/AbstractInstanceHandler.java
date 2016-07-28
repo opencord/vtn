@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.opencord.cordvtn.api.Constants.ERROR_OPENSTACK_ACCESS;
 import static org.opencord.cordvtn.api.Constants.ERROR_XOS_ACCESS;
@@ -77,8 +77,8 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
 
     private XosAccess xosAccess = null;
     private OpenStackAccess osAccess = null;
-    private final ExecutorService eventExecutor = newSingleThreadScheduledExecutor(
-            groupedThreads(this.getClass().getSimpleName(), "event-handler"));
+    private final ExecutorService eventExecutor = newSingleThreadExecutor(
+            groupedThreads(this.getClass().getSimpleName(), "event-handler", log));
 
     protected void activate() {
         ServiceDirectory services = new DefaultServiceDirectory();
