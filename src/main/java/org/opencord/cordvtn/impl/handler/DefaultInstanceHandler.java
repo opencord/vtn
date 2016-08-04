@@ -152,7 +152,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
     }
 
     private void dstIpRule(Instance instance, long vni, boolean install) {
-        Ip4Address tunnelIp = nodeManager.dpIp(instance.deviceId()).getIp4Address();
+        Ip4Address tunnelIp = nodeManager.dataIp(instance.deviceId()).getIp4Address();
 
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(Ethernet.TYPE_IPV4)
@@ -177,11 +177,12 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         pipeline.processFlowRule(install, flowRule);
 
         for (CordVtnNode node : nodeManager.completeNodes()) {
-            if (node.intBrId().equals(instance.deviceId())) {
+            if (node.integrationBridgeId().equals(instance.deviceId())) {
                 continue;
             }
 
-            ExtensionTreatment tunnelDst = pipeline.tunnelDstTreatment(node.intBrId(), tunnelIp);
+            ExtensionTreatment tunnelDst =
+                    pipeline.tunnelDstTreatment(node.integrationBridgeId(), tunnelIp);
             if (tunnelDst == null) {
                 continue;
             }
@@ -189,8 +190,8 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
             treatment = DefaultTrafficTreatment.builder()
                     .setEthDst(instance.mac())
                     .setTunnelId(vni)
-                    .extension(tunnelDst, node.intBrId())
-                    .setOutput(nodeManager.tunnelPort(node.intBrId()))
+                    .extension(tunnelDst, node.integrationBridgeId())
+                    .setOutput(nodeManager.tunnelPort(node.integrationBridgeId()))
                     .build();
 
             flowRule = DefaultFlowRule.builder()
@@ -198,7 +199,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                     .withSelector(selector)
                     .withTreatment(treatment)
                     .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
-                    .forDevice(node.intBrId())
+                    .forDevice(node.integrationBridgeId())
                     .forTable(CordVtnPipeline.TABLE_DST_IP)
                     .makePermanent()
                     .build();
@@ -248,7 +249,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                     .withSelector(selector)
                     .withTreatment(treatment)
                     .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
-                    .forDevice(node.intBrId())
+                    .forDevice(node.integrationBridgeId())
                     .forTable(CordVtnPipeline.TABLE_ACCESS_TYPE)
                     .makePermanent()
                     .build();
@@ -273,7 +274,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                     .withSelector(selector)
                     .withTreatment(treatment)
                     .withPriority(CordVtnPipeline.PRIORITY_LOW)
-                    .forDevice(node.intBrId())
+                    .forDevice(node.integrationBridgeId())
                     .forTable(CordVtnPipeline.TABLE_ACCESS_TYPE)
                     .makePermanent()
                     .build();
