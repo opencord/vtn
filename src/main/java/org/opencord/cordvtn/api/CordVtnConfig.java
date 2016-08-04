@@ -16,6 +16,7 @@
 package org.opencord.cordvtn.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -31,6 +32,8 @@ import org.slf4j.Logger;
 import java.util.Map;
 import java.util.Set;
 
+import static org.onosproject.net.config.Config.FieldPresence.MANDATORY;
+import static org.onosproject.net.config.Config.FieldPresence.OPTIONAL;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -69,6 +72,84 @@ public class CordVtnConfig extends Config<ApplicationId> {
     private static final String PASSWORD = "password";
 
     // TODO implement isValid
+    @Override
+    public boolean isValid() {
+        // check only allowed fields are present
+        boolean result = hasOnlyFields(
+                PRIVATE_GATEWAY_MAC,
+                PUBLIC_GATEWAYS,
+                LOCAL_MANAGEMENT_IP,
+                OVSDB_PORT,
+                SSH,
+                OPENSTACK,
+                XOS,
+                CORDVTN_NODES);
+
+        if (object.get(CORDVTN_NODES) == null || object.get(CORDVTN_NODES).size() < 1) {
+            final String msg = "No node is present";
+            throw new IllegalArgumentException(msg);
+        }
+
+        // check all mandatory fields are present and valid
+        result = result && isMacAddress(PRIVATE_GATEWAY_MAC, MANDATORY);
+        result = result && isIpPrefix(LOCAL_MANAGEMENT_IP, MANDATORY);
+
+        for (JsonNode node : object.get(CORDVTN_NODES)) {
+            ObjectNode vtnNode = (ObjectNode) node;
+            result = result && hasFields(
+                    vtnNode,
+                    HOSTNAME,
+                    HOST_MANAGEMENT_IP,
+                    DATA_IP,
+                    DATA_IFACE,
+                    INTEGRATION_BRIDGE_ID);
+            result = result && isIpPrefix(vtnNode, HOST_MANAGEMENT_IP, MANDATORY);
+            result = result && isIpPrefix(vtnNode, DATA_IP, MANDATORY);
+
+            NetworkAddress localMgmt = NetworkAddress.valueOf(get(LOCAL_MANAGEMENT_IP, ""));
+            NetworkAddress hostsMgmt = NetworkAddress.valueOf(getConfig(vtnNode, HOST_MANAGEMENT_IP));
+            if (hostsMgmt.prefix().contains(localMgmt.prefix()) ||
+                    localMgmt.prefix().contains(hostsMgmt.prefix())) {
+                final String msg = "Host and local management network IP conflict";
+                throw new IllegalArgumentException(msg);
+            }
+        }
+
+        result = result && hasFields(
+                (ObjectNode) object.get(SSH),
+                SSH_PORT,
+                SSH_USER,
+                SSH_KEY_FILE);
+        result = result && isTpPort(
+                (ObjectNode) object.get(SSH),
+                SSH_PORT,
+                MANDATORY);
+
+        result = result && hasFields(
+                (ObjectNode) object.get(OPENSTACK),
+                ENDPOINT,
+                TENANT,
+                USER,
+                PASSWORD);
+
+        result = result && hasFields(
+                (ObjectNode) object.get(XOS),
+                ENDPOINT,
+                USER,
+                PASSWORD);
+
+        // check all optional fields are valid
+        result = result && isTpPort(OVSDB_PORT, OPTIONAL);
+
+        if (object.get(PUBLIC_GATEWAYS) != null && object.get(PUBLIC_GATEWAYS).isArray()) {
+            for (JsonNode node : object.get(PUBLIC_GATEWAYS)) {
+                ObjectNode gateway = (ObjectNode) node;
+                result = result && isIpAddress(gateway, GATEWAY_IP, MANDATORY);
+                result = result && isMacAddress(gateway, GATEWAY_MAC, MANDATORY);
+            }
+        }
+        return result;
+    }
 
     /**
      * Returns the set of nodes read from network config.
@@ -76,97 +157,64 @@ public class CordVtnConfig extends Config<ApplicationId> {
      * @return set of CordVtnNodeConfig or empty set
      */
     public Set<CordVtnNode> cordVtnNodes() {
-
         Set<CordVtnNode> nodes = Sets.newHashSet();
-
-        // TODO implement isValid and move these blocks to it
-        JsonNode cordvtnNodes = object.get(CORDVTN_NODES);
-        if (cordvtnNodes == null) {
-            log.debug("No CORD VTN nodes found");
-            return nodes;
-        }
-
         JsonNode sshNode = object.get(SSH);
-        if (sshNode == null) {
-            log.warn("SSH information not found");
-            return nodes;
-        }
+        String ovsdbPort = getConfig(object, OVSDB_PORT);
 
-        for (JsonNode cordvtnNode : cordvtnNodes) {
-            // TODO implement isValid and move this block to it
-            NetworkAddress hostMgmt = NetworkAddress.valueOf(getConfig(cordvtnNode, HOST_MANAGEMENT_IP));
-            NetworkAddress localMgmt = NetworkAddress.valueOf(getConfig(object, LOCAL_MANAGEMENT_IP));
-            if (hostMgmt.prefix().contains(localMgmt.prefix()) ||
-                    localMgmt.prefix().contains(hostMgmt.prefix())) {
-                log.error("hostMamt and localMgmt cannot be overlapped, skip this node");
-                continue;
-            }
+        object.get(CORDVTN_NODES).forEach(vtnNode -> {
+            NetworkAddress localMgmt = NetworkAddress.valueOf(get(LOCAL_MANAGEMENT_IP, ""));
+            NetworkAddress hostsMgmt = NetworkAddress.valueOf(getConfig(vtnNode, HOST_MANAGEMENT_IP));
 
-            String hostname = getConfig(cordvtnNode, HOSTNAME);
             SshAccessInfo sshInfo = new SshAccessInfo(
-                    hostMgmt.ip().getIp4Address(),
+                    hostsMgmt.ip().getIp4Address(),
                     TpPort.tpPort(Integer.parseInt(getConfig(sshNode, SSH_PORT))),
-                    getConfig(sshNode, SSH_USER), getConfig(sshNode, SSH_KEY_FILE));
+                    getConfig(sshNode, SSH_USER),
+                    getConfig(sshNode, SSH_KEY_FILE));
 
             CordVtnNode.Builder nodeBuilder = CordVtnNode.builder()
-                    .hostname(hostname)
-                    .hostMgmtIp(hostMgmt)
+                    .hostname(getConfig(vtnNode, HOSTNAME))
+                    .hostMgmtIp(hostsMgmt)
                     .localMgmtIp(localMgmt)
-                    .dataIp(getConfig(cordvtnNode, DATA_IP))
+                    .dataIp(getConfig(vtnNode, DATA_IP))
                     .sshInfo(sshInfo)
-                    .integrationBridgeId(getConfig(cordvtnNode, INTEGRATION_BRIDGE_ID))
-                    .dataIface(getConfig(cordvtnNode, DATA_IFACE));
+                    .integrationBridgeId(getConfig(vtnNode, INTEGRATION_BRIDGE_ID))
+                    .dataIface(getConfig(vtnNode, DATA_IFACE));
 
-            String ovsdbPort = getConfig(object, OVSDB_PORT);
             if (!Strings.isNullOrEmpty(ovsdbPort)) {
                 nodeBuilder.ovsdbPort(Integer.parseInt(ovsdbPort));
             }
 
-            String hostMgmtIface = getConfig(cordvtnNode, HOST_MANAGEMENT_IFACE);
+            String hostMgmtIface = getConfig(vtnNode, HOST_MANAGEMENT_IFACE);
             if (!Strings.isNullOrEmpty(hostMgmtIface)) {
                 nodeBuilder.hostMgmtIface(hostMgmtIface);
             }
 
             nodes.add(nodeBuilder.build());
-        }
+        });
+
         return nodes;
     }
 
     /**
-     * Returns value of a given path. If the path is missing, show log and return
-     * null.
+     * Gets the specified property as a string.
      *
-     * @param path path
-     * @return value or null
+     * @param jsonNode node whose fields to get
+     * @param path property to get
+     * @return value as a string
      */
     private String getConfig(JsonNode jsonNode, String path) {
         jsonNode = jsonNode.path(path);
-
-        if (jsonNode.isMissingNode()) {
-            log.debug("{} is not configured", path);
-            return null;
-        } else {
-            return jsonNode.asText();
-        }
+        return jsonNode.asText();
     }
 
     /**
      * Returns private network gateway MAC address.
      *
-     * @return mac address, or null
+     * @return mac address
      */
     public MacAddress privateGatewayMac() {
         JsonNode jsonNode = object.get(PRIVATE_GATEWAY_MAC);
-        if (jsonNode == null) {
-            return null;
-        }
-
-        try {
-            return MacAddress.valueOf(jsonNode.asText());
-        } catch (IllegalArgumentException e) {
-            log.error("Wrong MAC address format {}", jsonNode.asText());
-            return null;
-        }
+        return MacAddress.valueOf(jsonNode.asText());
     }
 
     /**
@@ -176,21 +224,15 @@ public class CordVtnConfig extends Config<ApplicationId> {
      */
     public Map<IpAddress, MacAddress> publicGateways() {
         JsonNode jsonNodes = object.get(PUBLIC_GATEWAYS);
+        Map<IpAddress, MacAddress> publicGateways = Maps.newHashMap();
+
         if (jsonNodes == null) {
-            return Maps.newHashMap();
+            return publicGateways;
         }
 
-        Map<IpAddress, MacAddress> publicGateways = Maps.newHashMap();
-        jsonNodes.forEach(jsonNode -> {
-            try {
-                publicGateways.put(
-                        IpAddress.valueOf(jsonNode.path(GATEWAY_IP).asText()),
-                        MacAddress.valueOf(jsonNode.path(GATEWAY_MAC).asText()));
-            } catch (IllegalArgumentException | NullPointerException e) {
-                log.error("Wrong address format {}", e.toString());
-            }
-        });
-
+        jsonNodes.forEach(jsonNode -> publicGateways.put(
+                IpAddress.valueOf(jsonNode.path(GATEWAY_IP).asText()),
+                MacAddress.valueOf(jsonNode.path(GATEWAY_MAC).asText())));
         return publicGateways;
     }
 
@@ -201,18 +243,9 @@ public class CordVtnConfig extends Config<ApplicationId> {
      */
     public XosAccess xosAccess() {
         JsonNode jsonNode = object.get(XOS);
-        if (jsonNode == null) {
-            return null;
-        }
-
-        try {
-            return new XosAccess(getConfig(jsonNode, ENDPOINT),
-                                 getConfig(jsonNode, USER),
-                                 getConfig(jsonNode, PASSWORD));
-        } catch (NullPointerException e) {
-            log.error("Failed to get XOS access");
-            return null;
-        }
+        return new XosAccess(getConfig(jsonNode, ENDPOINT),
+                             getConfig(jsonNode, USER),
+                             getConfig(jsonNode, PASSWORD));
     }
 
     /**
@@ -222,20 +255,9 @@ public class CordVtnConfig extends Config<ApplicationId> {
      */
     public OpenStackAccess openstackAccess() {
         JsonNode jsonNode = object.get(OPENSTACK);
-        if (jsonNode == null) {
-            log.error("Failed to get OpenStack configurations");
-            return null;
-        }
-
-        try {
-            return new OpenStackAccess(
-                    jsonNode.path(ENDPOINT).asText(),
-                    jsonNode.path(TENANT).asText(),
-                    jsonNode.path(USER).asText(),
-                    jsonNode.path(PASSWORD).asText());
-        } catch (IllegalArgumentException | NullPointerException e) {
-            log.error("Failed to get OpenStack configurations");
-            return null;
-        }
+        return new OpenStackAccess(jsonNode.path(ENDPOINT).asText(),
+                                   jsonNode.path(TENANT).asText(),
+                                   jsonNode.path(USER).asText(),
+                                   jsonNode.path(PASSWORD).asText());
     }
 }
