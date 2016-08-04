@@ -28,6 +28,7 @@ import org.onlab.util.KryoNamespace;
 import org.onosproject.cluster.ClusterService;
 import org.onosproject.cluster.LeadershipService;
 import org.onosproject.cluster.NodeId;
+import org.onosproject.net.AnnotationKeys;
 import org.onosproject.net.behaviour.BridgeDescription;
 import org.onosproject.net.behaviour.DefaultBridgeDescription;
 import org.onosproject.net.behaviour.InterfaceConfig;
@@ -75,6 +76,7 @@ import org.slf4j.Logger;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
@@ -316,12 +318,9 @@ public class CordVtnNodeManager {
             log.warn("Failed to get node for {}", deviceId);
             return null;
         }
-        Port port = deviceService.getPorts(deviceId).stream()
-                .filter(p -> portName(p).contains(node.dataIface()) &&
-                        p.isEnabled())
-                .findFirst().orElse(null);
 
-        return port == null ? null : port.number();
+        Optional<PortNumber> port = getPortNumber(deviceId, node.dataIface());
+        return port.isPresent() ? port.get() : null;
     }
 
     /**
@@ -346,11 +345,39 @@ public class CordVtnNodeManager {
      * @return port number
      */
     public PortNumber tunnelPort(DeviceId deviceId) {
-        Port port = deviceService.getPorts(deviceId).stream()
-                .filter(p -> portName(p).contains(DEFAULT_TUNNEL))
-                .findFirst().orElse(null);
+        Optional<PortNumber> port = getPortNumber(deviceId, DEFAULT_TUNNEL);
+        return port.isPresent() ? port.get() : null;
+    }
 
-        return port == null ? null : port.number();
+    /**
+     * Returns host management interface port number if exists.
+     *
+     * @param deviceId integration bridge device id
+     * @return port number; null if it does not exist
+     */
+    public PortNumber hostManagementPort(DeviceId deviceId) {
+        CordVtnNode node = nodeByBridgeId(deviceId);
+        if (node == null) {
+            log.warn("Failed to get node for {}", deviceId);
+            return null;
+        }
+
+        if (node.hostMgmtIface().isPresent()) {
+            Optional<PortNumber> port = getPortNumber(deviceId, node.hostMgmtIface().get());
+            return port.isPresent() ? port.get() : null;
+        } else {
+            return null;
+        }
+    }
+
+    private Optional<PortNumber> getPortNumber(DeviceId deviceId, String portName) {
+        PortNumber port = deviceService.getPorts(deviceId).stream()
+                .filter(p -> p.annotations().value(AnnotationKeys.PORT_NAME).equals(portName) &&
+                        p.isEnabled())
+                .map(Port::number)
+                .findAny()
+                .orElse(null);
+        return Optional.ofNullable(port);
     }
 
     /**
@@ -400,8 +427,7 @@ public class CordVtnNodeManager {
             ovsdbClient.disconnect();
         }
 
-        pipeline.initPipeline(node, dataPort(node.integrationBridgeId()),
-                              tunnelPort(node.integrationBridgeId()));
+        pipeline.initPipeline(node);
 
         // adds existing instances to the host list
         deviceService.getPorts(node.integrationBridgeId()).stream()
