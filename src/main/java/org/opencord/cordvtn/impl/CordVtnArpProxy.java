@@ -52,6 +52,7 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.PRIVATE;
+import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.ACCESS_AGENT;
 import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.MANAGEMENT;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -338,6 +339,12 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
 
     @Override
     public void instanceDetected(Instance instance) {
+        // TODO remove this when XOS provides access agent information
+        // and handle it the same way wit the other instances
+        if (instance.serviceType() == ACCESS_AGENT) {
+            return;
+        }
+
         VtnService service = getVtnService(instance.serviceId());
         if (service == null) {
             return;
@@ -353,6 +360,12 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
 
     @Override
     public void instanceRemoved(Instance instance) {
+        // TODO remove this when XOS provides access agent information
+        // and handle it the same way wit the other instances
+        if (instance.serviceType() == ACCESS_AGENT) {
+            return;
+        }
+
         VtnService service = getVtnService(instance.serviceId());
         if (service == null) {
             return;
