@@ -25,6 +25,8 @@ import org.apache.felix.scr.annotations.Service;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
+import org.opencord.cordconfig.CordConfigService;
+import org.opencord.cordconfig.access.AccessAgentData;
 import org.opencord.cordvtn.api.CordVtnConfig;
 import org.opencord.cordvtn.api.Instance;
 import org.onosproject.core.ApplicationId;
@@ -63,6 +65,7 @@ import org.opencord.cordvtn.api.InstanceService;
 import org.slf4j.Logger;
 
 import java.util.Date;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -70,6 +73,7 @@ import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.dhcp.IpAssignment.AssignmentStatus.Option_RangeNotEnforced;
 import static org.onosproject.net.AnnotationKeys.PORT_NAME;
+import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.ACCESS_AGENT;
 import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.MANAGEMENT;
 import static org.opencord.cordvtn.api.Constants.*;
 import static org.slf4j.LoggerFactory.getLogger;
@@ -83,9 +87,6 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
         InstanceService {
 
     protected final Logger log = getLogger(getClass());
-
-    private static final Ip4Address DEFAULT_DNS = Ip4Address.valueOf("8.8.8.8");
-    private static final int DHCP_INFINITE_LEASE = -1;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CoreService coreService;
@@ -108,8 +109,14 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected XosClientService xosClient;
 
+    // TODO get access agent container information from XOS
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordConfigService cordConfig;
+
+    private static final Class<CordVtnConfig> CONFIG_CLASS = CordVtnConfig.class;
     private final ConfigFactory configFactory =
-            new ConfigFactory(SubjectFactories.APP_SUBJECT_FACTORY, CordVtnConfig.class, "cordvtn") {
+            new ConfigFactory<ApplicationId, CordVtnConfig>(
+                    SubjectFactories.APP_SUBJECT_FACTORY, CONFIG_CLASS, "cordvtn") {
                 @Override
                 public CordVtnConfig createConfig() {
                     return new CordVtnConfig();
@@ -117,7 +124,7 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
             };
 
     private final ExecutorService eventExecutor =
-            newSingleThreadExecutor(groupedThreads("onos/cordvtn-instance", "event-handler", log));
+            newSingleThreadExecutor(groupedThreads(this.getClass().getSimpleName(), "event-handler"));
     private final NetworkConfigListener configListener = new InternalConfigListener();
 
     private ApplicationId appId;
@@ -167,6 +174,13 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
         Port port = deviceService.getPort(connectPoint.deviceId(), connectPoint.port());
         if (port == null) {
             log.debug("No port found from {}", connectPoint);
+            return;
+        }
+
+        // TODO remove this when XOS provides access agent information
+        // and handle it the same way wit the other instances
+        if (isAccessAgent(connectPoint)) {
+            addAccessAgentInstance(connectPoint);
             return;
         }
 
@@ -281,8 +295,37 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
         return vtnPort;
     }
 
+    // TODO remove this when XOS provides access agent information
+    private boolean isAccessAgent(ConnectPoint connectPoint) {
+        Optional<AccessAgentData> agent = cordConfig.getAccessAgent(connectPoint.deviceId());
+        if (!agent.isPresent() || !agent.get().getVtnLocation().isPresent()) {
+            return false;
+        }
+        return agent.get().getVtnLocation().get().port().equals(connectPoint.port());
+    }
+
+    // TODO remove this when XOS provides access agent information
+    private void addAccessAgentInstance(ConnectPoint connectPoint) {
+        AccessAgentData agent = cordConfig.getAccessAgent(connectPoint.deviceId()).get();
+        DefaultAnnotations.Builder annotations = DefaultAnnotations.builder()
+                .set(Instance.SERVICE_TYPE, ACCESS_AGENT.name())
+                .set(Instance.SERVICE_ID, NOT_APPLICABLE)
+                .set(Instance.PORT_ID, NOT_APPLICABLE)
+                .set(Instance.CREATE_TIME, String.valueOf(System.currentTimeMillis()));
+
+        HostDescription hostDesc = new DefaultHostDescription(
+                agent.getAgentMac(),
+                VlanId.NONE,
+                new HostLocation(connectPoint, System.currentTimeMillis()),
+                Sets.newHashSet(),
+                annotations.build());
+
+        HostId hostId = HostId.hostId(agent.getAgentMac());
+        hostProvider.hostDetected(hostId, hostDesc, false);
+    }
+
     private void readConfiguration() {
-        CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
+        CordVtnConfig config = configRegistry.getConfig(appId, CONFIG_CLASS);
         if (config == null) {
             log.debug("No configuration found");
             return;
@@ -297,13 +340,13 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
 
         @Override
         public void event(NetworkConfigEvent event) {
-            if (!event.configClass().equals(CordVtnConfig.class)) {
+            if (!event.configClass().equals(CONFIG_CLASS)) {
                 return;
             }
 
             switch (event.type()) {
-                case CONFIG_ADDED:
                 case CONFIG_UPDATED:
+                case CONFIG_ADDED:
                     readConfiguration();
                     break;
                 default:

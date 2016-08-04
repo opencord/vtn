@@ -27,6 +27,7 @@ import org.apache.felix.scr.annotations.Service;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.Ip4Prefix;
+import org.onosproject.xosclient.api.VtnServiceApi;
 import org.opencord.cordvtn.api.CordVtnNode;
 import org.opencord.cordvtn.api.DependencyService;
 import org.opencord.cordvtn.api.Instance;
@@ -124,6 +125,12 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
 
     @Override
     public void instanceDetected(Instance instance) {
+        // TODO remove this when XOS provides access agent information
+        // and handle it the same way wit the other instances
+        if (instance.serviceType() == VtnServiceApi.ServiceType.ACCESS_AGENT) {
+            return;
+        }
+
         VtnService service = getVtnService(instance.serviceId());
         if (service == null) {
             return;
@@ -140,6 +147,12 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
 
     @Override
     public void instanceRemoved(Instance instance) {
+        // TODO remove this when XOS provides access agent information
+        // and handle it the same way wit the other instances
+        if (instance.serviceType() == VtnServiceApi.ServiceType.ACCESS_AGENT) {
+            return;
+        }
+
         VtnService service = getVtnService(instance.serviceId());
         if (service == null) {
             return;
@@ -259,7 +272,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                     .withTreatment(treatment)
                     .withPriority(PRIORITY_HIGH)
                     .forDevice(outGroup.getKey())
-                    .forTable(TABLE_ACCESS_TYPE)
+                    .forTable(TABLE_ACCESS)
                     .makePermanent()
                     .build();
 
@@ -275,7 +288,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .transition(TABLE_DST_IP)
+                .transition(TABLE_DST)
                 .build();
 
         nodeManager.completeNodes().stream().forEach(node -> {
@@ -286,7 +299,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                     .withTreatment(treatment)
                     .withPriority(PRIORITY_DEFAULT)
                     .forDevice(deviceId)
-                    .forTable(TABLE_ACCESS_TYPE)
+                    .forTable(TABLE_ACCESS)
                     .makePermanent()
                     .build();
 
