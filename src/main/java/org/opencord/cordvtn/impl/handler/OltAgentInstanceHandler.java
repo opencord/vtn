@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.OLT_AGENT;
+import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.ACCESS_AGENT;
 
 /**
  * Provides network connectivity for OLT agent instances.
@@ -59,7 +59,7 @@ public class OltAgentInstanceHandler extends AbstractInstanceHandler implements 
 
     @Activate
     protected void activate() {
-        serviceType = Optional.of(OLT_AGENT);
+        serviceType = Optional.of(ACCESS_AGENT);
         configListener = new InternalConfigListener();
         super.activate();
 

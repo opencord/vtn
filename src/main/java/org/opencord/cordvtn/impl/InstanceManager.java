@@ -69,7 +69,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.dhcp.IpAssignment.AssignmentStatus.Option_RangeNotEnforced;
-import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.MANAGEMENT;
+import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.MANAGEMENT;
 import static org.opencord.cordvtn.api.Constants.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -246,7 +246,7 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
                 .domainServer(DEFAULT_DNS)
                 .assignmentStatus(Option_RangeNotEnforced);
 
-        if (service.networkType() != MANAGEMENT) {
+        if (service.serviceType() != MANAGEMENT) {
             ipBuilder = ipBuilder.routerAddress(service.serviceIp().getIp4Address());
         }
 
