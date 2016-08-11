@@ -5,7 +5,16 @@
 import importlib
 import os
 import sys
-observer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),"../../synchronizers/base")
-sys.path.append(observer_path)
-mod = importlib.import_module("xos-synchronizer")
+sys.path.append('/opt/xos')
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "xos.settings")
+
+import synchronizers.base.event_loop
+if hasattr(synchronizers.base.event_loop, "set_driver"):
+    # VTN synchronizer needs the OpenStack driver
+    from openstack_xos.driver import OpenStackDriver
+    synchronizers.base.event_loop.set_driver(OpenStackDriver())
+
+mod = importlib.import_module("synchronizers.base.xos-synchronizer")
 mod.main()
+
