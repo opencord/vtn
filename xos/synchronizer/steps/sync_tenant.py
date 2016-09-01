@@ -29,13 +29,15 @@ class SyncTenant(SyncStep):
         SyncStep.__init__(self, **args)
 
     def get_vtn_onos_service(self):
+        from services.onos.models import ONOSService
+
 #        vtn_tenant = Tenant.objects.filter(name="VTN_ONOS_app")   # XXX fixme - hardcoded
 #        if not vtn_tenant:
 #            raise "No VTN Onos App found"
 #        vtn_tenant = vtn_tenant[0]
 #
 #        vtn_service = vtn_tenant.provider_service
-        vtn_service = Service.objects.filter(name="service_ONOS_VTN")  # XXX fixme - harcoded
+        vtn_service = ONOSService.get_service_objects().filter(name="ONOS_CORD")  # XXX fixme - harcoded
         if not vtn_service:
             raise "No VTN Onos Service"
 
@@ -43,6 +45,9 @@ class SyncTenant(SyncStep):
 
     def get_vtn_addr(self):
         vtn_service = self.get_vtn_onos_service()
+
+        if vtn_service.rest_hostname:
+            return vtn_service.rest_hostname
 
         if not vtn_service.slices.exists():
             raise "VTN Service has no slices"
