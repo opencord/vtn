@@ -26,7 +26,9 @@ import java.util.Set;
 public class CordVtnWebApplication extends AbstractWebApplication {
     @Override
     public Set<Class<?>> getClasses() {
-        return getClasses(ServiceDependencyWebResource.class,
+        return getClasses(ServiceNetworkWebResource.class,
+                          ServicePortWebResource.class,
+                          ServiceDependencyWebResource.class,
                           NeutronMl2NetworksWebResource.class,
                           NeutronMl2SubnetsWebResource.class,
                           NeutronMl2PortsWebResource.class);
