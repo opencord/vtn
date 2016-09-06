@@ -105,6 +105,21 @@ class VTNNetwork(object):
             return self.xos_network.owner.service.name
         return None
 
+    def to_dict(self):
+        return {"id": self.id,
+                "name": self.name,
+                "subnet": self.subnet,
+                "gateway": self.gateway,
+                "segmentation_id": self.segmentation_id,
+                "type": self.type,
+                "providerNetworks": self.providerNetworks,
+                "subscriberNetworks": self.subscriberNetworks,
+                "ownerSliceName": self.ownerSliceName,
+                "ownerServiceName": self.ownerServiceName}
+
+    def __eq__(self, other):
+        return self.to_dict() == other.to_dict()
+
 class VTNPort(object):
     def __init__(self, xos_port=None):
         self.xos_port = xos_port
@@ -168,4 +183,16 @@ class VTNPort(object):
     @property
     def ip_address(self):
         return self.xos_port.ip
+
+    def to_dict(self):
+        return {"id": self.id,
+                "name": self.name,
+                "network_id": self.network_id,
+                "mac_address": self.mac_address,
+                "ip_address": self.ip_address,
+                "floating_address_pairs": self.floating_address_pairs,
+                "vlan_id": self.vlan_id}
+
+    def __eq__(self, other):
+        return self.to_dict() == other.to_dict()
 

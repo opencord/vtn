@@ -39,6 +39,7 @@ class VTNService(Service):
                           ("xosEndpoint", "http://xos/"),
                           ("xosUser", "padmin@vicci.org"),
                           ("xosPassword", "letmein"),
+                          ("vtnAPIVersion", 1),
 
                          )
 
