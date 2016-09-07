@@ -27,7 +27,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 /**
  * Representation of a service network.
  */
-public final class ServiceNetwork {
+public class ServiceNetwork {
 
     public enum ServiceNetworkType {
         PRIVATE,
@@ -43,13 +43,13 @@ public final class ServiceNetwork {
         UNIDIRECTIONAL
     }
 
-    private final NetworkId id;
-    private final ServiceNetworkType type;
-    private final Map<NetworkId, DirectAccessType> providers;
+    protected final NetworkId id;
+    protected final ServiceNetworkType type;
+    protected final Map<NetworkId, DirectAccessType> providers;
 
-    private ServiceNetwork(NetworkId id,
-                           ServiceNetworkType type,
-                           Map<NetworkId, DirectAccessType> providers) {
+    protected ServiceNetwork(NetworkId id,
+                             ServiceNetworkType type,
+                             Map<NetworkId, DirectAccessType> providers) {
         this.id = id;
         this.type = type;
         this.providers = providers;
