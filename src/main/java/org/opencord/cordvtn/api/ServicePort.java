@@ -29,15 +29,15 @@ import static com.google.common.base.Preconditions.checkNotNull;
 /**
  * Representation of a service port.
  */
-public final class ServicePort {
+public class ServicePort {
 
-    private final PortId id;
-    private final VlanId vlanId;
-    private final Set<AddressPair> addressPairs;
+    protected final PortId id;
+    protected final VlanId vlanId;
+    protected final Set<AddressPair> addressPairs;
 
-    private ServicePort(PortId id,
-                        VlanId vlanId,
-                        Set<AddressPair> addressPairs) {
+    protected ServicePort(PortId id,
+                          VlanId vlanId,
+                          Set<AddressPair> addressPairs) {
         this.id = id;
         this.vlanId = vlanId;
         this.addressPairs = addressPairs;
