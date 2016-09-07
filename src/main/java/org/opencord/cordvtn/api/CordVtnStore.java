@@ -15,6 +15,10 @@
  */
 package org.opencord.cordvtn.api;
 
+import org.openstack4j.model.network.Network;
+import org.openstack4j.model.network.Port;
+import org.openstack4j.model.network.Subnet;
+
 import java.util.Set;
 
 /**
@@ -87,5 +91,120 @@ public interface CordVtnStore {
      */
     void removeServicePort(PortId portId);
 
-    // TODO add apis for the virtual network and port
+    /**
+     * Creates a network.
+     *
+     * @param net network
+     */
+    void createNetwork(Network net);
+
+    /**
+     * Updates the network.
+     *
+     * @param net the updated network
+     */
+    void updateNetwork(Network net);
+
+    /**
+     * Returns the network with the given network id.
+     *
+     * @param netId network id
+     * @return network
+     */
+    Network getNetwork(NetworkId netId);
+
+    /**
+     * Returns all networks.
+     *
+     * @return set of networks
+     */
+    Set<Network> getNetworks();
+
+    /**
+     * Removes the network with the given network id.
+     *
+     * @param netId network id
+     */
+    void removeNetwork(NetworkId netId);
+
+    /**
+     * Creates a port.
+     *
+     * @param port port
+     */
+    void createPort(Port port);
+
+    /**
+     * Updates the port.
+     *
+     * @param port the updated port
+     */
+    void updatePort(Port port);
+
+    /**
+     * Returns the port with the given port id.
+     *
+     * @param portId port id
+     * @return port
+     */
+    Port getPort(PortId portId);
+
+    /**
+     * Returns all ports.
+     *
+     * @return set of ports
+     */
+    Set<Port> getPorts();
+
+    /**
+     * Removes the port with the given port id.
+     *
+     * @param portId port id
+     */
+    void removePort(PortId portId);
+
+    /**
+     * Creates a subnet.
+     *
+     * @param subnet subnet id
+     */
+    void createSubnet(Subnet subnet);
+
+    /**
+     * Updates the subnet.
+     *
+     * @param subnet the updated subnet
+     */
+    void updateSubnet(Subnet subnet);
+
+    /**
+     * Returns the subnet with the given subnet id.
+     *
+     * @param subnetId subnet id
+     * @return subnet
+     */
+    Subnet getSubnet(SubnetId subnetId);
+
+    /**
+     * Returns the subnet with the given network id. VTN does not allow multiple
+     * subnets for a network.
+     *
+     * @param netId network id
+     * @return subnet
+     */
+    Subnet getSubnet(NetworkId netId);
+
+    /**
+     * Returns all subnets.
+     *
+     * @return set of subnets
+     */
+    Set<Subnet> getSubnets();
+
+    /**
+     * Removes the subnet with the given subnet id.
+     *
+     * @param subnetId subnet id
+     */
+    void removeSubnet(SubnetId subnetId);
 }
