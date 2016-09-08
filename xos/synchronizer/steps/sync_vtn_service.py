@@ -98,15 +98,30 @@ class SyncVTNService(SyncStep):
         glo_saved_vtn_maps = vtn_maps
         # TODO: save this
 
+    def get_method(self, url, id):
+        url_with_id = "%s/%s" % (url, id)
+        r = requests.get(url_with_id, auth=self.get_vtn_auth())
+        if (r.status_code==200):
+            method="PUT"
+            url = url_with_id
+            req_func = requests.put
+            exists=True
+        else:
+            method="POST"
+            req_func = requests.post
+            exists=False
+        return (exists, url, method, req_func)
+
     def sync_service_networks(self):
         valid_ids = []
         for network in Network.objects.all():
             network = VTNNetwork(network)
             valid_ids.append(network.id)
             if (glo_saved_networks.get(network.id, None) != network.to_dict()):
-                logger.info("POSTing VTN API for network %s" % network.id)
+                (exists, url, method, req_func) = self.get_method("http://" + self.get_vtn_addr() + ":8181/onos/cordvtn/serviceNetworks", network.id)
 
-                url = "http://" + self.get_vtn_addr() + ":8181/onos/serviceNetworks/%s" % network.id
+                logger.info("%sing VTN API for network %s" % (method, network.id))
+
                 logger.info("URL: %s" % url)
 
                 data = {"id": network.id,
@@ -114,7 +129,7 @@ class SyncVTNService(SyncStep):
                         "providerNetworks": network.providerNetworks}
                 logger.info("DATA: %s" % str(data))
 
-                r=requests.post(url, data=data, auth=self.get_vtn_auth() )
+                r=req_func(url, data=data, auth=self.get_vtn_auth() )
                 if (r.status_code in [200]):
                     glo_saved_networks[network.id] = network.to_dict()
                 else:
@@ -124,7 +139,7 @@ class SyncVTNService(SyncStep):
             if network_id not in valid_ids:
                 logger.info("DELETEing VTN API for network %s" % network_id)
 
-                url = "http://" + self.get_vtn_addr() + ":8181/onos/serviceNetworks/%s" % network_id
+                url = "http://" + self.get_vtn_addr() + ":8181/onos/cordvtn/serviceNetworks/%s" % network_id
                 logger.info("URL: %s" % url)
 
                 r = requests.delete(url, auth=self.get_vtn_auth() )
@@ -139,9 +154,10 @@ class SyncVTNService(SyncStep):
             port = VTNPort(port)
             valid_ids.append(port.id)
             if (glo_saved_ports.get(port.id, None) != port.to_dict()):
-                logger.info("POSTing VTN API for port %s" % port.id)
+                (exists, url, method, req_func) = self.get_method("http://" + self.get_vtn_addr() + ":8181/onos/cordvtn/servicePorts", port.id)
 
-                url = "http://" + self.get_vtn_addr() + ":8181/onos/servicePorts/%s" % port.id
+                logger.info("%sing VTN API for port %s" % (method, port.id))
+
                 logger.info("URL: %s" % url)
 
                 data = {"id": port.id,
@@ -149,7 +165,7 @@ class SyncVTNService(SyncStep):
                         "floating_address_pairs": port.floating_address_pairs}
                 logger.info("DATA: %s" % str(data))
 
-                r=requests.post(url, data=data, auth=self.get_vtn_auth() )
+                r=req_func(url, data=data, auth=self.get_vtn_auth() )
                 if (r.status_code in [200]):
                     glo_saved_ports[port.id] = port.to_dict()
                 else:
@@ -159,7 +175,7 @@ class SyncVTNService(SyncStep):
             if port_id not in valid_ids:
                 logger.info("DELETEing VTN API for port %s" % port_id)
 
-                url = "http://" + self.get_vtn_addr() + ":8181/onos/servicePorts/%s" % port_id
+                url = "http://" + self.get_vtn_addr() + ":8181/onos/cordvtn/servicePorts/%s" % port_id
                 logger.info("URL: %s" % url)
 
                 r = requests.delete(url, auth=self.get_vtn_auth() )
