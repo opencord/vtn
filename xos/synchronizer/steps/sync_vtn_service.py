@@ -116,7 +116,12 @@ class SyncVTNService(SyncStep):
         valid_ids = []
         for network in Network.objects.all():
             network = VTNNetwork(network)
+
+            if not network.id:
+                continue
+
             valid_ids.append(network.id)
+
             if (glo_saved_networks.get(network.id, None) != network.to_dict()):
                 (exists, url, method, req_func) = self.get_method("http://" + self.get_vtn_addr() + ":8181/onos/cordvtn/serviceNetworks", network.id)
 
@@ -156,7 +161,12 @@ class SyncVTNService(SyncStep):
         valid_ids = []
         for port in Port.objects.all():
             port = VTNPort(port)
+
+            if not port.id:
+                continue
+
             valid_ids.append(port.id)
+
             if (glo_saved_ports.get(port.id, None) != port.to_dict()):
                 (exists, url, method, req_func) = self.get_method("http://" + self.get_vtn_addr() + ":8181/onos/cordvtn/servicePorts", port.id)
 
@@ -170,7 +180,7 @@ class SyncVTNService(SyncStep):
                 logger.info("DATA: %s" % str(data))
 
                 r=req_func(url, json=data, auth=self.get_vtn_auth() )
-                if (r.status_code not in [200,201]):
+                if (r.status_code in [200,201]):
                     glo_saved_ports[port.id] = port.to_dict()
                 else:
                     logger.error("Received error from vtn service (%d)" % r.status_code)
