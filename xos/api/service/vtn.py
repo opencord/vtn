@@ -168,7 +168,7 @@ class VTNViewSet(XOSViewSet):
         result=[]
         for port in Port.objects.all():
             result.append(VTNPortSerializer(VTNPort(port)).data)
-        return Response(result)
+        return Response({"ports": result})
 
     def get_port(self, request, port_id=None):
         port = Port.objects.filter(port_id = port_id)
@@ -176,13 +176,13 @@ class VTNViewSet(XOSViewSet):
             port=port[0]
         else:
             return Response("Failed to find port %s" % port_id, status=status.HTTP_404_NOT_FOUND)
-        return Response(VTNPortSerializer(VTNPort(port)).data)
+        return Response({"port": VTNPortSerializer(VTNPort(port)).data})
 
     def get_service_ports(self, request):
         result=[]
         for port in Port.objects.all():
             result.append(VTNServicePortSerializer(VTNPort(port)).data)
-        return Response(result)
+        return Response({"servicePorts": result})
 
     def get_service_port(self, request, port_id=None):
         port = Port.objects.filter(port_id = port_id)
@@ -190,35 +190,37 @@ class VTNViewSet(XOSViewSet):
             port=port[0]
         else:
             return Response("Failed to find port %s" % port_id, status=status.HTTP_404_NOT_FOUND)
-        return Response(VTNServicePortSerializer(VTNPort(port)).data)
+        return Response({"servicePort": VTNServicePortSerializer(VTNPort(port)).data})
 
     def get_networks(self, request):
         result=[]
         for network in Network.objects.all():
             result.append(VTNNetworkSerializer(VTNNetwork(network)).data)
-        return Response(result)
+        return Response({"networks": result})
 
     def get_network(self, request, network_id=None):
-        network = Network.objects.filter(network_id = network_id)
+        #network = Network.objects.filter(network_id = network_id)
+        network = [x for x in Network.objects.all() if VTNNetwork(x).id == network_id]
         if network:
             network=network[0]
         else:
             return Response("Failed to find network %s" % network_id, status=status.HTTP_404_NOT_FOUND)
-        return Response(VTNNetworkSerializer(VTNNetwork(network)).data)
+        return Response({"network": VTNNetworkSerializer(VTNNetwork(network)).data})
 
     def get_service_networks(self, request):
         result=[]
         for network in Network.objects.all():
             result.append(VTNServiceNetworkSerializer(VTNNetwork(network)).data)
-        return Response(result)
+        return Response({"serviceNetworks": result})
 
     def get_service_network(self, request, network_id=None):
-        network = Network.objects.filter(network_id = network_id)
+        #network = Network.objects.filter(network_id = network_id)
+        network = [x for x in Network.objects.all() if VTNNetwork(x).id == network_id]
         if network:
             network=network[0]
         else:
             return Response("Failed to find network %s" % network_id, status=status.HTTP_404_NOT_FOUND)
-        return Response(VTNServiceNetworkSerializer(VTNNetwork(network)).data)
+        return Response({"serviceNetwork": VTNServiceNetworkSerializer(VTNNetwork(network)).data})
 
 
 
