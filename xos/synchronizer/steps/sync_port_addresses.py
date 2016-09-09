@@ -32,6 +32,14 @@ class SyncPortAddresses(SyncStep):
     def call(self, **args):
         global glo_saved_vtn_maps
 
+        vtn_service = VTNService.get_service_objects().all()
+        if not vtn_service:
+            raise Exception("SyncPortAddresses: No VTN Service")
+        vtn_service = vtn_service[0]
+        if vtn_service.vtnAPIVersion >= 2:
+            logger.info("skipping SyncPortAddresses due to VTN API Version")
+            return
+
         logger.info("sync'ing vsg tenant to port addresses")
 
         # build up a dictionary of port-->[wan_addrs] mappings
