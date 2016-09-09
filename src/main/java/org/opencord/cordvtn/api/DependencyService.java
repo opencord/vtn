@@ -16,6 +16,7 @@
 package org.opencord.cordvtn.api;
 
 import org.onosproject.xosclient.api.VtnServiceId;
+import org.opencord.cordvtn.api.ServiceNetwork.DirectAccessType;
 
 /**
  * Provides dependency services.
@@ -29,6 +30,7 @@ public interface DependencyService {
      * @param pServiceId id of the service which provide dependency
      * @param isBidirectional true to enable bidirectional connectivity between two services
      */
+    @Deprecated
     void createDependency(VtnServiceId tServiceId, VtnServiceId pServiceId, boolean isBidirectional);
 
     /**
@@ -37,5 +39,24 @@ public interface DependencyService {
      * @param tServiceId id of the service which has a dependency
      * @param pServiceId id of the service which provide dependency
      */
+    @Deprecated
     void removeDependency(VtnServiceId tServiceId, VtnServiceId pServiceId);
+
+    /**
+     * Creates a dependency between the supplied two networks.
+     *
+     * @param subscriberId subscriber network id
+     * @param providerId   provider network id
+     * @param type         direct access type between the networks
+     */
+    void createDependency(NetworkId subscriberId, NetworkId providerId, DirectAccessType type);
+
+    /**
+     * Removes the dependency between the supplied two networks.
+     *
+     * @param subscriberId subscriber network id
+     * @param providerId   provider network id
+     * @param type         direct access type between the networks
+     */
+    void removeDependency(NetworkId subscriberId, NetworkId providerId, DirectAccessType type);
 }

@@ -27,7 +27,7 @@ import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
 import org.opencord.cordconfig.CordConfigService;
 import org.opencord.cordconfig.access.AccessAgentData;
-import org.opencord.cordvtn.api.CordVtnConfig;
+import org.opencord.cordvtn.api.CordVtnStore;
 import org.opencord.cordvtn.api.Instance;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
@@ -39,11 +39,6 @@ import org.onosproject.net.Host;
 import org.onosproject.net.HostId;
 import org.onosproject.net.HostLocation;
 import org.onosproject.net.Port;
-import org.onosproject.net.config.ConfigFactory;
-import org.onosproject.net.config.NetworkConfigEvent;
-import org.onosproject.net.config.NetworkConfigListener;
-import org.onosproject.net.config.NetworkConfigRegistry;
-import org.onosproject.net.config.basics.SubjectFactories;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.host.DefaultHostDescription;
 import org.onosproject.net.host.HostDescription;
@@ -53,29 +48,24 @@ import org.onosproject.net.host.HostProviderService;
 import org.onosproject.net.host.HostService;
 import org.onosproject.net.provider.AbstractProvider;
 import org.onosproject.net.provider.ProviderId;
-import org.onosproject.xosclient.api.OpenStackAccess;
-import org.onosproject.xosclient.api.VtnPort;
-import org.onosproject.xosclient.api.VtnPortApi;
-import org.onosproject.xosclient.api.VtnService;
-import org.onosproject.xosclient.api.VtnServiceApi;
-import org.onosproject.xosclient.api.VtnServiceId;
-import org.onosproject.xosclient.api.XosAccess;
-import org.onosproject.xosclient.api.XosClientService;
 import org.opencord.cordvtn.api.InstanceService;
+import org.opencord.cordvtn.api.PortId;
+import org.opencord.cordvtn.api.VtnNetwork;
+import org.opencord.cordvtn.api.VtnPort;
 import org.slf4j.Logger;
 
 import java.util.Date;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 
-import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.dhcp.IpAssignment.AssignmentStatus.Option_RangeNotEnforced;
 import static org.onosproject.net.AnnotationKeys.PORT_NAME;
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.ACCESS_AGENT;
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.MANAGEMENT;
 import static org.opencord.cordvtn.api.Constants.*;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.ACCESS_AGENT;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.MANAGEMENT_HOST;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.MANAGEMENT_LOCAL;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -87,12 +77,11 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
         InstanceService {
 
     protected final Logger log = getLogger(getClass());
+    private static final String ERR_VTN_NETWORK = "Faild to get VTN network for %s";
+    private static final String ERR_VTN_PORT = "Faild to get VTN port for %s";
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CoreService coreService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected NetworkConfigRegistry configRegistry;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected HostProviderRegistry hostProviderRegistry;
@@ -106,31 +95,17 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected DhcpService dhcpService;
 
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected XosClientService xosClient;
-
     // TODO get access agent container information from XOS
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordConfigService cordConfig;
 
-    private static final Class<CordVtnConfig> CONFIG_CLASS = CordVtnConfig.class;
-    private final ConfigFactory configFactory =
-            new ConfigFactory<ApplicationId, CordVtnConfig>(
-                    SubjectFactories.APP_SUBJECT_FACTORY, CONFIG_CLASS, "cordvtn") {
-                @Override
-                public CordVtnConfig createConfig() {
-                    return new CordVtnConfig();
-                }
-            };
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnStore vtnStore;
 
     private final ExecutorService eventExecutor =
             newSingleThreadExecutor(groupedThreads(this.getClass().getSimpleName(), "event-handler"));
-    private final NetworkConfigListener configListener = new InternalConfigListener();
 
-    private ApplicationId appId;
     private HostProviderService hostProvider;
-    private XosAccess xosAccess = null;
-    private OpenStackAccess osAccess = null;
 
     /**
      * Creates an cordvtn host location provider.
@@ -141,11 +116,8 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
 
     @Activate
     protected void activate() {
-        appId = coreService.registerApplication(CORDVTN_APP_ID);
-
+        ApplicationId appId = coreService.registerApplication(CORDVTN_APP_ID);
         hostProvider = hostProviderRegistry.register(this);
-        configRegistry.registerConfigFactory(configFactory);
-        configRegistry.addListener(configListener);
 
         log.info("Started");
     }
@@ -153,11 +125,8 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     @Deactivate
     protected void deactivate() {
         hostProviderRegistry.unregister(this);
-
-        configRegistry.unregisterConfigFactory(configFactory);
-        configRegistry.removeListener(configListener);
-
         eventExecutor.shutdown();
+
         log.info("Stopped");
     }
 
@@ -186,22 +155,24 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
 
         VtnPort vtnPort = getVtnPort(port.annotations().value(PORT_NAME));
         if (vtnPort == null) {
+            log.warn(String.format(ERR_VTN_PORT, port));
             return;
         }
 
-        VtnService vtnService = getVtnService(vtnPort.serviceId());
-        if (vtnService == null) {
+        VtnNetwork vtnNet = vtnStore.getVtnNetwork(vtnPort.netId());
+        if (vtnNet == null) {
+            log.warn(String.format(ERR_VTN_NETWORK, vtnPort));
             return;
         }
 
         // register DHCP lease for the new instance
-        registerDhcpLease(vtnPort.mac(), vtnPort.ip().getIp4Address(), vtnService);
+        registerDhcpLease(vtnPort.mac(), vtnPort.ip().getIp4Address(), vtnNet);
 
         // Added CREATE_TIME intentionally to trigger HOST_UPDATED event for the
         // existing instances.
         DefaultAnnotations.Builder annotations = DefaultAnnotations.builder()
-                .set(Instance.SERVICE_TYPE, vtnService.serviceType().toString())
-                .set(Instance.SERVICE_ID, vtnPort.serviceId().id())
+                .set(Instance.NETWORK_TYPE, vtnNet.type().name())
+                .set(Instance.NETWORK_ID, vtnNet.id().id())
                 .set(Instance.PORT_ID, vtnPort.id().id())
                 .set(Instance.CREATE_TIME, String.valueOf(System.currentTimeMillis()));
 
@@ -247,52 +218,37 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
         hostProvider.hostVanished(hostId);
     }
 
-    private void registerDhcpLease(MacAddress macAddr, Ip4Address ipAddr, VtnService service) {
+    private void registerDhcpLease(MacAddress macAddr, Ip4Address ipAddr, VtnNetwork vtnNet) {
         Ip4Address broadcast = Ip4Address.makeMaskedAddress(
                 ipAddr,
-                service.subnet().prefixLength());
+                vtnNet.subnet().prefixLength());
 
         IpAssignment.Builder ipBuilder = IpAssignment.builder()
                 .ipAddress(ipAddr)
                 .leasePeriod(DHCP_INFINITE_LEASE)
                 .timestamp(new Date())
-                .subnetMask(Ip4Address.makeMaskPrefix(service.subnet().prefixLength()))
+                .subnetMask(Ip4Address.makeMaskPrefix(vtnNet.subnet().prefixLength()))
                 .broadcast(broadcast)
                 .domainServer(DEFAULT_DNS)
                 .assignmentStatus(Option_RangeNotEnforced);
 
-        if (service.serviceType() != MANAGEMENT) {
-            ipBuilder = ipBuilder.routerAddress(service.serviceIp().getIp4Address());
+        if (vtnNet.type() != MANAGEMENT_HOST && vtnNet.type() != MANAGEMENT_LOCAL) {
+            ipBuilder = ipBuilder.routerAddress(vtnNet.serviceIp().getIp4Address());
         }
 
         log.debug("Set static DHCP mapping for {} {}", macAddr, ipAddr);
         dhcpService.setStaticMapping(macAddr, ipBuilder.build());
     }
 
-    private VtnService getVtnService(VtnServiceId serviceId) {
-        checkNotNull(osAccess, ERROR_OPENSTACK_ACCESS);
-        checkNotNull(xosAccess, ERROR_XOS_ACCESS);
-
-        // TODO remove openstack access when XOS provides all information
-        VtnServiceApi serviceApi = xosClient.getClient(xosAccess).vtnService();
-        VtnService service = serviceApi.service(serviceId, osAccess);
-        if (service == null) {
-            log.warn("Failed to get VtnService for {}", serviceId);
-        }
-        return service;
-    }
-
     private VtnPort getVtnPort(String portName) {
-        checkNotNull(osAccess, ERROR_OPENSTACK_ACCESS);
-        checkNotNull(xosAccess, ERROR_XOS_ACCESS);
-
-        // TODO remove openstack access when XOS provides all information
-        VtnPortApi portApi = xosClient.getClient(xosAccess).vtnPort();
-        VtnPort vtnPort = portApi.vtnPort(portName, osAccess);
-        if (vtnPort == null) {
-            log.warn("Failed to get port information of {}", portName);
+        Optional<org.openstack4j.model.network.Port> port = vtnStore.getPorts()
+                .stream()
+                .filter(p -> p.getId().contains(portName.substring(3)))
+                .findFirst();
+        if (!port.isPresent()) {
+            return null;
         }
-        return vtnPort;
+        return vtnStore.getVtnPort(PortId.of(port.get().getId()));
     }
 
     // TODO remove this when XOS provides access agent information
@@ -308,8 +264,8 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     private void addAccessAgentInstance(ConnectPoint connectPoint) {
         AccessAgentData agent = cordConfig.getAccessAgent(connectPoint.deviceId()).get();
         DefaultAnnotations.Builder annotations = DefaultAnnotations.builder()
-                .set(Instance.SERVICE_TYPE, ACCESS_AGENT.name())
-                .set(Instance.SERVICE_ID, NOT_APPLICABLE)
+                .set(Instance.NETWORK_TYPE, ACCESS_AGENT.name())
+                .set(Instance.NETWORK_ID, NOT_APPLICABLE)
                 .set(Instance.PORT_ID, NOT_APPLICABLE)
                 .set(Instance.CREATE_TIME, String.valueOf(System.currentTimeMillis()));
 
@@ -322,36 +278,5 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
 
         HostId hostId = HostId.hostId(agent.getAgentMac());
         hostProvider.hostDetected(hostId, hostDesc, false);
-    }
-
-    private void readConfiguration() {
-        CordVtnConfig config = configRegistry.getConfig(appId, CONFIG_CLASS);
-        if (config == null) {
-            log.debug("No configuration found");
-            return;
-        }
-
-        log.info("Load CORD-VTN configurations");
-        xosAccess = config.xosAccess();
-        osAccess = config.openstackAccess();
-    }
-
-    private class InternalConfigListener implements NetworkConfigListener {
-
-        @Override
-        public void event(NetworkConfigEvent event) {
-            if (!event.configClass().equals(CONFIG_CLASS)) {
-                return;
-            }
-
-            switch (event.type()) {
-                case CONFIG_UPDATED:
-                case CONFIG_ADDED:
-                    readConfiguration();
-                    break;
-                default:
-                    break;
-            }
-        }
     }
 }
