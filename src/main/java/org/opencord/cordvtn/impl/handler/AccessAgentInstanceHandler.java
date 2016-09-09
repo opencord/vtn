@@ -15,6 +15,7 @@
  */
 package org.opencord.cordvtn.impl.handler;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
@@ -27,15 +28,12 @@ import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.FlowRule;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
-import org.opencord.cordvtn.impl.AbstractInstanceHandler;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
-import java.util.Optional;
-
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.ACCESS_AGENT;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.ACCESS_AGENT;
 
 /**
  * Provides network connectivity for access agent instances.
@@ -51,7 +49,7 @@ public class AccessAgentInstanceHandler extends AbstractInstanceHandler implemen
 
     @Activate
     protected void activate() {
-        serviceType = Optional.of(ACCESS_AGENT);
+        netTypes = ImmutableSet.of(ACCESS_AGENT);
         super.activate();
     }
 
@@ -63,16 +61,16 @@ public class AccessAgentInstanceHandler extends AbstractInstanceHandler implemen
     @Override
     public void instanceDetected(Instance instance) {
         log.info("Access agent instance detected {}", instance);
-        accessAgentRules(instance, true);
+        populateAccessAgentRules(instance, true);
     }
 
     @Override
     public void instanceRemoved(Instance instance) {
         log.info("Access agent instance removed {}", instance);
-        accessAgentRules(instance, false);
+        populateAccessAgentRules(instance, false);
     }
 
-    private void accessAgentRules(Instance instance, boolean install) {
+    private void populateAccessAgentRules(Instance instance, boolean install) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthDst(instance.mac())
                 .build();
