@@ -163,6 +163,7 @@ public class NeutronMl2NetworksWebResource extends AbstractWebResource {
         log.trace(String.format(MESSAGE, "DELETE " + id));
 
         service.removeNetwork(NetworkId.of(id));
+        service.removeServiceNetwork(NetworkId.of(id));
         return noContent().build();
     }
 
