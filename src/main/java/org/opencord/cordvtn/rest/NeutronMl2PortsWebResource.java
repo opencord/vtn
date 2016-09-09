@@ -18,14 +18,9 @@ package org.opencord.cordvtn.rest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.common.collect.Maps;
 import org.onlab.osgi.DefaultServiceDirectory;
-import org.onlab.packet.IpAddress;
-import org.onlab.packet.MacAddress;
 import org.opencord.cordvtn.api.CordVtnStore;
 import org.opencord.cordvtn.api.PortId;
-import org.opencord.cordvtn.impl.handler.VsgInstanceHandler;
-import org.onosproject.net.HostId;
 import org.onosproject.rest.AbstractWebResource;
 import org.openstack4j.core.transport.ObjectMapperSingleton;
 import org.openstack4j.model.network.Port;
@@ -47,7 +42,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.io.InputStream;
-import java.util.Map;
 import java.util.Set;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
@@ -68,14 +62,8 @@ public class NeutronMl2PortsWebResource extends AbstractWebResource {
     private static final String PORT = "port";
     private static final String PORTS = "ports";
 
-    // TODO remove the below after moving to the new VTN API completely
-    private static final String STAG_PREFIX = "stag-";
-    private static final int STAG_BEGIN_INDEX = 5;
-
     private final CordVtnStore service =
             DefaultServiceDirectory.getService(CordVtnStore.class);
-    private final VsgInstanceHandler instanceService =
-            DefaultServiceDirectory.getService(VsgInstanceHandler.class);
 
     @Context
     private UriInfo uriInfo;
@@ -118,20 +106,6 @@ public class NeutronMl2PortsWebResource extends AbstractWebResource {
 
         final NeutronPort port = readPort(input);
         service.updatePort(port);
-
-        // TODO remove the below block after moving to the new VTN API completely
-        String name = port.getName();
-        if (!port.getDeviceId().isEmpty() && name.startsWith(STAG_PREFIX)) {
-            Map<IpAddress, MacAddress> vsgInstances = Maps.newHashMap();
-            port.getAllowedAddressPairs().stream().forEach(pair -> vsgInstances.put(
-                    IpAddress.valueOf(pair.getIpAddress()),
-                    MacAddress.valueOf(pair.getMacAddress())));
-
-            instanceService.updateVsgInstances(
-                    HostId.hostId(MacAddress.valueOf(port.getMacAddress())),
-                    name.substring(STAG_BEGIN_INDEX),
-                    vsgInstances);
-        }
 
         ObjectNode result = this.mapper().createObjectNode();
         return ok(result.set(PORT, writePort(port))).build();
@@ -193,6 +167,7 @@ public class NeutronMl2PortsWebResource extends AbstractWebResource {
         log.trace(String.format(MESSAGE, "DELETE " + id));
 
         service.removePort(PortId.of(id));
+        service.removeServicePort(PortId.of(id));
         return noContent().build();
     }
 
