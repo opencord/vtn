@@ -205,7 +205,7 @@ class SyncVTNService(SyncStep):
 
         vtn_service = vtn_service[0]
 
-        if vtn_service.vtnAPIVersion==2:
+        if vtn_service.vtnAPIVersion>=2:
             # version 2 means use new API
             logger.info("Using New API")
             self.sync_service_networks()

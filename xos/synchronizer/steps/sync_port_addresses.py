@@ -11,6 +11,7 @@ from core.models.service import COARSE_KIND
 from services.vsg.models import VSGTenant
 from xos.logger import Logger, logging
 from requests.auth import HTTPBasicAuth
+from services.vtn.models import VTNService
 
 # hpclibrary will be in steps/..
 parentdir = os.path.join(os.path.dirname(__file__),"..")
@@ -31,6 +32,14 @@ class SyncPortAddresses(SyncStep):
 
     def call(self, **args):
         global glo_saved_vtn_maps
+
+        vtn_service = VTNService.get_service_objects().all()
+        if not vtn_service:
+            raise Exception("SyncPortAddresses: No VTN Service")
+        vtn_service = vtn_service[0]
+        if vtn_service.vtnAPIVersion >= 2:
+            logger.info("skipping SyncPortAddresses due to VTN API Version")
+            return
 
         logger.info("sync'ing vsg tenant to port addresses")
 
