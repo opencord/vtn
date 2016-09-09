@@ -15,6 +15,7 @@
  */
 package org.opencord.cordvtn.impl.handler;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 
@@ -31,17 +32,15 @@ import org.onosproject.net.flow.FlowRule;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
 import org.onosproject.net.flow.instructions.ExtensionTreatment;
-import org.opencord.cordvtn.impl.AbstractInstanceHandler;
+import org.opencord.cordvtn.api.VtnNetwork;
 import org.opencord.cordvtn.api.CordVtnNode;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
-import org.onosproject.xosclient.api.VtnService;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
-import java.util.Optional;
-
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.DEFAULT;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.PRIVATE;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.PUBLIC;
 
 /**
  * Provides network connectivity for default service instances.
@@ -57,7 +56,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
 
     @Activate
     protected void activate() {
-        serviceType = Optional.of(DEFAULT);
+        netTypes = ImmutableSet.of(PRIVATE, PUBLIC);
         super.activate();
     }
 
@@ -70,44 +69,44 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
     public void instanceDetected(Instance instance) {
         log.info("Instance is detected {}", instance);
 
-        VtnService service = getVtnService(instance.serviceId());
-        if (service == null) {
-            log.warn("Failed to get VtnService for {}", instance);
-            return;
+        VtnNetwork vtnNet = vtnStore.getVtnNetwork(instance.netId());
+        if (vtnNet == null) {
+            final String error = String.format(ERR_VTN_NETWORK, instance);
+            throw new IllegalStateException(error);
         }
-        defaultConnectionRules(instance, service, true);
+        populateDefaultRules(instance, vtnNet, true);
     }
 
     @Override
     public void instanceRemoved(Instance instance) {
         log.info("Instance is removed {}", instance);
 
-        VtnService service = getVtnService(instance.serviceId());
-        if (service == null) {
-            log.warn("Failed to get VtnService for {}", instance);
-            return;
+        VtnNetwork vtnNet = vtnStore.getVtnNetwork(instance.netId());
+        if (vtnNet == null) {
+            final String error = String.format(ERR_VTN_NETWORK, instance);
+            throw new IllegalStateException(error);
         }
-        defaultConnectionRules(instance, service, false);
+        populateDefaultRules(instance, vtnNet, false);
     }
 
-    private void defaultConnectionRules(Instance instance, VtnService service, boolean install) {
-        long vni = service.vni();
-        Ip4Prefix serviceIpRange = service.subnet().getIp4Prefix();
+    private void populateDefaultRules(Instance instance, VtnNetwork vtnNet, boolean install) {
+        long vni = vtnNet.segmentId().id();
+        Ip4Prefix serviceIpRange = vtnNet.subnet().getIp4Prefix();
 
-        inPortRule(instance, install);
-        dstIpRule(instance, vni, install);
-        tunnelInRule(instance, vni, install);
+        populateInPortRule(instance, install);
+        populateDstIpRule(instance, vni, install);
+        populateTunnelInRule(instance, vni, install);
 
         if (install) {
-            directAccessRule(serviceIpRange, serviceIpRange, true);
-            serviceIsolationRule(serviceIpRange, true);
-        } else if (getInstances(service.id()).isEmpty()) {
-            directAccessRule(serviceIpRange, serviceIpRange, false);
-            serviceIsolationRule(serviceIpRange, false);
+            populateDirectAccessRule(serviceIpRange, serviceIpRange, true);
+            populateServiceIsolationRule(serviceIpRange, true);
+        } else if (getInstances(vtnNet.id()).isEmpty()) {
+            populateDirectAccessRule(serviceIpRange, serviceIpRange, false);
+            populateServiceIsolationRule(serviceIpRange, false);
         }
     }
 
-    private void inPortRule(Instance instance, boolean install) {
+    private void populateInPortRule(Instance instance, boolean install) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchInPort(instance.portNumber())
                 .matchEthType(Ethernet.TYPE_IPV4)
@@ -151,7 +150,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         pipeline.processFlowRule(install, flowRule);
     }
 
-    private void dstIpRule(Instance instance, long vni, boolean install) {
+    private void populateDstIpRule(Instance instance, long vni, boolean install) {
         Ip4Address tunnelIp = nodeManager.dataIp(instance.deviceId()).getIp4Address();
 
         TrafficSelector selector = DefaultTrafficSelector.builder()
@@ -208,7 +207,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         }
     }
 
-    private void tunnelInRule(Instance instance, long vni, boolean install) {
+    private void populateTunnelInRule(Instance instance, long vni, boolean install) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchTunnelId(vni)
                 .matchEthDst(instance.mac())
@@ -231,7 +230,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         pipeline.processFlowRule(install, flowRule);
     }
 
-    private void directAccessRule(Ip4Prefix srcRange, Ip4Prefix dstRange, boolean install) {
+    private void populateDirectAccessRule(Ip4Prefix srcRange, Ip4Prefix dstRange, boolean install) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(Ethernet.TYPE_IPV4)
                 .matchIPSrc(srcRange)
@@ -258,7 +257,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         });
     }
 
-    private void serviceIsolationRule(Ip4Prefix dstRange, boolean install) {
+    private void populateServiceIsolationRule(Ip4Prefix dstRange, boolean install) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(Ethernet.TYPE_IPV4)
                 .matchIPDst(dstRange)
