@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1a014df3_33c47391",
+        "filename": "src/main/java/org/opencord/cordvtn/impl/DistributedCordVtnStore.java",
+        "patchSetId": 5
+      },
+      "lineNbr": 111,
+      "author": {
+        "id": 1000004
+      },
+      "writtenOn": "2016-09-12T03:42:38Z",
+      "side": 1,
+      "message": "why do you synchronize a compute block?",
+      "range": {
+        "startLine": 111,
+        "startChar": 8,
+        "endLine": 111,
+        "endChar": 20
+      },
+      "revId": "f0ecd8f8a8b835b4facfa08d16ded7a0d2e79a7f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1a014df3_13c17780",
+        "filename": "src/main/java/org/opencord/cordvtn/impl/DistributedCordVtnStore.java",
+        "patchSetId": 5
+      },
+      "lineNbr": 123,
+      "author": {
+        "id": 1000004
+      },
+      "writtenOn": "2016-09-12T03:42:38Z",
+      "side": 1,
+      "message": "same as above",
+      "range": {
+        "startLine": 123,
+        "startChar": 8,
+        "endLine": 123,
+        "endChar": 20
+      },
+      "revId": "f0ecd8f8a8b835b4facfa08d16ded7a0d2e79a7f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
+      "unresolved": false
+    }
+  ]
+}
