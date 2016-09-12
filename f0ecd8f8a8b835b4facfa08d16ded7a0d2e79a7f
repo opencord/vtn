@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "1a014df3_933c6795",
+        "filename": "src/main/java/org/opencord/cordvtn/impl/DistributedCordVtnStore.java",
+        "patchSetId": 5
+      },
+      "lineNbr": 111,
+      "author": {
+        "id": 1000012
+      },
+      "writtenOn": "2016-09-12T04:07:26Z",
+      "side": 1,
+      "message": "The API says this method can throw exception if concurrent modification occurs. Just made it synchronized to avoid the exception case. Do I have to remove?",
+      "parentUuid": "1a014df3_33c47391",
+      "range": {
+        "startLine": 111,
+        "startChar": 8,
+        "endLine": 111,
+        "endChar": 20
+      },
+      "revId": "f0ecd8f8a8b835b4facfa08d16ded7a0d2e79a7f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "1a014df3_13c17780",
         "filename": "src/main/java/org/opencord/cordvtn/impl/DistributedCordVtnStore.java",
         "patchSetId": 5
