@@ -2,6 +2,7 @@ manifest
 vtn-synchronizer.py
 steps/sync_vtn_service.py
 steps/sync_port_addresses.py
+steps/sync_onos_netcfg.py
 start.sh
 stop.sh
 model-deps
