@@ -29,6 +29,7 @@ import org.onlab.packet.IpAddress;
 import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
+import org.onosproject.net.Host;
 import org.opencord.cordvtn.api.AddressPair;
 import org.opencord.cordvtn.api.InstanceService;
 import org.opencord.cordvtn.api.Instance;
@@ -72,6 +73,10 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
     private static final String STAG = "stag";
     private static final String VSG_VM = "vsgVm";
     private static final String ERR_VSG_VM = "vSG VM does not exist for %s";
+    private static final String MSG_VSG_VM = "vSG VM %s: %s";
+    private static final String MSG_VSG_CONTAINER = "vSG container %s: %s";
+    private static final String MSG_DETECTED = "detected";
+    private static final String MSG_REMOVED = "removed";
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnPipeline pipeline;
@@ -99,16 +104,13 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
     @Override
     public void instanceDetected(Instance instance) {
         if (isVsgContainer(instance)) {
-            log.info("vSG container detected {}", instance);
-
-            // find vsg vm for this vsg container
-            String vsgVmId = instance.getAnnotation(VSG_VM);
-            if (Strings.isNullOrEmpty(vsgVmId)) {
+            log.info(String.format(MSG_VSG_CONTAINER, MSG_DETECTED, instance));
+            Instance vsgVm = getVsgVm(instance);
+            if (vsgVm == null) {
                 final String error = String.format(ERR_VSG_VM, instance);
                 throw new IllegalStateException(error);
             }
 
-            Instance vsgVm = Instance.of(hostService.getHost(HostId.hostId(vsgVmId)));
             VtnPort vtnPort = vtnStore.getVtnPort(vsgVm.portId());
             if (vtnPort == null || !vtnPort.vlanId().isPresent()) {
                 final String error = String.format(ERR_VTN_PORT, vsgVm);
@@ -121,14 +123,13 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
                     vsgVm, vtnPort.vlanId().get(),
                     nodeManager.dataPort(vsgVm.deviceId()),
                     wanIps, true);
-
         } else {
+            log.info(String.format(MSG_VSG_VM, MSG_DETECTED, instance));
             VtnPort vtnPort = vtnStore.getVtnPort(instance.portId());
             if (vtnPort == null || !vtnPort.vlanId().isPresent()) {
                 // service port can be updated after instance is created
                 return;
             }
-            log.info("vSG VM detected {}", instance);
 
             // insert vSG containers inside the vSG VM as a host
             vtnPort.addressPairs().stream().forEach(pair -> addVsgContainer(
@@ -141,20 +142,17 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
 
     @Override
     public void instanceRemoved(Instance instance) {
-        if (!isVsgContainer(instance)) {
-            // nothing to do for the vSG VM itself
-            // TODO fix vsg vm is removed before vsg container removed
+        boolean isVsgContainer = isVsgContainer(instance);
+        log.info(String.format(
+                isVsgContainer ? MSG_VSG_CONTAINER : MSG_VSG_VM,
+                MSG_REMOVED, instance));
+
+        Instance vsgVm = isVsgContainer ? getVsgVm(instance) : instance;
+        if (vsgVm == null) {
+            // the rules are removed when VM is removed, do nothing
             return;
         }
 
-        log.info("vSG container vanished {}", instance);
-        String vsgVmId = instance.getAnnotation(VSG_VM);
-        if (Strings.isNullOrEmpty(vsgVmId)) {
-            final String error = String.format(ERR_VSG_VM, instance);
-            throw new IllegalStateException(error);
-        }
-
-        Instance vsgVm = Instance.of(hostService.getHost(HostId.hostId(vsgVmId)));
         VtnPort vtnPort = vtnStore.getVtnPort(vsgVm.portId());
         if (vtnPort == null || !vtnPort.vlanId().isPresent()) {
             final String error = String.format(ERR_VTN_PORT, vsgVm);
@@ -166,7 +164,8 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
         populateVsgRules(
                 vsgVm, vtnPort.vlanId().get(),
                 nodeManager.dataPort(vsgVm.deviceId()),
-                wanIps, false);
+                isVsgContainer ? wanIps : ImmutableSet.of(),
+                false);
     }
 
     /**
@@ -210,7 +209,17 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
     }
 
     private boolean isVsgContainer(Instance instance) {
-        return !Strings.isNullOrEmpty(instance.host().annotations().value(STAG));
+        return  !Strings.isNullOrEmpty(instance.getAnnotation(STAG)) &&
+                !Strings.isNullOrEmpty(instance.getAnnotation(VSG_VM));
+    }
+
+    private Instance getVsgVm(Instance vsgContainer) {
+        String vsgVmId = vsgContainer.getAnnotation(VSG_VM);
+        Host host = hostService.getHost(HostId.hostId(vsgVmId));
+        if (host == null) {
+            return null;
+        }
+        return Instance.of(host);
     }
 
     private void addVsgContainer(Instance vsgVm, IpAddress vsgWanIp, MacAddress vsgMac,
