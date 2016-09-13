@@ -20,7 +20,7 @@ class SyncONOSNetcfg(SyncStep):
     def __init__(self, **args):
         SyncStep.__init__(self, **args)
 
-    def get_node_tag(self, o, node, tagname):
+    def get_node_tag(self, node, tagname):
         tags = Tag.select_by_content_object(node).filter(name=tagname)
         return tags[0].value
 
@@ -106,9 +106,9 @@ class SyncONOSNetcfg(SyncStep):
             nodeip = socket.gethostbyname(node.name)
 
             try:
-                bridgeId = self.get_node_tag(o, node, "bridgeId")
-                dataPlaneIntf = self.get_node_tag(o, node, "dataPlaneIntf")
-                dataPlaneIp = self.get_node_tag(o, node, "dataPlaneIp")
+                bridgeId = self.get_node_tag(node, "bridgeId")
+                dataPlaneIntf = self.get_node_tag(node, "dataPlaneIntf")
+                dataPlaneIp = self.get_node_tag(node, "dataPlaneIp")
             except:
                 logger.error("not adding node %s to the VTN configuration" % node.name)
                 continue
