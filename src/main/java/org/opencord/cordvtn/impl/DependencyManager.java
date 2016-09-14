@@ -145,6 +145,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         }
 
         populateDependencyRules(subNet, proNet, type, false);
+        // TODO remove provider group if no subscribers in this provider
         log.info(String.format(MSG_REMOVE, subscriberId, providerId));
     }
 
@@ -220,7 +221,8 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                         groupKey,
                         new GroupBuckets(bucketsToRemove),
                         groupKey, appId);
-                log.debug("Removes instances from {} : {}", provider.id(), bucketsToRemove);
+                log.debug("Removed buckets from provider({}) group on {}: {}",
+                          provider.id(), deviceId, bucketsToRemove);
             }
 
             List<GroupBucket> bucketsToAdd = Lists.newArrayList(newBuckets);
@@ -231,7 +233,8 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                         groupKey,
                         new GroupBuckets(bucketsToAdd),
                         groupKey, appId);
-                log.debug("Adds instances to {} : {}", provider.id(), bucketsToAdd);
+                log.debug("Added buckets to provider({}) group on {}: {}",
+                          provider.id(), deviceId, bucketsToAdd);
             }
         }
     }
@@ -244,6 +247,8 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                     ImmutableMap.of(deviceId, ImmutableSet.of(instance.portNumber())),
                     ImmutableMap.of(deviceId, getGroupId(provider, deviceId)),
                     isDetected);
+            log.debug("Added subscriber instance({}) for the provider({})",
+                      instance.host().id(), provider.id());
         });
     }
 

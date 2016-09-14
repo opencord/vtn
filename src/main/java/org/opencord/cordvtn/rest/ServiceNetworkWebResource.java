@@ -17,11 +17,14 @@ package org.opencord.cordvtn.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.collect.ImmutableMap;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onosproject.rest.AbstractWebResource;
 import org.opencord.cordvtn.api.CordVtnStore;
+import org.opencord.cordvtn.api.DependencyService;
 import org.opencord.cordvtn.api.NetworkId;
 import org.opencord.cordvtn.api.ServiceNetwork;
+import org.opencord.cordvtn.api.ServiceNetwork.DirectAccessType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +43,7 @@ import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 import java.util.Set;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
@@ -56,10 +60,11 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
     private static final String MESSAGE = "Received service network ";
-    private static final String SERVICE_NETWORK = "ServiceNetwork";
+    private static final String SERVICE_NETWORK  = "ServiceNetwork";
     private static final String SERVICE_NETWORKS = "ServiceNetworks";
 
-    private final CordVtnStore service = DefaultServiceDirectory.getService(CordVtnStore.class);
+    private final CordVtnStore vtnStore = DefaultServiceDirectory.getService(CordVtnStore.class);
+    private final DependencyService service = DefaultServiceDirectory.getService(DependencyService.class);
 
     @Context
     private UriInfo uriInfo;
@@ -85,7 +90,8 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
             }
 
             final ServiceNetwork snet = codec(ServiceNetwork.class).decode(snetJson, this);
-            service.createServiceNetwork(snet);
+            vtnStore.createServiceNetwork(snet);
+            updateProviders(snet.id(), ImmutableMap.of(), snet.providers());
 
             UriBuilder locationBuilder = uriInfo.getBaseUriBuilder()
                     .path(SERVICE_NETWORKS)
@@ -119,7 +125,10 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
             }
 
             final ServiceNetwork snet = codec(ServiceNetwork.class).decode(snetJson, this);
-            service.updateServiceNetwork(snet);
+            Map<NetworkId, DirectAccessType> oldProviders =
+                    vtnStore.getServiceNetwork(snet.id()).providers();
+            vtnStore.updateServiceNetwork(snet);
+            updateProviders(snet.id(), oldProviders, snet.providers());
 
             ObjectNode result = this.mapper().createObjectNode();
             result.set(SERVICE_NETWORK, codec(ServiceNetwork.class).encode(snet, this));
@@ -140,7 +149,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     public Response getServiceNetworks() {
         log.trace(MESSAGE + "GET");
 
-        Set<ServiceNetwork> snets = service.getServiceNetworks();
+        Set<ServiceNetwork> snets = vtnStore.getServiceNetworks();
         return ok(encodeArray(ServiceNetwork.class, SERVICE_NETWORKS, snets)).build();
     }
 
@@ -158,7 +167,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     public Response getServiceNetwork(@PathParam("id") String id) {
         log.trace(MESSAGE + "GET " + id);
 
-        ServiceNetwork snet = service.getServiceNetwork(NetworkId.of(id));
+        ServiceNetwork snet = vtnStore.getServiceNetwork(NetworkId.of(id));
         if (snet == null) {
             return status(NOT_FOUND).build();
         }
@@ -181,7 +190,29 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     public Response deleteServiceNetwork(@PathParam("id") String id) {
         log.trace(MESSAGE + "DELETE " + id);
 
-        service.removeServiceNetwork(NetworkId.of(id));
+        // TODO allows only if no instances and no subscribers in this network
+        // TODO remove dependency if it has any provider
+        vtnStore.removeServiceNetwork(NetworkId.of(id));
         return noContent().build();
+    }
+
+    private void updateProviders(NetworkId subscriberId,
+                                 Map<NetworkId, DirectAccessType> oldProviders,
+                                 Map<NetworkId, DirectAccessType> newProviders) {
+        oldProviders.entrySet().stream()
+                .filter(p -> !newProviders.containsKey(p.getKey()))
+                .forEach(p -> {
+                    log.debug("Remove dependency subscriber: {} provider:{}",
+                              subscriberId, p.getKey());
+                    service.removeDependency(subscriberId, p.getKey(), p.getValue());
+                });
+
+        newProviders.entrySet().stream()
+                .filter(p -> !oldProviders.containsKey(p.getKey()))
+                .forEach(p -> {
+                    log.debug("Create dependency subscriber: {} provider:{}",
+                              subscriberId, p.getKey());
+                    service.createDependency(subscriberId, p.getKey(), p.getValue());
+                });
     }
 }
