@@ -8,7 +8,6 @@ from xos.config import Config
 from synchronizers.base.syncstep import SyncStep
 from core.models import Service, Port, Controller, Tag, Tenant
 from core.models.service import COARSE_KIND
-from services.vsg.models import VSGTenant
 from xos.logger import Logger, logging
 from requests.auth import HTTPBasicAuth
 from services.vtn.models import VTNService
@@ -41,48 +40,53 @@ class SyncPortAddresses(SyncStep):
             logger.info("skipping SyncPortAddresses due to VTN API Version")
             return
 
-        logger.info("sync'ing vsg tenant to port addresses")
-
         # build up a dictionary of port-->[wan_addrs] mappings
         port_addrs = {}
-        for vsg in VSGTenant.get_tenant_objects().all():
-            if not vsg.instance:
-                logger.info("skipping vsg %s because it has no instance" % vsg)
+        try:
+            from services.vsg.models import VSGTenant
 
-            wan_ip = vsg.wan_container_ip
-            if not wan_ip:
-                logger.info("skipping vsg %s because it has no wan_container_ip" % vsg)
+            logger.info("sync'ing vsg tenant to port addresses")
 
-            wan_mac = vsg.wan_container_mac
-            if not wan_mac:
-                logger.info("skipping vsg %s because it has no wan_container_mac" % vsg)
+            for vsg in VSGTenant.get_tenant_objects().all():
+                if not vsg.instance:
+                    logger.info("skipping vsg %s because it has no instance" % vsg)
 
-            lan_network = vsg.get_lan_network(vsg.instance)
-            if not lan_network:
-                logger.info("skipping vsg %s because it has no lan_network" % vsg)
+                wan_ip = vsg.wan_container_ip
+                if not wan_ip:
+                    logger.info("skipping vsg %s because it has no wan_container_ip" % vsg)
 
-            lan_port = Port.objects.filter(instance = vsg.instance, network=lan_network)
-            if not lan_port:
-                logger.info("skipping vsg %s because it has no lan_port" % vsg)
-            lan_port = lan_port[0]
+                wan_mac = vsg.wan_container_mac
+                if not wan_mac:
+                    logger.info("skipping vsg %s because it has no wan_container_mac" % vsg)
 
-            if not lan_port.port_id:
-                logger.info("skipping vsg %s because its lan_port has no port_id" % vsg)
+                lan_network = vsg.get_lan_network(vsg.instance)
+                if not lan_network:
+                    logger.info("skipping vsg %s because it has no lan_network" % vsg)
 
-            if not (lan_port.pk in port_addrs):
-                port_addrs[lan_port.pk] = []
-            entry = {"mac_address": wan_mac, "ip_address": wan_ip}
-            addr_pairs = port_addrs[lan_port.pk]
-            if not entry in addr_pairs:
-                 addr_pairs.append(entry)
+                lan_port = Port.objects.filter(instance = vsg.instance, network=lan_network)
+                if not lan_port:
+                    logger.info("skipping vsg %s because it has no lan_port" % vsg)
+                lan_port = lan_port[0]
 
-            # now do the VM_WAN_IP from the instance
-            if vsg.instance:
-                wan_vm_ip = vsg.wan_vm_ip
-                wan_vm_mac = vsg.wan_vm_mac
-                entry = {"mac_address": wan_vm_mac, "ip_address": wan_vm_ip}
+                if not lan_port.port_id:
+                    logger.info("skipping vsg %s because its lan_port has no port_id" % vsg)
+
+                if not (lan_port.pk in port_addrs):
+                    port_addrs[lan_port.pk] = []
+                entry = {"mac_address": wan_mac, "ip_address": wan_ip}
+                addr_pairs = port_addrs[lan_port.pk]
                 if not entry in addr_pairs:
                     addr_pairs.append(entry)
+
+                # now do the VM_WAN_IP from the instance
+                if vsg.instance:
+                    wan_vm_ip = vsg.wan_vm_ip
+                    wan_vm_mac = vsg.wan_vm_mac
+                    entry = {"mac_address": wan_vm_mac, "ip_address": wan_vm_ip}
+                    if not entry in addr_pairs:
+                        addr_pairs.append(entry)
+        except:
+            logger.info("No VSG service present")
 
         # Get all ports in all controllers
         ports_by_id = {}

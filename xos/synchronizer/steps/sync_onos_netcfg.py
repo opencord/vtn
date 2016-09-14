@@ -7,7 +7,6 @@ import json
 from synchronizers.base.syncstep import SyncStep
 from core.models import Service, Slice, Controller, ControllerSlice, ControllerUser, Node, TenantAttribute, Tag
 from services.vtn.models import VTNService
-from services.vrouter.models import VRouterService
 from xos.logger import Logger, logging
 
 logger = Logger(level=logging.INFO)
@@ -124,16 +123,21 @@ class SyncONOSNetcfg(SyncStep):
 
         # Generate apps->org.onosproject.cordvtn->cordvtn->publicGateways
         # Pull the gateway information from vRouter
-        vrouters = VRouterService.get_service_objects().all()
-        if vrouters:
-            for gateway in vrouters[0].get_gateways():
-                gatewayIp = gateway['gateway_ip'].split('/',1)[0]
-                gatewayMac = gateway['gateway_mac']
-                gateway_dict = {
-                    "gatewayIp": gatewayIp,
-                    "gatewayMac": gatewayMac
-                }
-                data["apps"]["org.opencord.vtn"]["cordvtn"]["publicGateways"].append(gateway_dict)
+        try:
+            from services.vrouter.models import VRouterService
+
+            vrouters = VRouterService.get_service_objects().all()
+            if vrouters:
+                for gateway in vrouters[0].get_gateways():
+                    gatewayIp = gateway['gateway_ip'].split('/',1)[0]
+                    gatewayMac = gateway['gateway_mac']
+                    gateway_dict = {
+                        "gatewayIp": gatewayIp,
+                        "gatewayMac": gatewayMac
+                    }
+                    data["apps"]["org.opencord.vtn"]["cordvtn"]["publicGateways"].append(gateway_dict)
+        except:
+            logger.info("No VRouter service present, not adding publicGateways to config")
 
         return json.dumps(data, indent=4, sort_keys=True)
 
