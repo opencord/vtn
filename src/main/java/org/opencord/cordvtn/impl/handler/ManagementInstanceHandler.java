@@ -64,11 +64,7 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
 
     @Override
     public void instanceDetected(Instance instance) {
-        VtnNetwork vtnNet = vtnStore.getVtnNetwork(instance.netId());
-        if (vtnNet == null) {
-            final String error = String.format(ERR_VTN_NETWORK, instance);
-            throw new IllegalStateException(error);
-        }
+        VtnNetwork vtnNet = getVtnNetwork(instance);
 
         switch (vtnNet.type()) {
             case MANAGEMENT_LOCAL:
@@ -86,11 +82,7 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
 
     @Override
     public void instanceRemoved(Instance instance) {
-        VtnNetwork vtnNet = vtnStore.getVtnNetwork(instance.netId());
-        if (vtnNet == null) {
-            final String error = String.format(ERR_VTN_NETWORK, instance);
-            throw new IllegalStateException(error);
-        }
+        VtnNetwork vtnNet = getVtnNetwork(instance);
 
         switch (vtnNet.type()) {
             case MANAGEMENT_LOCAL:

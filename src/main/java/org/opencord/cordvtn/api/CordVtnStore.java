@@ -70,6 +70,13 @@ public interface CordVtnStore {
     void createServicePort(ServicePort servicePort);
 
     /**
+     * Updates the service port.
+     *
+     * @param servicePort service port
+     */
+    void updateServicePort(ServicePort servicePort);
+
+    /**
      * Returns the service port with the given port id.
      *
      * @param portId port id

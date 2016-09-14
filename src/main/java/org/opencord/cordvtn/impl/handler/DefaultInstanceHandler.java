@@ -69,11 +69,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
     public void instanceDetected(Instance instance) {
         log.info("Instance is detected {}", instance);
 
-        VtnNetwork vtnNet = vtnStore.getVtnNetwork(instance.netId());
-        if (vtnNet == null) {
-            final String error = String.format(ERR_VTN_NETWORK, instance);
-            throw new IllegalStateException(error);
-        }
+        VtnNetwork vtnNet = getVtnNetwork(instance);
         populateDefaultRules(instance, vtnNet, true);
     }
 
@@ -81,11 +77,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
     public void instanceRemoved(Instance instance) {
         log.info("Instance is removed {}", instance);
 
-        VtnNetwork vtnNet = vtnStore.getVtnNetwork(instance.netId());
-        if (vtnNet == null) {
-            final String error = String.format(ERR_VTN_NETWORK, instance);
-            throw new IllegalStateException(error);
-        }
+        VtnNetwork vtnNet = getVtnNetwork(instance);
         populateDefaultRules(instance, vtnNet, false);
     }
 

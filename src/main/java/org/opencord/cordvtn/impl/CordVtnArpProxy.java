@@ -84,6 +84,8 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
     protected void activate() {
         super.activate();
         configRegistry.addListener(configListener);
+        readConfiguration();
+
         packetService.addProcessor(packetProcessor, PacketProcessor.director(0));
         requestPacket();
     }

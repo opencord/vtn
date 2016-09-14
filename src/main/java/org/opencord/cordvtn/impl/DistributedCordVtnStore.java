@@ -224,6 +224,16 @@ public class DistributedCordVtnStore implements CordVtnStore {
     }
 
     @Override
+    public void updateServicePort(ServicePort servicePort) {
+        servicePortStore.compute(servicePort.id(), (id, existing) -> {
+            final String error = ERR_SYNC + servicePort.id().id() + ERR_NOT_FOUND;
+            checkArgument(existing != null, ERR_SYNC + error);
+            return servicePort;
+        });
+        log.info(String.format(MSG_SERVICE_PORT, UPDATED, servicePort));
+    }
+
+    @Override
     public ServicePort getServicePort(PortId portId) {
         Versioned<ServicePort> versioned = servicePortStore.get(portId);
         return versioned == null ? null : versioned.value();
