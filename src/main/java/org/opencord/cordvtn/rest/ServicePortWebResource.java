@@ -18,10 +18,16 @@ package org.opencord.cordvtn.rest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.onlab.osgi.DefaultServiceDirectory;
+import org.onosproject.net.Host;
+import org.onosproject.net.HostId;
+import org.onosproject.net.host.HostService;
 import org.onosproject.rest.AbstractWebResource;
 import org.opencord.cordvtn.api.CordVtnStore;
+import org.opencord.cordvtn.api.Instance;
+import org.opencord.cordvtn.api.InstanceService;
 import org.opencord.cordvtn.api.PortId;
 import org.opencord.cordvtn.api.ServicePort;
+import org.opencord.cordvtn.api.VtnPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +35,7 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -55,10 +62,14 @@ public class ServicePortWebResource extends AbstractWebResource {
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
     private static final String MESSAGE = "Received service port ";
-    private static final String SERVICE_PORT = "ServicePort";
+    private static final String SERVICE_PORT  = "ServicePort";
     private static final String SERVICE_PORTS = "ServicePorts";
+    private static final String ERR_SYNC = "Sync error: Port for service port(%s) does not exist";
 
-    private final CordVtnStore service = DefaultServiceDirectory.getService(CordVtnStore.class);
+    private final CordVtnStore vtnStore = DefaultServiceDirectory.getService(CordVtnStore.class);
+    private final HostService hostService = DefaultServiceDirectory.getService(HostService.class);
+    private final InstanceService instanceService =
+            DefaultServiceDirectory.getService(InstanceService.class);
 
     @Context
     private UriInfo uriInfo;
@@ -84,13 +95,49 @@ public class ServicePortWebResource extends AbstractWebResource {
             }
 
             final ServicePort sport = codec(ServicePort.class).decode(portJson, this);
-            service.createServicePort(sport);
+            vtnStore.createServicePort(sport);
 
             UriBuilder locationBuilder = uriInfo.getBaseUriBuilder()
                     .path(SERVICE_PORTS)
                     .path(sport.id().id());
 
             return created(locationBuilder.build()).build();
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    /**
+     * Updates the service port with the given identifier.
+     *
+     * @param id port identifier
+     * @return 200 OK with a service port, 400 BAD_REQUEST if the requested
+     * port does not exist
+     */
+    @PUT
+    @Path("{id}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response updateServiceNetwork(@PathParam("id") String id, InputStream input) {
+        try {
+            JsonNode jsonTree = mapper().enable(INDENT_OUTPUT).readTree(input);
+            log.trace(MESSAGE + "UPDATE " + mapper().writeValueAsString(jsonTree));
+
+            ObjectNode sportJson = (ObjectNode) jsonTree.get(SERVICE_PORT);
+            if (sportJson == null) {
+                throw new IllegalArgumentException();
+            }
+
+            final ServicePort sport = codec(ServicePort.class).decode(sportJson, this);
+            vtnStore.updateServicePort(sport);
+            Instance instance = getInstance(sport);
+            if (instance != null) {
+                instanceService.addInstance(instance.host().location());
+            }
+
+            ObjectNode result = this.mapper().createObjectNode();
+            result.set(SERVICE_PORT, codec(ServicePort.class).encode(sport, this));
+            return ok(result).build();
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
@@ -107,7 +154,7 @@ public class ServicePortWebResource extends AbstractWebResource {
     public Response getServicePorts() {
         log.debug(MESSAGE + "GET");
 
-        Set<ServicePort> sports = service.getServicePorts();
+        Set<ServicePort> sports = vtnStore.getServicePorts();
         return ok(encodeArray(ServicePort.class, SERVICE_PORTS, sports)).build();
     }
 
@@ -125,7 +172,7 @@ public class ServicePortWebResource extends AbstractWebResource {
     public Response getServicePort(@PathParam("id") String id) {
         log.debug(MESSAGE + "GET " + id);
 
-        ServicePort sport = service.getServicePort(PortId.of(id));
+        ServicePort sport = vtnStore.getServicePort(PortId.of(id));
         if (sport == null) {
             return status(NOT_FOUND).build();
         }
@@ -148,7 +195,21 @@ public class ServicePortWebResource extends AbstractWebResource {
     public Response deleteServicePort(@PathParam("id") String id) {
         log.debug(MESSAGE + "DELETE " + id);
 
-        service.removeServicePort(PortId.of(id));
+        vtnStore.removeServicePort(PortId.of(id));
         return noContent().build();
+    }
+
+    private Instance getInstance(ServicePort sport) {
+        VtnPort vtnPort = vtnStore.getVtnPort(sport.id());
+        if (vtnPort == null) {
+            final String error = String.format(ERR_SYNC, sport.id());
+            throw new IllegalStateException(error);
+        }
+
+        Host host = hostService.getHost(HostId.hostId(vtnPort.mac()));
+        if (host == null) {
+            return null;
+        }
+        return Instance.of(host);
     }
 }

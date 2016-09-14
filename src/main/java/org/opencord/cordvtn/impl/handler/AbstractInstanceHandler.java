@@ -32,6 +32,8 @@ import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
 import org.opencord.cordvtn.api.NetworkId;
 import org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType;
+import org.opencord.cordvtn.api.VtnNetwork;
+import org.opencord.cordvtn.api.VtnPort;
 import org.slf4j.Logger;
 
 import java.util.Objects;
@@ -88,6 +90,11 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
         log.info("Stopped");
     }
 
+    @Override
+    public void instanceUpdated(Instance instance) {
+        instanceDetected(instance);
+    }
+
     protected Set<Instance> getInstances(NetworkId netId) {
         return StreamSupport.stream(hostService.getHosts().spliterator(), false)
                 .filter(host -> Objects.equals(
@@ -95,6 +102,24 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
                         host.annotations().value(Instance.NETWORK_ID)))
                 .map(Instance::of)
                 .collect(Collectors.toSet());
+    }
+
+    protected VtnNetwork getVtnNetwork(Instance instance) {
+        VtnNetwork vtnNet = vtnStore.getVtnNetwork(instance.netId());
+        if (vtnNet == null) {
+            final String error = String.format(ERR_VTN_NETWORK, instance);
+            throw new IllegalStateException(error);
+        }
+        return vtnNet;
+    }
+
+    protected VtnPort getVtnPort(Instance instance) {
+        VtnPort vtnPort = vtnStore.getVtnPort(instance.portId());
+        if (vtnPort == null) {
+            final String error = String.format(ERR_VTN_PORT, instance);
+            throw new IllegalStateException(error);
+        }
+        return vtnPort;
     }
 
     private class InternalHostListener implements HostListener {
@@ -115,6 +140,8 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
 
             switch (event.type()) {
                 case HOST_UPDATED:
+                    eventExecutor.execute(() -> instanceUpdated(instance));
+                    break;
                 case HOST_ADDED:
                     eventExecutor.execute(() -> instanceDetected(instance));
                     break;
