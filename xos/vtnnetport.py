@@ -141,6 +141,10 @@ class VTNPort(object):
     def vlan_id(self):
         if not self.xos_port.instance:
             return None
+        # Only some kinds of networks can have s-tags associated with them.
+        # Currently, only VSG access networks qualify.
+        if not self.xos_port.network.template.vtn_kind in ["VSG",]:
+            return None
         tags = Tag.select_by_content_object(self.xos_port.instance).filter(name="s_tag")
         if not tags:
             return None
@@ -148,16 +152,22 @@ class VTNPort(object):
 
     @property
     def floating_address_pairs(self):
-        address_pairs = []
-        vsg = self.get_vsg_tenant()
-        if vsg:
-            if vsg.wan_container_ip and vsg.wan_container_mac:
-                address_pairs.append({"ip_address": vsg.wan_container_ip,
-                                      "mac_address": vsg.wan_container_mac})
+        # Floating_address_pairs is the set of WAN addresses that should be
+        # applied to this port.
 
-            if vsg.wan_vm_ip and vsg.wan_vm_mac:
-                address_pairs.append({"ip_address": vsg.wan_vm_ip,
-                                      "mac_address": vsg.wan_vm_mac})
+        address_pairs = []
+
+        # only look apply the VSG addresses if the Network is of the VSG vtn_kind
+        if self.xos_port.network.template.vtn_kind in ["VSG", ]:
+            vsg = self.get_vsg_tenant()
+            if vsg:
+                if vsg.wan_container_ip and vsg.wan_container_mac:
+                    address_pairs.append({"ip_address": vsg.wan_container_ip,
+                                          "mac_address": vsg.wan_container_mac})
+
+                if vsg.wan_vm_ip and vsg.wan_vm_mac:
+                    address_pairs.append({"ip_address": vsg.wan_vm_ip,
+                                          "mac_address": vsg.wan_vm_mac})
 
         return address_pairs
 
@@ -175,6 +185,10 @@ class VTNPort(object):
         if not cn:
             return None
         return cn.net_id
+
+    @property
+    def network_name(self):
+        return self.xos_port.network.name
 
     @property
     def mac_address(self):

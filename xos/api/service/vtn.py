@@ -73,11 +73,12 @@ class VTNPortSerializer(serializers.Serializer):
     id = ReadOnlyField()
     name = serializers.CharField(required=False)
     network_id = serializers.CharField(required=False)
+    network_name = serializers.CharField(required=False)
     mac_address = serializers.CharField(required=False)
     ip_address = serializers.CharField(required=False)
 
     class Meta:
-        fields = ('id', 'name', 'network_id', 'mac_address', 'ip_address')
+        fields = ('id', 'name', 'network_id', 'network_name', 'mac_address', 'ip_address')
 
 class FloatingAddressPairSerializer(serializers.Serializer):
     ip_address = ReadOnlyField()
@@ -86,12 +87,13 @@ class FloatingAddressPairSerializer(serializers.Serializer):
 class VTNServicePortSerializer(serializers.Serializer):
     id = ReadOnlyField()
     vlan_id = serializers.IntegerField(required=False)
+    network_name = serializers.CharField(required=False)
 
     # TODO: structure this better
     floating_address_pairs = serializers.SerializerMethodField("getFloatingAddressPairs")
 
     class Meta:
-        fields = ('id', 'vlan_id')
+        fields = ('id', 'vlan_id', 'network_name')
 
     def getFloatingAddressPairs(self, obj):
          return obj.floating_address_pairs
