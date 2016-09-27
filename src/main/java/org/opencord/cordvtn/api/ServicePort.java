@@ -17,7 +17,6 @@ package org.opencord.cordvtn.api;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import org.onlab.packet.VlanId;
 
 import java.util.Objects;
@@ -29,18 +28,20 @@ import static com.google.common.base.Preconditions.checkNotNull;
 /**
  * Representation of a service port.
  */
-public final class ServicePort {
+public class ServicePort {
 
-    private final PortId id;
-    private final VlanId vlanId;
-    private final Set<AddressPair> addressPairs;
+    private static final String ERR_ID = "Service port ID cannot be null";
 
-    private ServicePort(PortId id,
-                        VlanId vlanId,
-                        Set<AddressPair> addressPairs) {
-        this.id = id;
+    protected final PortId id;
+    protected final VlanId vlanId;
+    protected final Set<AddressPair> addressPairs;
+
+    public ServicePort(PortId id,
+                       VlanId vlanId,
+                       Set<AddressPair> addressPairs) {
+        this.id = checkNotNull(id, ERR_ID);
         this.vlanId = vlanId;
-        this.addressPairs = addressPairs;
+        this.addressPairs = addressPairs == null ? ImmutableSet.of() : addressPairs;
     }
 
     /**
@@ -99,84 +100,5 @@ public final class ServicePort {
                 .add("vlanId", vlanId)
                 .add("addressPairs", addressPairs)
                 .toString();
-    }
-
-    /**
-     * Returns new service port builder instance.
-     *
-     * @return service port builder
-     */
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    /**
-     * Builder of the service port entities.
-     */
-    public static final class Builder {
-        private PortId id;
-        private VlanId vlanId;
-        private Set<AddressPair> addressPairs = Sets.newHashSet();
-
-        private Builder() {
-        }
-
-        /**
-         * Builds an immutable service port.
-         *
-         * @return service port instance
-         */
-        public ServicePort build() {
-            checkNotNull(id, "ServicePort port id cannot be null");
-            addressPairs = addressPairs == null ? ImmutableSet.of() : addressPairs;
-
-            return new ServicePort(id, vlanId, addressPairs);
-        }
-
-        /**
-         * Returns service port builder with the supplied port port id.
-         *
-         * @param id port id
-         * @return service port builder
-         */
-        public Builder id(PortId id) {
-            this.id = id;
-            return this;
-        }
-
-        /**
-         * Returns service port builder with the supplied VLAN ID.
-         *
-         * @param vlanId vlan id
-         * @return service port builder
-         */
-        public Builder vlanId(VlanId vlanId) {
-            this.vlanId = vlanId;
-            return this;
-        }
-
-        /**
-         * Returns service port builder with the supplied address pairs.
-         *
-         * @param addressPairs set of address pairs
-         * @return service port builder
-         */
-        public Builder addressPairs(Set<AddressPair> addressPairs) {
-            this.addressPairs = addressPairs;
-            return this;
-        }
-
-        /**
-         * Returns service port builder with the given additional address pair.
-         *
-         * @param addressPair address pair to add
-         * @return service port builder
-         */
-        public Builder addAddressPair(AddressPair addressPair) {
-            checkNotNull(addressPair, "ServicePort address pair cannot be null");
-
-            this.addressPairs.add(addressPair);
-            return this;
-        }
     }
 }

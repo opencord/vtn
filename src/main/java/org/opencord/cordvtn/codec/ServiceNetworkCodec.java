@@ -17,16 +17,21 @@ package org.opencord.cordvtn.codec;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.collect.Sets;
 import org.onosproject.codec.CodecContext;
 import org.onosproject.codec.JsonCodec;
+import org.opencord.cordvtn.api.Dependency;
 import org.opencord.cordvtn.api.NetworkId;
+import org.opencord.cordvtn.api.ProviderNetwork;
 import org.opencord.cordvtn.api.ServiceNetwork;
-import org.opencord.cordvtn.api.ServiceNetwork.DirectAccessType;
+import org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType;
+
+import java.util.Set;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
-import static org.opencord.cordvtn.api.ServiceNetwork.DirectAccessType.BIDIRECTIONAL;
-import static org.opencord.cordvtn.api.ServiceNetwork.DirectAccessType.UNIDIRECTIONAL;
+import static org.opencord.cordvtn.api.Dependency.Type.BIDIRECTIONAL;
+import static org.opencord.cordvtn.api.Dependency.Type.UNIDIRECTIONAL;
 import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.valueOf;
 
 /**
@@ -46,10 +51,10 @@ public final class ServiceNetworkCodec extends JsonCodec<ServiceNetwork> {
                 .put(TYPE, snet.type().name().toLowerCase());
 
         ArrayNode providers = context.mapper().createArrayNode();
-        snet.providers().entrySet().forEach(provider -> {
+        snet.providers().forEach(provider -> {
             ObjectNode providerJson = context.mapper().createObjectNode()
-                    .put(ID, provider.getKey().id())
-                    .put(BIDIRECT, provider.getValue() == BIDIRECTIONAL ? TRUE : FALSE);
+                    .put(ID, provider.id().id())
+                    .put(BIDIRECT, provider.type() == BIDIRECTIONAL ? TRUE : FALSE);
             providers.add(providerJson);
         });
 
@@ -63,18 +68,18 @@ public final class ServiceNetworkCodec extends JsonCodec<ServiceNetwork> {
             return null;
         }
 
-        ServiceNetwork.Builder snetBuilder = ServiceNetwork.builder()
-                .id(NetworkId.of(json.get(ID).asText()))
-                .type(valueOf(json.get(TYPE).asText().toUpperCase()));
-
+        NetworkId netId = NetworkId.of(json.get(ID).asText());
+        ServiceNetworkType netType = valueOf(json.get(TYPE).asText().toUpperCase());
+        Set<ProviderNetwork> providers = Sets.newHashSet();
         if (json.get(PROVIDER_NETWORKS) != null) {
             json.get(PROVIDER_NETWORKS).forEach(provider -> {
                 NetworkId providerId = NetworkId.of(provider.get(ID).asText());
-                DirectAccessType type = provider.get(BIDIRECT).asBoolean() ?
+                Dependency.Type type = provider.get(BIDIRECT).asBoolean() ?
                         BIDIRECTIONAL : UNIDIRECTIONAL;
-                snetBuilder.addProvider(providerId, type);
+                providers.add(ProviderNetwork.of(providerId, type));
             });
         }
-        return snetBuilder.build();
+
+        return new ServiceNetwork(netId, netType, providers);
     }
 }

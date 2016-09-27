@@ -15,6 +15,7 @@
  */
 package org.opencord.cordvtn.impl.handler;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
@@ -28,19 +29,18 @@ import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.FlowRule;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
-import org.onosproject.xosclient.api.VtnService;
-import org.opencord.cordvtn.impl.AbstractInstanceHandler;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
+import org.opencord.cordvtn.api.VtnNetwork;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
-import java.util.Optional;
-
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.MANAGEMENT;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.MANAGEMENT_HOST;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.MANAGEMENT_LOCAL;
 
 /**
- * Provides network connectivity for management network connected instances.
+ * Provides local management network connectivity to the instance. The instance
+ * is only accessible via local management network from the host machine.
  */
 @Component(immediate = true)
 public class ManagementInstanceHandler extends AbstractInstanceHandler implements InstanceHandler {
@@ -53,7 +53,7 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
 
     @Activate
     protected void activate() {
-        serviceType = Optional.of(MANAGEMENT);
+        netTypes = ImmutableSet.of(MANAGEMENT_LOCAL, MANAGEMENT_HOST);
         super.activate();
     }
 
@@ -64,20 +64,16 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
 
     @Override
     public void instanceDetected(Instance instance) {
-        VtnService service = getVtnService(instance.serviceId());
-        if (service == null) {
-            log.warn("Failed to get VtnService for {}", instance);
-            return;
-        }
+        VtnNetwork vtnNet = getVtnNetwork(instance);
 
-        switch (service.networkType()) {
+        switch (vtnNet.type()) {
             case MANAGEMENT_LOCAL:
                 log.info("LOCAL management instance is detected {}", instance);
-                localManagementRules(instance, true);
+                populateLocalManagementRules(instance, true);
                 break;
-            case MANAGEMENT_HOSTS:
+            case MANAGEMENT_HOST:
                 log.info("HOSTS management instance is detected {}", instance);
-                hostsManagementRules(instance, true);
+                populateHostsManagementRules(instance, true);
                 break;
             default:
                 break;
@@ -86,27 +82,23 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
 
     @Override
     public void instanceRemoved(Instance instance) {
-        VtnService service = getVtnService(instance.serviceId());
-        if (service == null) {
-            log.warn("Failed to get VtnService for {}", instance);
-            return;
-        }
+        VtnNetwork vtnNet = getVtnNetwork(instance);
 
-        switch (service.networkType()) {
+        switch (vtnNet.type()) {
             case MANAGEMENT_LOCAL:
                 log.info("LOCAL management instance removed {}", instance);
-                localManagementRules(instance, false);
+                populateLocalManagementRules(instance, false);
                 break;
-            case MANAGEMENT_HOSTS:
+            case MANAGEMENT_HOST:
                 log.info("HOSTS management instance removed {}", instance);
-                hostsManagementRules(instance, false);
+                populateHostsManagementRules(instance, false);
                 break;
             default:
                 break;
         }
     }
 
-    private void localManagementRules(Instance instance, boolean install) {
+    private void populateLocalManagementRules(Instance instance, boolean install) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(Ethernet.TYPE_IPV4)
                 .matchIPDst(instance.ipAddress().toIpPrefix())
@@ -130,7 +122,7 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
         pipeline.processFlowRule(install, flowRule);
     }
 
-    private void hostsManagementRules(Instance instance, boolean install) {
+    private void populateHostsManagementRules(Instance instance, boolean install) {
         PortNumber hostMgmtPort = nodeManager.hostManagementPort(instance.deviceId());
         if (hostMgmtPort == null) {
             log.warn("Can not find host management port in {}", instance.deviceId());
