@@ -19,7 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onosproject.rest.AbstractWebResource;
-import org.opencord.cordvtn.api.CordVtnStore;
+import org.opencord.cordvtn.api.CordVtnAdminService;
 import org.opencord.cordvtn.api.NetworkId;
 import org.opencord.cordvtn.api.ServiceNetwork;
 import org.slf4j.Logger;
@@ -40,7 +40,8 @@ import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 import static javax.ws.rs.core.Response.Status.NOT_FOUND;
@@ -56,10 +57,11 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
     private static final String MESSAGE = "Received service network ";
-    private static final String SERVICE_NETWORK = "ServiceNetwork";
+    private static final String SERVICE_NETWORK  = "ServiceNetwork";
     private static final String SERVICE_NETWORKS = "ServiceNetworks";
 
-    private final CordVtnStore service = DefaultServiceDirectory.getService(CordVtnStore.class);
+    private final CordVtnAdminService adminService =
+            DefaultServiceDirectory.getService(CordVtnAdminService.class);
 
     @Context
     private UriInfo uriInfo;
@@ -85,7 +87,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
             }
 
             final ServiceNetwork snet = codec(ServiceNetwork.class).decode(snetJson, this);
-            service.createServiceNetwork(snet);
+            adminService.createVtnNetwork(snet);
 
             UriBuilder locationBuilder = uriInfo.getBaseUriBuilder()
                     .path(SERVICE_NETWORKS)
@@ -100,7 +102,8 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     /**
      * Updates the service network with the specified identifier.
      *
-     * @param id network identifier
+     * @param id    network identifier
+     * @param input service network JSON stream
      * @return 200 OK with a service network, 400 BAD_REQUEST if the requested
      * network does not exist
      */
@@ -119,7 +122,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
             }
 
             final ServiceNetwork snet = codec(ServiceNetwork.class).decode(snetJson, this);
-            service.updateServiceNetwork(snet);
+            adminService.updateVtnNetwork(snet);
 
             ObjectNode result = this.mapper().createObjectNode();
             result.set(SERVICE_NETWORK, codec(ServiceNetwork.class).encode(snet, this));
@@ -140,7 +143,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     public Response getServiceNetworks() {
         log.trace(MESSAGE + "GET");
 
-        Set<ServiceNetwork> snets = service.getServiceNetworks();
+        List<ServiceNetwork> snets = new ArrayList<>(adminService.getVtnNetworks());
         return ok(encodeArray(ServiceNetwork.class, SERVICE_NETWORKS, snets)).build();
     }
 
@@ -158,13 +161,15 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     public Response getServiceNetwork(@PathParam("id") String id) {
         log.trace(MESSAGE + "GET " + id);
 
-        ServiceNetwork snet = service.getServiceNetwork(NetworkId.of(id));
+        ServiceNetwork snet = adminService.getVtnNetwork(NetworkId.of(id));
         if (snet == null) {
+            log.trace("Returned NOT_FOUND");
             return status(NOT_FOUND).build();
         }
 
         ObjectNode result = this.mapper().createObjectNode();
         result.set(SERVICE_NETWORK, codec(ServiceNetwork.class).encode(snet, this));
+        log.trace("Returned OK {}", result);
         return ok(result).build();
     }
 
@@ -181,7 +186,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     public Response deleteServiceNetwork(@PathParam("id") String id) {
         log.trace(MESSAGE + "DELETE " + id);
 
-        service.removeServiceNetwork(NetworkId.of(id));
+        adminService.removeVtnNetwork(NetworkId.of(id));
         return noContent().build();
     }
 }

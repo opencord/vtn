@@ -34,6 +34,8 @@ import org.onosproject.net.behaviour.DefaultBridgeDescription;
 import org.onosproject.net.behaviour.InterfaceConfig;
 import org.onosproject.net.behaviour.TunnelEndPoints;
 import org.onosproject.net.behaviour.TunnelKeys;
+import org.onosproject.net.config.ConfigFactory;
+import org.onosproject.net.config.basics.SubjectFactories;
 import org.opencord.cordvtn.api.ConnectionHandler;
 import org.opencord.cordvtn.api.CordVtnConfig;
 import org.opencord.cordvtn.api.CordVtnNode;
@@ -147,6 +149,16 @@ public class CordVtnNodeManager {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnPipeline pipeline;
 
+    private static final Class<CordVtnConfig> CONFIG_CLASS = CordVtnConfig.class;
+    private final ConfigFactory configFactory =
+            new ConfigFactory<ApplicationId, CordVtnConfig>(
+                    SubjectFactories.APP_SUBJECT_FACTORY, CONFIG_CLASS, "cordvtn") {
+                @Override
+                public CordVtnConfig createConfig() {
+                    return new CordVtnConfig();
+                }
+            };
+
     private final ExecutorService eventExecutor =
             newSingleThreadExecutor(groupedThreads("onos/cordvtn-node", "event-handler", log));
 
@@ -213,8 +225,9 @@ public class CordVtnNodeManager {
 
     @Activate
     protected void activate() {
-        appId = coreService.getAppId(CORDVTN_APP_ID);
+        appId = coreService.registerApplication(CORDVTN_APP_ID);
 
+        configRegistry.registerConfigFactory(configFactory);
         localNodeId = clusterService.getLocalNode().id();
         leadershipService.runForLeadership(appId.name());
 
@@ -238,6 +251,7 @@ public class CordVtnNodeManager {
         nodeStore.removeListener(nodeStoreListener);
 
         leadershipService.withdraw(appId.name());
+        configRegistry.unregisterConfigFactory(configFactory);
         eventExecutor.shutdown();
 
         log.info("Stopped");

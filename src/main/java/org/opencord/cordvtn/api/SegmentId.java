@@ -15,29 +15,29 @@
  */
 package org.opencord.cordvtn.api;
 
+import org.onlab.util.Identifier;
+
 /**
- * Handles service instance detection and removal.
+ * Representation of the network segmentation identifier.
  */
-public interface InstanceHandler {
+public final class SegmentId extends Identifier<Long> {
 
     /**
-     * Handles newly detected instance.
+     * Default constructor.
      *
-     * @param instance instance
+     * @param id long segmentation identifier
      */
-    void instanceDetected(Instance instance);
+    private SegmentId(Long id) {
+        super(id);
+    }
 
     /**
-     * Handles updated instance.
+     * Returns the segmentation identifier with the supplied value.
      *
-     * @param instance instance
+     * @param id long segmentation identifier
+     * @return segmentation identifier
      */
-    void instanceUpdated(Instance instance);
-
-    /**
-     * Handles removed instance.
-     *
-     * @param instance instance
-     */
-    void instanceRemoved(Instance instance);
+    public static SegmentId of(Long id) {
+        return new SegmentId(id);
+    }
 }

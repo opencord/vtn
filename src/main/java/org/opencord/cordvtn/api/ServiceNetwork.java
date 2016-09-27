@@ -16,18 +16,20 @@
 package org.opencord.cordvtn.api;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
+import com.google.common.collect.ImmutableSet;
 
-import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Representation of a service network.
  */
-public final class ServiceNetwork {
+public class ServiceNetwork {
+
+    private static final String ERR_ID = "Service network ID cannot be null";
+    private static final String ERR_TYPE = "Service network type cannot be null";
 
     public enum ServiceNetworkType {
         PRIVATE,
@@ -38,21 +40,16 @@ public final class ServiceNetwork {
         ACCESS_AGENT
     }
 
-    public enum DirectAccessType {
-        BIDIRECTIONAL,
-        UNIDIRECTIONAL
-    }
+    protected final NetworkId id;
+    protected final ServiceNetworkType type;
+    protected final Set<ProviderNetwork> providers;
 
-    private final NetworkId id;
-    private final ServiceNetworkType type;
-    private final Map<NetworkId, DirectAccessType> providers;
-
-    private ServiceNetwork(NetworkId id,
-                           ServiceNetworkType type,
-                           Map<NetworkId, DirectAccessType> providers) {
-        this.id = id;
-        this.type = type;
-        this.providers = providers;
+    public ServiceNetwork(NetworkId id,
+                          ServiceNetworkType type,
+                          Set<ProviderNetwork> providers) {
+        this.id = checkNotNull(id, ERR_ID);
+        this.type = checkNotNull(type, ERR_TYPE);
+        this.providers = providers == null ? ImmutableSet.of() : providers;
     }
 
     /**
@@ -78,8 +75,19 @@ public final class ServiceNetwork {
      *
      * @return provider networks
      */
-    public Map<NetworkId, DirectAccessType> providers() {
+    public Set<ProviderNetwork> providers() {
         return providers;
+    }
+
+    /**
+     * Returns if the given network is the provider of this network or not.
+     *
+     * @param netId network id
+     * @return true if the given network is the provider of this network
+     */
+    public boolean isProvider(NetworkId netId) {
+        return providers.stream().filter(p -> Objects.equals(p.id(), netId))
+                .findAny().isPresent();
     }
 
     @Override
@@ -111,87 +119,5 @@ public final class ServiceNetwork {
                 .add("type", type)
                 .add("providers", providers)
                 .toString();
-    }
-
-    /**
-     * Returns new service network builder instance.
-     *
-     * @return service network builder
-     */
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    /**
-     * Builder of the service network entities.
-     */
-    public static final class Builder {
-        private NetworkId id;
-        private ServiceNetworkType type;
-        private Map<NetworkId, DirectAccessType> providers = Maps.newHashMap();
-
-        private Builder() {
-        }
-
-        /**
-         * Builds an immutable service network.
-         *
-         * @return service network instance
-         */
-        public ServiceNetwork build() {
-            checkNotNull(id, "Service network id cannot be null");
-            checkNotNull(type, "Service network type cannot be null");
-            providers = providers == null ? ImmutableMap.of() : providers;
-
-            return new ServiceNetwork(id, type, providers);
-        }
-
-        /**
-         * Returns service network builder with the supplied network ID.
-         *
-         * @param id network id
-         * @return service network builder
-         */
-        public Builder id(NetworkId id) {
-            this.id = id;
-            return this;
-        }
-
-        /**
-         * Returns service network builder with the supplied service network type.
-         *
-         * @param type service network type
-         * @return service network builder
-         */
-        public Builder type(ServiceNetworkType type) {
-            this.type = type;
-            return this;
-        }
-
-        /**
-         * Returns service network builder with the supplied provider service networks.
-         *
-         * @param providers provider service networks
-         * @return service network builder
-         */
-        public Builder providers(Map<NetworkId, DirectAccessType> providers) {
-            this.providers = providers;
-            return this;
-        }
-
-        /**
-         * Returns service network builder with the given additional provider network.
-         *
-         * @param id provider network id
-         * @param type direct access type to the provider network
-         * @return service network builder
-         */
-        public Builder addProvider(NetworkId id, DirectAccessType type) {
-            checkNotNull(id, "Provider network ID cannot be null");
-            checkNotNull(type, "Provider network type cannot be null");
-
-            this.providers.put(id, type);
-            return this;
-        }
     }
 }

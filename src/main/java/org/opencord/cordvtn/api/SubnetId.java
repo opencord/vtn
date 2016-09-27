@@ -15,29 +15,29 @@
  */
 package org.opencord.cordvtn.api;
 
+import org.onlab.util.Identifier;
+
 /**
- * Handles service instance detection and removal.
+ * Representation of the subnet identifier.
  */
-public interface InstanceHandler {
+public final class SubnetId extends Identifier<String> {
 
     /**
-     * Handles newly detected instance.
+     * Default constructor.
      *
-     * @param instance instance
+     * @param id string subnet identifier
      */
-    void instanceDetected(Instance instance);
+    private SubnetId(String id) {
+        super(id);
+    }
 
     /**
-     * Handles updated instance.
+     * Returns the subnet identifier with the supplied value.
      *
-     * @param instance instance
+     * @param id string subnet identifier
+     * @return subnet identifier
      */
-    void instanceUpdated(Instance instance);
-
-    /**
-     * Handles removed instance.
-     *
-     * @param instance instance
-     */
-    void instanceRemoved(Instance instance);
+    public static SubnetId of(String id) {
+        return new SubnetId(id);
+    }
 }
