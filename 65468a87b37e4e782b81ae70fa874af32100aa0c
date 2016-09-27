@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1a014df3_69ca0ca3",
+        "filename": "src/main/java/org/opencord/cordvtn/rest/ServiceNetworkWebResource.java",
+        "patchSetId": 1
+      },
+      "lineNbr": 66,
+      "author": {
+        "id": 1000004
+      },
+      "writtenOn": "2016-09-27T20:10:31Z",
+      "side": 1,
+      "message": "Do you not have a manager to go through to manipulate the VTN state? Hitting the store directly is a little scary ;)",
+      "revId": "65468a87b37e4e782b81ae70fa874af32100aa0c",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
+      "unresolved": false
+    }
+  ]
+}
