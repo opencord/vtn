@@ -28,6 +28,13 @@ public interface InstanceHandler {
     void instanceDetected(Instance instance);
 
     /**
+     * Handles updated instance.
+     *
+     * @param instance instance
+     */
+    void instanceUpdated(Instance instance);
+
+    /**
      * Handles removed instance.
      *
      * @param instance instance

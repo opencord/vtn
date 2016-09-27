@@ -25,8 +25,6 @@ import org.onlab.packet.MacAddress;
 import org.onlab.packet.TpPort;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.net.config.Config;
-import org.onosproject.xosclient.api.OpenStackAccess;
-import org.onosproject.xosclient.api.XosAccess;
 import org.slf4j.Logger;
 
 import java.util.Map;
@@ -236,28 +234,5 @@ public class CordVtnConfig extends Config<ApplicationId> {
         return publicGateways;
     }
 
-    /**
-     * Returns XOS access information.
-     *
-     * @return XOS access, or null
-     */
-    public XosAccess xosAccess() {
-        JsonNode jsonNode = object.get(XOS);
-        return new XosAccess(getConfig(jsonNode, ENDPOINT),
-                             getConfig(jsonNode, USER),
-                             getConfig(jsonNode, PASSWORD));
-    }
-
-    /**
-     * Returns OpenStack API access information.
-     *
-     * @return openstack access
-     */
-    public OpenStackAccess openstackAccess() {
-        JsonNode jsonNode = object.get(OPENSTACK);
-        return new OpenStackAccess(jsonNode.path(ENDPOINT).asText(),
-                                   jsonNode.path(TENANT).asText(),
-                                   jsonNode.path(USER).asText(),
-                                   jsonNode.path(PASSWORD).asText());
-    }
+    // TODO add methods to get XOS and OpenStack API access
 }

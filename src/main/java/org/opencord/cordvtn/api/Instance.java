@@ -21,21 +21,19 @@ import org.onlab.packet.MacAddress;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Host;
 import org.onosproject.net.PortNumber;
-import org.onosproject.xosclient.api.VtnPortId;
-import org.onosproject.xosclient.api.VtnServiceApi.ServiceType;
-import org.onosproject.xosclient.api.VtnServiceId;
+import org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Provides methods to help to handle network service instance.
+ * Provides methods to help to handle network network instance.
  */
 public final class Instance {
 
-    public static final String SERVICE_ID = "serviceId";
-    public static final String SERVICE_TYPE = "serviceType";
-    public static final String PORT_ID = "vtnPortId";
+    public static final String NETWORK_ID = "networkId";
+    public static final String NETWORK_TYPE = "networkType";
+    public static final String PORT_ID = "portId";
     public static final String CREATE_TIME = "createTime";
     public static final String NESTED_INSTANCE = "nestedInstance";
     public static final String TRUE = "true";
@@ -68,8 +66,8 @@ public final class Instance {
      */
     public static Instance of(Host host) {
         checkNotNull(host);
-        checkArgument(!Strings.isNullOrEmpty(host.annotations().value(SERVICE_ID)));
-        checkArgument(!Strings.isNullOrEmpty(host.annotations().value(SERVICE_TYPE)));
+        checkArgument(!Strings.isNullOrEmpty(host.annotations().value(NETWORK_ID)));
+        checkArgument(!Strings.isNullOrEmpty(host.annotations().value(NETWORK_TYPE)));
         checkArgument(!Strings.isNullOrEmpty(host.annotations().value(PORT_ID)));
         checkArgument(!Strings.isNullOrEmpty(host.annotations().value(CREATE_TIME)));
 
@@ -77,33 +75,33 @@ public final class Instance {
     }
 
     /**
-     * Returns service ID of a given host.
+     * Returns network ID of a given host.
      *
-     * @return vtn service id
+     * @return network id
      */
-    public VtnServiceId serviceId() {
-        String serviceId = host.annotations().value(SERVICE_ID);
-        return VtnServiceId.of(serviceId);
+    public NetworkId netId() {
+        String netId = host.annotations().value(NETWORK_ID);
+        return NetworkId.of(netId);
     }
 
     /**
-     * Returns service type of a given host.
+     * Returns network type of a given host.
      *
-     * @return vtn service type
+     * @return network type
      */
-    public ServiceType serviceType() {
-        String serviceType = host.annotations().value(SERVICE_TYPE);
-        return ServiceType.valueOf(serviceType);
+    public ServiceNetworkType netType() {
+        String netType = host.annotations().value(NETWORK_TYPE);
+        return ServiceNetworkType.valueOf(netType);
     }
 
     /**
      * Returns port ID of a given host.
      *
-     * @return vtn port id
+     * @return port id
      */
-    public VtnPortId portId() {
+    public PortId portId() {
         String portId = host.annotations().value(PORT_ID);
-        return VtnPortId.of(portId);
+        return PortId.of(portId);
     }
 
     /**
