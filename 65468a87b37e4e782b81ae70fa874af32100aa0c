@@ -34,6 +34,24 @@
       "revId": "65468a87b37e4e782b81ae70fa874af32100aa0c",
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1a014df3_49e2b004",
+        "filename": "src/main/java/org/opencord/cordvtn/rest/ServiceNetworkWebResource.java",
+        "patchSetId": 1
+      },
+      "lineNbr": 66,
+      "author": {
+        "id": 1000004
+      },
+      "writtenOn": "2016-09-27T22:01:37Z",
+      "side": 1,
+      "message": "ok so I will hold off on this then.",
+      "parentUuid": "1a014df3_29c40491",
+      "revId": "65468a87b37e4e782b81ae70fa874af32100aa0c",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
+      "unresolved": false
     }
   ]
 }
