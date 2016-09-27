@@ -15,9 +15,10 @@
  */
 package org.opencord.cordvtn.impl;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
@@ -27,8 +28,11 @@ import org.apache.felix.scr.annotations.Service;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.Ip4Prefix;
-import org.onosproject.xosclient.api.VtnServiceApi;
+import org.onosproject.cluster.ClusterService;
+import org.onosproject.cluster.LeadershipService;
+import org.onosproject.cluster.NodeId;
 import org.opencord.cordvtn.api.CordVtnNode;
+import org.opencord.cordvtn.api.CordVtnService;
 import org.opencord.cordvtn.api.DependencyService;
 import org.opencord.cordvtn.api.Instance;
 import org.onosproject.core.DefaultGroupId;
@@ -50,8 +54,13 @@ import org.onosproject.net.group.GroupBuckets;
 import org.onosproject.net.group.GroupDescription;
 import org.onosproject.net.group.GroupKey;
 import org.onosproject.net.group.GroupService;
-import org.onosproject.xosclient.api.VtnService;
 import org.onosproject.xosclient.api.VtnServiceId;
+import org.opencord.cordvtn.api.NetworkId;
+import org.opencord.cordvtn.api.ServiceNetwork.DirectAccessType;
+import org.opencord.cordvtn.api.VtnNetwork;
+import org.opencord.cordvtn.api.VtnNetworkEvent;
+import org.opencord.cordvtn.api.VtnNetworkListener;
+import org.opencord.cordvtn.impl.handler.AbstractInstanceHandler;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -60,6 +69,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opencord.cordvtn.api.ServiceNetwork.DirectAccessType.BIDIRECTIONAL;
+import static org.opencord.cordvtn.api.ServiceNetwork.DirectAccessType.UNIDIRECTIONAL;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.ACCESS_AGENT;
 import static org.opencord.cordvtn.impl.CordVtnPipeline.*;
 import static org.onosproject.net.group.DefaultGroupBucket.createSelectGroupBucket;
 import static org.slf4j.LoggerFactory.getLogger;
@@ -73,8 +85,20 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
 
     protected final Logger log = getLogger(getClass());
 
+    private static final String ERR_NET_FAIL = "Failed to get VTN network ";
+    private static final String MSG_CREATE = "Created dependency subscriber: %s provider: %s";
+    private static final String MSG_REMOVE = "Removed dependency subscriber: %s provider: %s";
+    private static final String ADDED = "Added ";
+    private static final String REMOVED = "Removed ";
+
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected GroupService groupService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected LeadershipService leadershipService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected ClusterService clusterService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnPipeline pipeline;
@@ -82,107 +106,135 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnNodeManager nodeManager;
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnService vtnService;
+
+    private final VtnNetworkListener vtnNetListener = new InternalVtnNetListener();
+    //private ConsistentMultimap<NetworkId, >
+
+    private NodeId localNodeId;
+
     @Activate
     protected void activate() {
         super.activate();
+        localNodeId = clusterService.getLocalNode().id();
+        leadershipService.runForLeadership(appId.name());
+        vtnService.addListener(vtnNetListener);
     }
 
     @Deactivate
     protected void deactivate() {
         super.deactivate();
+        vtnService.removeListener(vtnNetListener);
+        leadershipService.withdraw(appId.name());
     }
 
+    @Deprecated
     @Override
     public void createDependency(VtnServiceId tServiceId, VtnServiceId pServiceId,
-                                        boolean isBidirectional) {
-        VtnService tService = getVtnService(tServiceId);
-        VtnService pService = getVtnService(pServiceId);
+                                 boolean isBidirectional) {
+        createDependency(NetworkId.of(tServiceId.id()),
+                         NetworkId.of(pServiceId.id()),
+                         isBidirectional ? BIDIRECTIONAL : UNIDIRECTIONAL);
+    }
 
-        if (tService == null || pService == null) {
-            log.error("Failed to create dependency between {} and {}",
-                      tServiceId, pServiceId);
-            return;
-        }
-
-        log.info("Created dependency between {} and {}", tService.name(), pService.name());
-        serviceDependencyRules(tService, pService, isBidirectional, true);
+    @Deprecated
+    @Override
+    public void removeDependency(VtnServiceId tServiceId, VtnServiceId pServiceId) {
+        removeDependency(NetworkId.of(tServiceId.id()),
+                         NetworkId.of(pServiceId.id()), BIDIRECTIONAL);
     }
 
     @Override
-    public void removeDependency(VtnServiceId tServiceId, VtnServiceId pServiceId) {
-        VtnService tService = getVtnService(tServiceId);
-        VtnService pService = getVtnService(pServiceId);
+    public void createDependency(NetworkId subscriberId, NetworkId providerId,
+                                 DirectAccessType type) {
+        VtnNetwork subNet = vtnService.getVtnNetwork(subscriberId);
+        VtnNetwork proNet = vtnService.getVtnNetwork(providerId);
 
-        if (tService == null || pService == null) {
-            log.error("Failed to remove dependency between {} and {}",
-                      tServiceId, pServiceId);
-            return;
+        if (subNet == null || proNet == null) {
+            final String error = ERR_NET_FAIL + subscriberId + ", " + providerId;
+            throw new IllegalStateException(error);
         }
 
-        log.info("Removed dependency between {} and {}", tService.name(), pService.name());
-        serviceDependencyRules(tService, pService, true, false);
+        populateDependencyRules(subNet, proNet, type, true);
+        log.info(String.format(MSG_CREATE, subscriberId, providerId));
+    }
+
+    @Override
+    public void removeDependency(NetworkId subscriberId, NetworkId providerId,
+                                 DirectAccessType type) {
+        VtnNetwork subNet = vtnService.getVtnNetwork(subscriberId);
+        VtnNetwork proNet = vtnService.getVtnNetwork(providerId);
+
+        if (subNet == null || proNet == null) {
+            final String error = ERR_NET_FAIL + subscriberId + ", " + providerId;
+            throw new IllegalStateException(error);
+        }
+
+        populateDependencyRules(subNet, proNet, type, false);
+        // TODO remove provider group if no subscribers in this provider
+        log.info(String.format(MSG_REMOVE, subscriberId, providerId));
     }
 
     @Override
     public void instanceDetected(Instance instance) {
         // TODO remove this when XOS provides access agent information
         // and handle it the same way wit the other instances
-        if (instance.serviceType() == VtnServiceApi.ServiceType.ACCESS_AGENT) {
+        if (instance.netType() == ACCESS_AGENT) {
             return;
         }
 
-        VtnService service = getVtnService(instance.serviceId());
-        if (service == null) {
-            return;
+        VtnNetwork vtnNet = vtnService.getVtnNetwork(instance.netId());
+        if (vtnNet == null) {
+            final String error = ERR_NET_FAIL + instance.netId();
+            throw new IllegalStateException(error);
         }
 
-        // TODO get bidirectional information from XOS once XOS supports
-        service.tenantServices().stream().forEach(
-                tServiceId -> createDependency(tServiceId, service.id(), true));
-        service.providerServices().stream().forEach(
-                pServiceId -> createDependency(service.id(), pServiceId, true));
-
-        updateProviderServiceInstances(service);
+        if (!vtnNet.providers().isEmpty()) {
+            updateSubscriberInstances(vtnNet, instance, true);
+        }
+        // TODO check if subscribers on this network
+        updateProviderInstances(vtnNet);
     }
 
     @Override
     public void instanceRemoved(Instance instance) {
         // TODO remove this when XOS provides access agent information
         // and handle it the same way wit the other instances
-        if (instance.serviceType() == VtnServiceApi.ServiceType.ACCESS_AGENT) {
+        if (instance.netType() == ACCESS_AGENT) {
             return;
         }
 
-        VtnService service = getVtnService(instance.serviceId());
-        if (service == null) {
-            return;
+        VtnNetwork vtnNet = vtnService.getVtnNetwork(instance.netId());
+        if (vtnNet == null) {
+            final String error = ERR_NET_FAIL + instance.netId();
+            throw new IllegalStateException(error);
         }
 
-        if (!service.providerServices().isEmpty()) {
-            removeInstanceFromTenantService(instance, service);
+        if (!vtnNet.providers().isEmpty()) {
+            updateSubscriberInstances(vtnNet, instance, false);
         }
-        if (!service.tenantServices().isEmpty()) {
-            updateProviderServiceInstances(service);
-        }
+        // TODO check if subscribers on this network
+        updateProviderInstances(vtnNet);
     }
 
-    private void updateProviderServiceInstances(VtnService service) {
-        GroupKey groupKey = getGroupKey(service.id());
-
+    private void updateProviderInstances(VtnNetwork provider) {
         Set<DeviceId> devices = nodeManager.completeNodes().stream()
                 .map(CordVtnNode::integrationBridgeId)
                 .collect(Collectors.toSet());
 
+        GroupKey groupKey = getGroupKey(provider.id());
         for (DeviceId deviceId : devices) {
             Group group = groupService.getGroup(deviceId, groupKey);
             if (group == null) {
-                log.trace("No group exists for service {} in {}", service.id(), deviceId);
                 continue;
             }
 
             List<GroupBucket> oldBuckets = group.buckets().buckets();
-            List<GroupBucket> newBuckets = getServiceGroupBuckets(
-                    deviceId, service.vni(), getInstances(service.id())).buckets();
+            List<GroupBucket> newBuckets = getProviderGroupBuckets(
+                    deviceId,
+                    provider.segmentId().id(),
+                    getInstances(provider.id())).buckets();
 
             if (oldBuckets.equals(newBuckets)) {
                 continue;
@@ -196,7 +248,8 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                         groupKey,
                         new GroupBuckets(bucketsToRemove),
                         groupKey, appId);
-                log.debug("Removes instances from {} : {}", service.name(), bucketsToRemove);
+                log.debug("Removed buckets from provider({}) group on {}: {}",
+                          provider.id(), deviceId, bucketsToRemove);
             }
 
             List<GroupBucket> bucketsToAdd = Lists.newArrayList(newBuckets);
@@ -207,57 +260,67 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
                         groupKey,
                         new GroupBuckets(bucketsToAdd),
                         groupKey, appId);
-                log.debug("Adds instances to {} : {}", service.name(), bucketsToRemove);
+                log.debug("Added buckets to provider({}) group on {}: {}",
+                          provider.id(), deviceId, bucketsToAdd);
             }
         }
     }
 
-    private void removeInstanceFromTenantService(Instance instance, VtnService service) {
-        service.providerServices().stream().forEach(pServiceId -> {
-            Map<DeviceId, Set<PortNumber>> inPorts = Maps.newHashMap();
-            Map<DeviceId, GroupId> outGroups = Maps.newHashMap();
+    private void updateSubscriberInstances(VtnNetwork subscriber, Instance instance,
+                                           boolean isDetected) {
+        DeviceId deviceId = instance.deviceId();
+        final String isAdded = isDetected ? ADDED : REMOVED;
+        subscriber.providers().keySet().stream().forEach(provider -> {
+            populateInPortRule(
+                    ImmutableMap.of(deviceId, ImmutableSet.of(instance.portNumber())),
+                    ImmutableMap.of(deviceId, getGroupId(provider, deviceId)),
+                    isDetected);
 
-            inPorts.put(instance.deviceId(), Sets.newHashSet(instance.portNumber()));
-            outGroups.put(instance.deviceId(), getGroupId(pServiceId, instance.deviceId()));
-
-            inServiceRule(inPorts, outGroups, false);
+            log.info(isAdded + "subscriber instance({}) for provider({})",
+                     instance.host().id(), provider.id());
         });
     }
 
-    private void serviceDependencyRules(VtnService tService, VtnService pService,
-                                       boolean isBidirectional, boolean install) {
-        Map<DeviceId, GroupId> outGroups = Maps.newHashMap();
-        Map<DeviceId, Set<PortNumber>> inPorts = Maps.newHashMap();
+    private void populateDependencyRules(VtnNetwork subscriber,
+                                         VtnNetwork provider,
+                                         DirectAccessType type, boolean install) {
+        Map<DeviceId, GroupId> providerGroups = Maps.newHashMap();
+        Map<DeviceId, Set<PortNumber>> subscriberPorts = Maps.newHashMap();
 
         nodeManager.completeNodes().stream().forEach(node -> {
             DeviceId deviceId = node.integrationBridgeId();
-            GroupId groupId = createServiceGroup(deviceId, pService);
-            outGroups.put(deviceId, groupId);
+            GroupId groupId = getProviderGroup(provider, deviceId);
+            providerGroups.put(deviceId, groupId);
 
-            Set<PortNumber> tServiceInstances = getInstances(tService.id())
+            Set<PortNumber> ports = getInstances(subscriber.id())
                     .stream()
                     .filter(instance -> instance.deviceId().equals(deviceId))
                     .map(Instance::portNumber)
                     .collect(Collectors.toSet());
-            inPorts.put(deviceId, tServiceInstances);
+            subscriberPorts.put(deviceId, ports);
         });
 
-        Ip4Prefix srcRange = tService.subnet().getIp4Prefix();
-        Ip4Prefix dstRange = pService.subnet().getIp4Prefix();
+        Ip4Prefix subscriberIp = subscriber.subnet().getIp4Prefix();
+        Ip4Prefix providerIp = provider.subnet().getIp4Prefix();
 
-        indirectAccessRule(srcRange, pService.serviceIp().getIp4Address(), outGroups, install);
-        directAccessRule(srcRange, dstRange, install);
-        if (isBidirectional) {
-            directAccessRule(dstRange, srcRange, install);
+        populateInPortRule(subscriberPorts, providerGroups, install);
+        populateIndirectAccessRule(
+                subscriberIp,
+                provider.serviceIp().getIp4Address(),
+                providerGroups,
+                install);
+        populateDirectAccessRule(subscriberIp, providerIp, install);
+        if (type == BIDIRECTIONAL) {
+            populateDirectAccessRule(providerIp, subscriberIp, install);
         }
-        inServiceRule(inPorts, outGroups, install);
     }
 
-    private void indirectAccessRule(Ip4Prefix srcRange, Ip4Address serviceIp,
-                                    Map<DeviceId, GroupId> outGroups, boolean install) {
+    private void populateIndirectAccessRule(Ip4Prefix srcIp, Ip4Address serviceIp,
+                                            Map<DeviceId, GroupId> outGroups,
+                                            boolean install) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(Ethernet.TYPE_IPV4)
-                .matchIPSrc(srcRange)
+                .matchIPSrc(srcIp)
                 .matchIPDst(serviceIp.toIpPrefix())
                 .build();
 
@@ -280,11 +343,11 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         }
     }
 
-    private void directAccessRule(Ip4Prefix srcRange, Ip4Prefix dstRange, boolean install) {
+    private void populateDirectAccessRule(Ip4Prefix srcIp, Ip4Prefix dstIp, boolean install) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(Ethernet.TYPE_IPV4)
-                .matchIPSrc(srcRange)
-                .matchIPDst(dstRange)
+                .matchIPSrc(srcIp)
+                .matchIPDst(dstIp)
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
@@ -307,13 +370,14 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         });
     }
 
-    private void inServiceRule(Map<DeviceId, Set<PortNumber>> inPorts,
-                               Map<DeviceId, GroupId> outGroups, boolean install) {
-        for (Map.Entry<DeviceId, Set<PortNumber>> entry : inPorts.entrySet()) {
+    private void populateInPortRule(Map<DeviceId, Set<PortNumber>> subscriberPorts,
+                                    Map<DeviceId, GroupId> providerGroups,
+                                    boolean install) {
+        for (Map.Entry<DeviceId, Set<PortNumber>> entry : subscriberPorts.entrySet()) {
             Set<PortNumber> ports = entry.getValue();
             DeviceId deviceId = entry.getKey();
 
-            GroupId groupId = outGroups.get(deviceId);
+            GroupId groupId = providerGroups.get(deviceId);
             if (groupId == null) {
                 continue;
             }
@@ -342,26 +406,25 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         }
     }
 
-    private GroupId getGroupId(VtnServiceId serviceId, DeviceId deviceId) {
-        return new DefaultGroupId(Objects.hash(serviceId, deviceId));
+    private GroupId getGroupId(NetworkId netId, DeviceId deviceId) {
+        return new DefaultGroupId(Objects.hash(netId, deviceId));
     }
 
-    private GroupKey getGroupKey(VtnServiceId serviceId) {
-        return new DefaultGroupKey(serviceId.id().getBytes());
+    private GroupKey getGroupKey(NetworkId netId) {
+        return new DefaultGroupKey(netId.id().getBytes());
     }
 
-    private GroupId createServiceGroup(DeviceId deviceId, VtnService service) {
-        GroupKey groupKey = getGroupKey(service.id());
+    private GroupId getProviderGroup(VtnNetwork provider, DeviceId deviceId) {
+        GroupKey groupKey = getGroupKey(provider.id());
         Group group = groupService.getGroup(deviceId, groupKey);
-        GroupId groupId = getGroupId(service.id(), deviceId);
+        GroupId groupId = getGroupId(provider.id(), deviceId);
 
         if (group != null) {
-            log.debug("Group {} is already exist in {}", service.id(), deviceId);
             return groupId;
         }
 
-        GroupBuckets buckets = getServiceGroupBuckets(
-                deviceId, service.vni(), getInstances(service.id()));
+        GroupBuckets buckets = getProviderGroupBuckets(
+                deviceId, provider.segmentId().id(), getInstances(provider.id()));
         GroupDescription groupDescription = new DefaultGroupDescription(
                 deviceId,
                 GroupDescription.Type.SELECT,
@@ -374,26 +437,79 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         return groupId;
     }
 
-    private GroupBuckets getServiceGroupBuckets(DeviceId deviceId, long tunnelId,
-                                                Set<Instance> instances) {
+    private void removeProviderGroup(NetworkId netId) {
+        GroupKey groupKey = getGroupKey(netId);
+        nodeManager.completeNodes().stream()
+                .forEach(node -> {
+                    DeviceId deviceId = node.integrationBridgeId();
+                    Group group = groupService.getGroup(deviceId, groupKey);
+                    if (group != null) {
+                        groupService.removeGroup(deviceId, groupKey, appId);
+                    }
+        });
+        log.debug("Removed group for network {}", netId);
+    }
+
+    private GroupBuckets getProviderGroupBuckets(DeviceId deviceId,
+                                                 long tunnelId,
+                                                 Set<Instance> instances) {
         List<GroupBucket> buckets = Lists.newArrayList();
         instances.stream().forEach(instance -> {
             Ip4Address tunnelIp = nodeManager.dataIp(instance.deviceId()).getIp4Address();
-            TrafficTreatment.Builder tBuilder = DefaultTrafficTreatment.builder();
 
             if (deviceId.equals(instance.deviceId())) {
-                tBuilder.setEthDst(instance.mac())
-                        .setOutput(instance.portNumber());
+                TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+                        .setEthDst(instance.mac())
+                        .setOutput(instance.portNumber())
+                        .build();
+                buckets.add(createSelectGroupBucket(treatment));
             } else {
                 ExtensionTreatment tunnelDst =
                         pipeline.tunnelDstTreatment(deviceId, tunnelIp);
-                tBuilder.setEthDst(instance.mac())
+                TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+                        .setEthDst(instance.mac())
                         .extension(tunnelDst, deviceId)
                         .setTunnelId(tunnelId)
-                        .setOutput(nodeManager.tunnelPort(instance.deviceId()));
+                        .setOutput(nodeManager.tunnelPort(instance.deviceId()))
+                        .build();
+                buckets.add(createSelectGroupBucket(treatment));
             }
-            buckets.add(createSelectGroupBucket(tBuilder.build()));
         });
         return new GroupBuckets(buckets);
     }
+
+    private class InternalVtnNetListener implements VtnNetworkListener {
+
+        @Override
+        public void event(VtnNetworkEvent event) {
+            NodeId leader = leadershipService.getLeader(appId.name());
+            if (!Objects.equals(localNodeId, leader)) {
+                // do not allow to proceed without leadership
+                return;
+            }
+
+            switch (event.type()) {
+                case VTN_NETWORK_CREATED:
+                    log.debug("Processing dependency for {}", event.subject());
+                    // TODO add dependency map
+                    break;
+                case VTN_NETWORK_UPDATED:
+                    log.debug("Updating dependency for {}", event.subject());
+                    // TODO update dependency map
+                    break;
+                case VTN_NETWORK_REMOVED:
+                    log.debug("Removing dependency for {}", event.subject());
+                    // TODO remove dependency map
+                    break;
+                case VTN_PORT_CREATED:
+                case VTN_PORT_UPDATED:
+                case VTN_PORT_REMOVED:
+                default:
+                    // do nothing for the other events
+                    break;
+            }
+        }
+    }
+
+    // TODO dependency map event handler, call create or remove dependency
 }

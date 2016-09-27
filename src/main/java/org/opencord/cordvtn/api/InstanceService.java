@@ -25,7 +25,8 @@ import org.onosproject.net.host.HostDescription;
 public interface InstanceService {
 
     /**
-     * Adds a service instance on a given connect point.
+     * Adds a service instance on a given connect point. Or updates if the
+     * instance already exists.
      *
      * @param connectPoint connect point of the instance
      */
