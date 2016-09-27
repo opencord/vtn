@@ -16,20 +16,21 @@
 package org.opencord.cordvtn.impl.handler;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.Service;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
+import org.onosproject.net.Host;
+import org.opencord.cordvtn.api.AddressPair;
 import org.opencord.cordvtn.api.InstanceService;
-import org.opencord.cordvtn.impl.AbstractInstanceHandler;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.InstanceHandler;
 import org.onosproject.net.DefaultAnnotations;
@@ -49,34 +50,36 @@ import org.onosproject.net.flow.instructions.Instructions;
 import org.onosproject.net.flow.instructions.L2ModificationInstruction;
 import org.onosproject.net.host.DefaultHostDescription;
 import org.onosproject.net.host.HostDescription;
-import org.onosproject.xosclient.api.VtnPort;
+import org.opencord.cordvtn.api.VtnPort;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
-import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-import static com.google.common.base.Preconditions.checkNotNull;
 import static org.onosproject.net.flow.criteria.Criterion.Type.IPV4_DST;
 import static org.onosproject.net.flow.instructions.L2ModificationInstruction.L2SubType.VLAN_PUSH;
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.VSG;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.VSG;
 
 /**
  * Provides network connectivity for vSG instances.
  */
 @Component(immediate = true)
-@Service(value = VsgInstanceHandler.class)
 public final class VsgInstanceHandler extends AbstractInstanceHandler implements InstanceHandler {
+
+    private static final String STAG = "stag";
+    private static final String VSG_VM = "vsgVm";
+    private static final String ERR_VSG_VM = "vSG VM does not exist for %s";
+    private static final String MSG_VSG_VM = "vSG VM %s: %s";
+    private static final String MSG_VSG_CONTAINER = "vSG container %s: %s";
+    private static final String MSG_DETECTED = "detected";
+    private static final String MSG_REMOVED = "removed";
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnPipeline pipeline;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnNodeManager nodeManager;
-
-    private static final String STAG = "stag";
-    private static final String VSG_VM = "vsgVm";
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected FlowRuleService flowRuleService;
@@ -86,7 +89,7 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
 
     @Activate
     protected void activate() {
-        serviceType = Optional.of(VSG);
+        netTypes = ImmutableSet.of(VSG);
         super.activate();
     }
 
@@ -98,124 +101,106 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
     @Override
     public void instanceDetected(Instance instance) {
         if (isVsgContainer(instance)) {
-            log.info("vSG container detected {}", instance);
-
-            // find vsg vm for this vsg container
-            String vsgVmId = instance.getAnnotation(VSG_VM);
-            if (Strings.isNullOrEmpty(vsgVmId)) {
-                log.warn("Failed to find vSG VM for {}", instance);
-                return;
+            log.info(String.format(MSG_VSG_CONTAINER, MSG_DETECTED, instance));
+            Instance vsgVm = getVsgVm(instance);
+            if (vsgVm == null) {
+                final String error = String.format(ERR_VSG_VM, instance);
+                throw new IllegalStateException(error);
             }
 
-            Instance vsgVm = Instance.of(hostService.getHost(HostId.hostId(vsgVmId)));
             VtnPort vtnPort = getVtnPort(vsgVm);
-            if (vtnPort == null || getStag(vtnPort) == null) {
-                log.warn("Failed to get vSG information {}", vsgVm);
-                return;
-            }
-            populateVsgRules(vsgVm, getStag(vtnPort),
-                             nodeManager.dataPort(vsgVm.deviceId()),
-                             vtnPort.addressPairs().keySet(),
-                             true);
-
+            Set<IpAddress> wanIps = vtnPort.addressPairs().stream()
+                    .map(AddressPair::ip).collect(Collectors.toSet());
+            populateVsgRules(
+                    vsgVm, vtnPort.vlanId().get(),
+                    nodeManager.dataPort(vsgVm.deviceId()),
+                    wanIps, true);
         } else {
-            VtnPort vtnPort = getVtnPort(instance);
-            if (vtnPort == null || getStag(vtnPort) == null) {
+            log.info(String.format(MSG_VSG_VM, MSG_DETECTED, instance));
+            VtnPort vtnPort = vtnService.getVtnPortOrDefault(instance.portId());
+            if (vtnPort == null || !vtnPort.vlanId().isPresent()) {
+                // service port can be updated after instance is created
                 return;
             }
-            log.info("vSG VM detected {}", instance);
 
             // insert vSG containers inside the vSG VM as a host
-            vtnPort.addressPairs().entrySet().stream()
-                    .forEach(pair -> addVsgContainer(
-                            instance,
-                            pair.getKey(),
-                            pair.getValue(),
-                            getStag(vtnPort).toString()
-                    ));
+            vtnPort.addressPairs().stream().forEach(pair -> addVsgContainer(
+                    instance,
+                    pair.ip(),
+                    pair.mac(),
+                    vtnPort.vlanId().get()));
         }
     }
 
     @Override
-    public void instanceRemoved(Instance instance) {
+    public void instanceUpdated(Instance instance) {
         if (!isVsgContainer(instance)) {
-            // nothing to do for the vSG VM itself
-            return;
+            Set<MacAddress> vsgMacs = getVtnPort(instance).addressPairs().stream()
+                    .map(AddressPair::mac)
+                    .collect(Collectors.toSet());
+            hostService.getConnectedHosts(instance.host().location()).stream()
+                    .filter(h -> !h.mac().equals(instance.mac()))
+                    .filter(h -> !vsgMacs.contains(h.mac()))
+                    .forEach(h -> instanceService.removeNestedInstance(h.id()));
         }
-
-        log.info("vSG container vanished {}", instance);
-
-        // find vsg vm for this vsg container
-        String vsgVmId = instance.getAnnotation(VSG_VM);
-        if (Strings.isNullOrEmpty(vsgVmId)) {
-            log.warn("Failed to find vSG VM for {}", instance);
-            return;
-        }
-
-        Instance vsgVm = Instance.of(hostService.getHost(HostId.hostId(vsgVmId)));
-        VtnPort vtnPort = getVtnPort(vsgVm);
-        if (vtnPort == null || getStag(vtnPort) == null) {
-            return;
-        }
-
-        populateVsgRules(vsgVm, getStag(vtnPort),
-                         nodeManager.dataPort(vsgVm.deviceId()),
-                         vtnPort.addressPairs().keySet(),
-                         false);
+        instanceDetected(instance);
     }
 
-    /**
-     * Updates set of vSGs in a given vSG VM.
-     *
-     * @param vsgVmId vsg vm host id
-     * @param stag stag
-     * @param vsgInstances full set of vsg wan ip and mac address pairs in this vsg vm
-     */
-    public void updateVsgInstances(HostId vsgVmId, String stag, Map<IpAddress, MacAddress> vsgInstances) {
-        if (hostService.getHost(vsgVmId) == null) {
-            log.debug("vSG VM {} is not added yet, ignore this update", vsgVmId);
-            return;
-        }
+    @Override
+    public void instanceRemoved(Instance instance) {
+        boolean isVsgContainer = isVsgContainer(instance);
+        log.info(String.format(
+                isVsgContainer ? MSG_VSG_CONTAINER : MSG_VSG_VM,
+                MSG_REMOVED, instance));
 
-        Instance vsgVm = Instance.of(hostService.getHost(vsgVmId));
+        Instance vsgVm = isVsgContainer ? getVsgVm(instance) : instance;
         if (vsgVm == null) {
-            log.warn("Failed to find existing vSG VM for STAG: {}", stag);
+            // the rules are removed when VM is removed, do nothing
             return;
         }
 
-        log.info("Updates vSGs in {} with STAG: {}", vsgVm, stag);
+        VtnPort vtnPort = getVtnPort(instance);
+        Set<IpAddress> wanIps = vtnPort.addressPairs().stream()
+                .map(AddressPair::ip).collect(Collectors.toSet());
+        populateVsgRules(
+                vsgVm, vtnPort.vlanId().get(),
+                nodeManager.dataPort(vsgVm.deviceId()),
+                isVsgContainer ? wanIps : ImmutableSet.of(),
+                false);
+    }
 
-        // adds vSGs in the address pair
-        vsgInstances.entrySet().stream()
-                .filter(addr -> hostService.getHostsByMac(addr.getValue()).isEmpty())
-                .forEach(addr -> addVsgContainer(
-                        vsgVm,
-                        addr.getKey(),
-                        addr.getValue(),
-                        stag));
-
-        // removes vSGs not listed in the address pair
-        hostService.getConnectedHosts(vsgVm.host().location()).stream()
-                .filter(host -> !host.mac().equals(vsgVm.mac()))
-                .filter(host -> !vsgInstances.values().contains(host.mac()))
-                .forEach(host -> {
-                    log.info("Removed vSG {}", host.toString());
-                    instanceService.removeNestedInstance(host.id());
-                });
+    @Override
+    protected VtnPort getVtnPort(Instance instance) {
+        VtnPort vtnPort = vtnService.getVtnPortOrDefault(instance.portId());
+        if (vtnPort == null || !vtnPort.vlanId().isPresent()) {
+            final String error = String.format(ERR_VTN_PORT, instance);
+            throw new IllegalStateException(error);
+        }
+        return vtnPort;
     }
 
     private boolean isVsgContainer(Instance instance) {
-        return !Strings.isNullOrEmpty(instance.host().annotations().value(STAG));
+        return  !Strings.isNullOrEmpty(instance.getAnnotation(STAG)) &&
+                !Strings.isNullOrEmpty(instance.getAnnotation(VSG_VM));
+    }
+
+    private Instance getVsgVm(Instance vsgContainer) {
+        String vsgVmId = vsgContainer.getAnnotation(VSG_VM);
+        Host host = hostService.getHost(HostId.hostId(vsgVmId));
+        if (host == null) {
+            return null;
+        }
+        return Instance.of(host);
     }
 
     private void addVsgContainer(Instance vsgVm, IpAddress vsgWanIp, MacAddress vsgMac,
-                                 String stag) {
+                                 VlanId stag) {
         HostId hostId = HostId.hostId(vsgMac);
         DefaultAnnotations.Builder annotations = DefaultAnnotations.builder()
-                .set(Instance.SERVICE_TYPE, vsgVm.serviceType().toString())
-                .set(Instance.SERVICE_ID, vsgVm.serviceId().id())
+                .set(Instance.NETWORK_TYPE, vsgVm.netType().toString())
+                .set(Instance.NETWORK_ID, vsgVm.netId().id())
                 .set(Instance.PORT_ID, vsgVm.portId().id())
-                .set(STAG, stag)
+                .set(STAG, stag.toString())
                 .set(VSG_VM, vsgVm.host().id().toString())
                 .set(Instance.CREATE_TIME, String.valueOf(System.currentTimeMillis()));
 
@@ -278,10 +263,11 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
 
         // for traffic coming from WAN, tag 500 and take through the vSG VM
         // based on destination ip
-        vsgWanIps.stream().forEach(ip -> {
+        vsgWanIps.stream().forEach(wanIp -> {
+            // for traffic coming from WAN, tag 500 and take through the vSG VM
             TrafficSelector downstream = DefaultTrafficSelector.builder()
                     .matchEthType(Ethernet.TYPE_IPV4)
-                    .matchIPDst(ip.toIpPrefix())
+                    .matchIPDst(wanIp.toIpPrefix())
                     .build();
 
             TrafficTreatment downstreamTreatment = DefaultTrafficTreatment.builder()
@@ -322,18 +308,6 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
         }
     }
 
-    // TODO get stag from XOS when XOS provides it, extract if from port name for now
-    private VlanId getStag(VtnPort vtnPort) {
-        checkNotNull(vtnPort);
-
-        String portName = vtnPort.name();
-        if (portName != null && portName.startsWith(STAG)) {
-            return VlanId.vlanId(portName.split("-")[1]);
-        } else {
-            return null;
-        }
-    }
-
     private PortNumber getOutputFromTreatment(FlowRule flowRule) {
         Instruction instruction = flowRule.treatment().allInstructions().stream()
                 .filter(inst -> inst instanceof Instructions.OutputInstruction)
@@ -356,11 +330,10 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
     }
 
     private boolean isVlanPushFromTreatment(FlowRule flowRule) {
-        Instruction instruction = flowRule.treatment().allInstructions().stream()
+        return flowRule.treatment().allInstructions().stream()
                 .filter(inst -> inst instanceof L2ModificationInstruction)
                 .filter(inst -> ((L2ModificationInstruction) inst).subtype().equals(VLAN_PUSH))
                 .findAny()
-                .orElse(null);
-        return instruction != null;
+                .isPresent();
     }
 }

@@ -29,6 +29,7 @@ public interface DependencyService {
      * @param pServiceId id of the service which provide dependency
      * @param isBidirectional true to enable bidirectional connectivity between two services
      */
+    @Deprecated
     void createDependency(VtnServiceId tServiceId, VtnServiceId pServiceId, boolean isBidirectional);
 
     /**
@@ -37,5 +38,20 @@ public interface DependencyService {
      * @param tServiceId id of the service which has a dependency
      * @param pServiceId id of the service which provide dependency
      */
+    @Deprecated
     void removeDependency(VtnServiceId tServiceId, VtnServiceId pServiceId);
+
+    /**
+     * Creates a dependency between the supplied two networks.
+     *
+     * @param dependency dependency to create
+     */
+    void createDependency(Dependency dependency);
+
+    /**
+     * Removes the dependency between the supplied two networks.
+     *
+     * @param dependency to remove
+     */
+    void removeDependency(Dependency dependency);
 }

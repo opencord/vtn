@@ -15,77 +15,195 @@
  */
 package org.opencord.cordvtn.api;
 
+import org.onosproject.store.Store;
+import org.openstack4j.model.network.Network;
+import org.openstack4j.model.network.Port;
+import org.openstack4j.model.network.Subnet;
+
 import java.util.Set;
 
 /**
- * Manages VTN service networks and ports.
+ * Manages inventory of virtual and vtn networks; not intended for direct use.
  */
-public interface CordVtnStore {
+public interface CordVtnStore extends Store<VtnNetworkEvent, CordVtnStoreDelegate> {
 
     /**
-     * Creates service network.
+     * Creates vtn network.
      *
-     * @param serviceNet the new service network
+     * @param serviceNet the new vtn network
      */
-    void createServiceNetwork(ServiceNetwork serviceNet);
+    void createVtnNetwork(VtnNetwork serviceNet);
 
     /**
-     * Updates the service network.
+     * Updates the vtn network.
      *
-     * @param serviceNet the updated service network
+     * @param serviceNet the updated vtn network
      */
-    void updateServiceNetwork(ServiceNetwork serviceNet);
+    void updateVtnNetwork(VtnNetwork serviceNet);
 
     /**
-     * Returns the service network with the given network id.
-     *
-     * @param netId network id
-     * @return service network
-     */
-    ServiceNetwork getServiceNetwork(NetworkId netId);
-
-    /**
-     * Returns all service networks.
-     *
-     * @return set of service networks
-     */
-    Set<ServiceNetwork> getServiceNetworks();
-
-    /**
-     * Removes the service network.
+     * Returns the vtn network with the given network id.
      *
      * @param netId network id
+     * @return vtn network
      */
-    void removeServiceNetwork(NetworkId netId);
+    VtnNetwork getVtnNetwork(NetworkId netId);
 
     /**
-     * Creates service port.
+     * Returns all vtn networks.
      *
-     * @param servicePort the new service port
+     * @return set of vtn networks
      */
-    void createServicePort(ServicePort servicePort);
+    Set<VtnNetwork> getVtnNetworks();
 
     /**
-     * Returns the service port with the given port id.
+     * Removes the vtn network.
+     *
+     * @param netId network id
+     */
+    void removeVtnNetwork(NetworkId netId);
+
+    /**
+     * Creates vtn port.
+     *
+     * @param servicePort the new vtn port
+     */
+    void createVtnPort(VtnPort servicePort);
+
+    /**
+     * Updates the vtn port.
+     *
+     * @param servicePort vtn port
+     */
+    void updateVtnPort(VtnPort servicePort);
+
+    /**
+     * Returns the vtn port with the given port id.
      *
      * @param portId port id
-     * @return service port
+     * @return vtn port
      */
-    ServicePort getServicePort(PortId portId);
+    VtnPort getVtnPort(PortId portId);
 
     /**
-     * Returns all service ports.
+     * Returns all vtn ports.
      *
-     * @return set of service ports
+     * @return set of vtn ports
      */
-    Set<ServicePort> getServicePorts();
+    Set<VtnPort> getVtnPorts();
 
     /**
-     * Removes service port.
+     * Removes vtn port.
      *
      * @param portId port id
      */
-    void removeServicePort(PortId portId);
+    void removeVtnPort(PortId portId);
 
-    // TODO add apis for the virtual network and port
+    /**
+     * Creates a network.
+     *
+     * @param net network
+     */
+    void createNetwork(Network net);
+
+    /**
+     * Updates the network.
+     *
+     * @param net the updated network
+     */
+    void updateNetwork(Network net);
+
+    /**
+     * Returns the network with the given network id.
+     *
+     * @param netId network id
+     * @return network
+     */
+    Network getNetwork(NetworkId netId);
+
+    /**
+     * Returns all networks.
+     *
+     * @return set of networks
+     */
+    Set<Network> getNetworks();
+
+    /**
+     * Removes the network with the given network id.
+     *
+     * @param netId network id
+     */
+    void removeNetwork(NetworkId netId);
+
+    /**
+     * Creates a port.
+     *
+     * @param port port
+     */
+    void createPort(Port port);
+
+    /**
+     * Updates the port.
+     *
+     * @param port the updated port
+     */
+    void updatePort(Port port);
+
+    /**
+     * Returns the port with the given port id.
+     *
+     * @param portId port id
+     * @return port
+     */
+    Port getPort(PortId portId);
+
+    /**
+     * Returns all ports.
+     *
+     * @return set of ports
+     */
+    Set<Port> getPorts();
+
+    /**
+     * Removes the port with the given port id.
+     *
+     * @param portId port id
+     */
+    void removePort(PortId portId);
+
+    /**
+     * Creates a subnet.
+     *
+     * @param subnet subnet id
+     */
+    void createSubnet(Subnet subnet);
+
+    /**
+     * Updates the subnet.
+     *
+     * @param subnet the updated subnet
+     */
+    void updateSubnet(Subnet subnet);
+
+    /**
+     * Returns the subnet with the given subnet id.
+     *
+     * @param subnetId subnet id
+     * @return subnet
+     */
+    Subnet getSubnet(SubnetId subnetId);
+
+    /**
+     * Returns all subnets.
+     *
+     * @return set of subnets
+     */
+    Set<Subnet> getSubnets();
+
+    /**
+     * Removes the subnet with the given subnet id.
+     *
+     * @param subnetId subnet id
+     */
+    void removeSubnet(SubnetId subnetId);
 }
