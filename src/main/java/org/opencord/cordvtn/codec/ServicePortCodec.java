@@ -17,6 +17,7 @@ package org.opencord.cordvtn.codec;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.collect.Sets;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
@@ -25,6 +26,8 @@ import org.onosproject.codec.JsonCodec;
 import org.opencord.cordvtn.api.AddressPair;
 import org.opencord.cordvtn.api.PortId;
 import org.opencord.cordvtn.api.ServicePort;
+
+import java.util.Set;
 
 /**
  * Service port JSON codec.
@@ -62,21 +65,24 @@ public final class ServicePortCodec extends JsonCodec<ServicePort> {
             return null;
         }
 
-        ServicePort.Builder sportBuilder = ServicePort.builder()
-                .id(PortId.of(json.get(ID).asText()));
-
+        PortId portId = PortId.of(json.get(ID).asText());
+        VlanId vlanId = null;
         if (json.get(VLAN_ID) != null) {
-            sportBuilder.vlanId(VlanId.vlanId(json.get(VLAN_ID).asText()));
+            try {
+                vlanId = VlanId.vlanId(json.get(VLAN_ID).asText());
+            } catch (Exception ignore) {
+            }
         }
 
+        Set<AddressPair> addressPairs = Sets.newHashSet();
         if (json.get(FLOATING_ADDRESS_PAIRS) != null) {
             json.get(FLOATING_ADDRESS_PAIRS).forEach(pair -> {
                 AddressPair addrPair = AddressPair.of(
                         IpAddress.valueOf(pair.get(IP_ADDRESS).asText()),
                         MacAddress.valueOf(pair.get(MAC_ADDRESS).asText()));
-                sportBuilder.addAddressPair(addrPair);
+                addressPairs.add(addrPair);
             });
         }
-        return sportBuilder.build();
+        return new ServicePort(portId, vlanId, addressPairs);
     }
 }

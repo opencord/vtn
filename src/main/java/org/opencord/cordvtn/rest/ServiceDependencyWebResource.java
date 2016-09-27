@@ -30,6 +30,7 @@ import javax.ws.rs.core.Response;
 /**
  * Manages service dependency.
  */
+@Deprecated
 @Path("service-dependency")
 public class ServiceDependencyWebResource extends AbstractWebResource {
 

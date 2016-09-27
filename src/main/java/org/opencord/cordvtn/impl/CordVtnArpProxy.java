@@ -15,8 +15,8 @@
  */
 package org.opencord.cordvtn.impl;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
@@ -30,8 +30,10 @@ import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
+import org.onosproject.net.config.NetworkConfigEvent;
+import org.onosproject.net.config.NetworkConfigListener;
+import org.onosproject.net.config.NetworkConfigRegistry;
 import org.onosproject.net.packet.PacketProcessor;
-import org.onosproject.xosclient.api.VtnService;
 import org.opencord.cordvtn.api.CordVtnConfig;
 import org.opencord.cordvtn.api.Instance;
 import org.onosproject.net.Host;
@@ -43,6 +45,8 @@ import org.onosproject.net.packet.DefaultOutboundPacket;
 import org.onosproject.net.packet.PacketContext;
 import org.onosproject.net.packet.PacketPriority;
 import org.onosproject.net.packet.PacketService;
+import org.opencord.cordvtn.api.VtnNetwork;
+import org.opencord.cordvtn.impl.handler.AbstractInstanceHandler;
 import org.slf4j.Logger;
 
 import java.nio.ByteBuffer;
@@ -51,9 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.onosproject.xosclient.api.VtnServiceApi.NetworkType.PRIVATE;
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.ACCESS_AGENT;
-import static org.onosproject.xosclient.api.VtnServiceApi.ServiceType.MANAGEMENT;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -69,14 +71,21 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnNodeManager nodeManager;
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected NetworkConfigRegistry configRegistry;
+
     private final PacketProcessor packetProcessor = new InternalPacketProcessor();
     private final Map<Ip4Address, MacAddress> gateways = Maps.newConcurrentMap();
 
     private MacAddress privateGatewayMac = MacAddress.NONE;
+    private NetworkConfigListener configListener = new InternalConfigListener();
 
     @Activate
     protected void activate() {
         super.activate();
+        configRegistry.addListener(configListener);
+        readConfiguration();
+
         packetService.addProcessor(packetProcessor, PacketProcessor.director(0));
         requestPacket();
     }
@@ -84,6 +93,7 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
     @Deactivate
     protected void deactivate() {
         packetService.removeProcessor(packetProcessor);
+        configRegistry.removeListener(configListener);
         super.deactivate();
     }
 
@@ -158,7 +168,6 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
             return;
         }
 
-        log.trace("Send ARP reply for {} with {}", targetIp, replyMac);
         Ethernet ethReply = ARP.buildArpReply(
                 targetIp,
                 replyMac,
@@ -213,7 +222,7 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
                 .findFirst().orElse(null);
 
         if (host == null ||
-                !Instance.of(host).serviceType().equals(MANAGEMENT) ||
+                !Instance.of(host).netType().name().contains("MANAGEMENT") ||
                 hostMgmtPort == null) {
             context.block();
             return;
@@ -341,20 +350,17 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
     public void instanceDetected(Instance instance) {
         // TODO remove this when XOS provides access agent information
         // and handle it the same way wit the other instances
-        if (instance.serviceType() == ACCESS_AGENT) {
+        if (instance.netType() == ACCESS_AGENT) {
             return;
         }
 
-        VtnService service = getVtnService(instance.serviceId());
-        if (service == null) {
-            return;
-        }
-
-        if (service.networkType().equals(PRIVATE)) {
-            log.trace("Added IP:{} MAC:{}", service.serviceIp(), privateGatewayMac);
-            addGateway(service.serviceIp(), privateGatewayMac);
+        VtnNetwork vtnNet = getVtnNetwork(instance);
+        if (vtnNet.type() != PUBLIC && vtnNet.type() != MANAGEMENT_HOST &&
+                vtnNet.type() != MANAGEMENT_LOCAL) {
+            log.trace("Added IP:{} MAC:{}", vtnNet.serviceIp(), privateGatewayMac);
+            addGateway(vtnNet.serviceIp(), privateGatewayMac);
             // send gratuitous ARP for the existing VMs when ONOS is restarted
-            sendGratuitousArp(service.serviceIp(), Sets.newHashSet(instance));
+            sendGratuitousArp(vtnNet.serviceIp(), ImmutableSet.of(instance));
         }
     }
 
@@ -362,24 +368,19 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
     public void instanceRemoved(Instance instance) {
         // TODO remove this when XOS provides access agent information
         // and handle it the same way wit the other instances
-        if (instance.serviceType() == ACCESS_AGENT) {
+        if (instance.netType() == ACCESS_AGENT) {
             return;
         }
 
-        VtnService service = getVtnService(instance.serviceId());
-        if (service == null) {
-            return;
-        }
-
+        VtnNetwork vtnNet = getVtnNetwork(instance);
         // remove this network gateway from proxy ARP if no instance presents
-        if (service.networkType().equals(PRIVATE) &&
-                getInstances(service.id()).isEmpty()) {
-            removeGateway(service.serviceIp());
+        if (vtnNet.type() == PRIVATE &&
+                getInstances(vtnNet.id()).isEmpty()) {
+            removeGateway(vtnNet.serviceIp());
         }
     }
 
-    @Override
-    protected void readConfiguration() {
+    private void readConfiguration() {
         CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
             log.debug("No configuration found");
@@ -395,7 +396,24 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
                       entry.getKey(), entry.getValue());
         });
         // TODO send gratuitous arp in case the MAC is changed
+    }
 
-        super.readConfiguration();
+    private class InternalConfigListener implements NetworkConfigListener {
+
+        @Override
+        public void event(NetworkConfigEvent event) {
+            if (!event.configClass().equals(CordVtnConfig.class)) {
+                return;
+            }
+
+            switch (event.type()) {
+                case CONFIG_ADDED:
+                case CONFIG_UPDATED:
+                    readConfiguration();
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 }
