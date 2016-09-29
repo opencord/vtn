@@ -125,6 +125,10 @@ class SyncVTNService(SyncStep):
             if (glo_saved_networks.get(network.id, None) != network.to_dict()):
                 (exists, url, method, req_func) = self.get_method("http://" + self.get_vtn_addr() + ":8181/onos/cordvtn/serviceNetworks", network.id)
 
+                if (network.type=="PRIVATE") and (not network.providerNetworks):
+                    logger.info("Skipping network %s because it has no relevant state" % network.id)
+                    continue
+
                 logger.info("%sing VTN API for network %s" % (method, network.id))
 
                 logger.info("URL: %s" % url)
@@ -163,6 +167,10 @@ class SyncVTNService(SyncStep):
             port = VTNPort(port)
 
             if not port.id:
+                continue
+
+            if (not port.vlan_id) and (not port.floating_address_pairs):
+                logger.info("Skipping port %s because it has no relevant state" % port.id)
                 continue
 
             valid_ids.append(port.id)
