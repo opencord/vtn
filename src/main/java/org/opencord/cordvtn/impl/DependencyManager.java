@@ -39,6 +39,7 @@ import org.onosproject.store.service.MapEventListener;
 import org.onosproject.store.service.Serializer;
 import org.onosproject.store.service.StorageService;
 import org.opencord.cordvtn.api.CordVtnAdminService;
+import org.onosproject.store.service.Versioned;
 import org.opencord.cordvtn.api.CordVtnNode;
 import org.opencord.cordvtn.api.Dependency;
 import org.opencord.cordvtn.api.Dependency.Type;
@@ -73,6 +74,7 @@ import org.opencord.cordvtn.api.VtnNetworkListener;
 import org.opencord.cordvtn.impl.handler.AbstractInstanceHandler;
 import org.slf4j.Logger;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -243,6 +245,9 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
     private void dependencyRemoved(Dependency dependency) {
         populateDependencyRules(dependency.subscriber(), dependency.provider(),
                                 dependency.type(), false);
+        if (getSubscribers(dependency.provider().id()).isEmpty()) {
+            removeProviderGroup(dependency.provider().id());
+        }
         log.info(String.format(MSG_REMOVE, dependency));
     }
 
@@ -465,6 +470,13 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         return groupId;
     }
 
+    private Set<Dependency> getSubscribers(NetworkId netId) {
+        return dependencyStore.values().stream().map(Versioned::value)
+                .flatMap(Collection::stream)
+                .filter(dependency -> dependency.provider().id().equals(netId))
+                .collect(Collectors.toSet());
+    }
+
     private void removeProviderGroup(NetworkId netId) {
         GroupKey groupKey = getGroupKey(netId);
         nodeManager.completeNodes().stream()
@@ -592,8 +604,6 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
 
             newDeps.stream().filter(newDep -> !oldDeps.contains(newDep))
                     .forEach(DependencyManager.this::dependencyCreated);
-
-            // TODO remove any group if no subscriber exists
         }
     }
 }
