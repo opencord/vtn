@@ -1,12 +1,4 @@
-import os
-import pdb
-import sys
-import tempfile
-sys.path.append("/opt/tosca")
-from translator.toscalib.tosca_template import ToscaTemplate
-
 from services.vtn.models import VTNService
-
 from service import XOSService
 
 class XOSVTNService(XOSService):
