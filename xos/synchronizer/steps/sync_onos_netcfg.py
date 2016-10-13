@@ -119,6 +119,13 @@ class SyncONOSNetcfg(SyncStep):
                 "dataPlaneIntf": dataPlaneIntf,
                 "dataPlaneIp": dataPlaneIp
             }
+
+            # this one is optional
+            try:
+                node_dict["hostManagementIface"] = self.get_node_tag(node, "hostManagementIface")
+            except IndexError:
+                pass
+
             data["apps"]["org.opencord.vtn"]["cordvtn"]["nodes"].append(node_dict)
 
         # Generate apps->org.onosproject.cordvtn->cordvtn->publicGateways
