@@ -17,6 +17,7 @@ package org.opencord.cordvtn.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -28,6 +29,7 @@ import org.onosproject.net.config.Config;
 import org.slf4j.Logger;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.onosproject.net.config.Config.FieldPresence.MANDATORY;
@@ -234,5 +236,186 @@ public class CordVtnConfig extends Config<ApplicationId> {
         return publicGateways;
     }
 
-    // TODO add methods to get XOS and OpenStack API access
+    /**
+     * Returns XOS API endpoint and credential configuration.
+     *
+     * @return xos api configuration
+     */
+    public XosConfig xosConfig() {
+        JsonNode jsonNode = object.get(XOS);
+        return new XosConfig(getConfig(jsonNode, ENDPOINT),
+                             getConfig(jsonNode, USER),
+                             getConfig(jsonNode, PASSWORD));
+    }
+
+    /**
+     * Returns OpenStack API endpoint and credential configuration.
+     *
+     * @return openstack api configuration
+     */
+    public OpenStackConfig openStackConfig() {
+        JsonNode jsonNode = object.get(OPENSTACK);
+        return new OpenStackConfig(jsonNode.path(ENDPOINT).asText(),
+                                   jsonNode.path(TENANT).asText(),
+                                   jsonNode.path(USER).asText(),
+                                   jsonNode.path(PASSWORD).asText());
+    }
+
+    /**
+     * Representation of XOS API access configuration.
+     */
+    public final class XosConfig extends ApiConfig {
+
+        /**
+         * Default constructor.
+         *
+         * @param endpoint api endpoint
+         * @param user     user name
+         * @param password password of the user
+         */
+        public XosConfig(String endpoint, String user, String password) {
+            super(endpoint, user, password);
+        }
+    }
+
+    /**
+     * Representation of OpenStack API access configuration.
+     */
+    public final class OpenStackConfig extends ApiConfig {
+
+        private final String tenant;
+
+        /**
+         * Default constructor.
+         *
+         * @param endpoint api endpoint
+         * @param tenant   tenant name
+         * @param user     user name
+         * @param password password of the user
+         */
+        public OpenStackConfig(String endpoint, String tenant, String user, String password) {
+            super(endpoint, user, password);
+            this.tenant = tenant;
+        }
+
+        /**
+         * Returns the tenant name.
+         *
+         * @return tenant name
+         */
+        public String tenant() {
+            return tenant;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(endpoint, tenant, user, password);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if ((obj instanceof OpenStackConfig)) {
+                OpenStackConfig that = (OpenStackConfig) obj;
+                if (Objects.equals(endpoint, that.endpoint) &&
+                        Objects.equals(tenant, that.tenant) &&
+                        Objects.equals(user, that.user) &&
+                        Objects.equals(password, that.password)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return MoreObjects.toStringHelper(getClass())
+                    .add("endpoint", endpoint)
+                    .add("tenant", tenant)
+                    .add("user", user)
+                    .add("password", password)
+                    .toString();
+        }
+    }
+
+    /**
+     * Representation of external API access configuration.
+     */
+    private class ApiConfig {
+        protected final String endpoint;
+        protected final String user;
+        protected final String password;
+
+        /**
+         * Default constructor.
+         *
+         * @param endpoint api endpoint
+         * @param user     user name
+         * @param password password of the user
+         */
+        protected ApiConfig(String endpoint, String user, String password) {
+            this.endpoint = endpoint;
+            this.user = user;
+            this.password = password;
+        }
+
+        /**
+         * Returns the endpoint.
+         *
+         * @return endpoint
+         */
+        public String endpoint() {
+            return endpoint;
+        }
+
+        /**
+         * Returns the user.
+         *
+         * @return user
+         */
+        public String user() {
+            return user;
+        }
+
+        /**
+         * Returns the password.
+         *
+         * @return password
+         */
+        public String password() {
+            return password;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(endpoint, user, password);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if ((obj instanceof ApiConfig)) {
+                ApiConfig that = (ApiConfig) obj;
+                if (Objects.equals(endpoint, that.endpoint) &&
+                        Objects.equals(user, that.user) &&
+                        Objects.equals(password, that.password)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return MoreObjects.toStringHelper(getClass())
+                    .add("endpoint", endpoint)
+                    .add("user", user)
+                    .add("password", password)
+                    .toString();
+        }
+    }
 }
