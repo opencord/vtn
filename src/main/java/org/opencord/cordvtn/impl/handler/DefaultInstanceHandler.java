@@ -41,6 +41,7 @@ import org.opencord.cordvtn.impl.CordVtnPipeline;
 
 import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.PRIVATE;
 import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.PUBLIC;
+import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.VSG;
 
 /**
  * Provides network connectivity for default service instances.
@@ -56,7 +57,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
 
     @Activate
     protected void activate() {
-        netTypes = ImmutableSet.of(PRIVATE, PUBLIC);
+        netTypes = ImmutableSet.of(PRIVATE, PUBLIC, VSG);
         super.activate();
     }
 
@@ -67,6 +68,9 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
 
     @Override
     public void instanceDetected(Instance instance) {
+        if (instance.isNestedInstance()) {
+            return;
+        }
         log.info("Instance is detected {}", instance);
 
         VtnNetwork vtnNet = getVtnNetwork(instance);
@@ -75,6 +79,9 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
 
     @Override
     public void instanceRemoved(Instance instance) {
+        if (instance.isNestedInstance()) {
+            return;
+        }
         log.info("Instance is removed {}", instance);
 
         VtnNetwork vtnNet = getVtnNetwork(instance);
