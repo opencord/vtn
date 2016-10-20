@@ -29,14 +29,14 @@ import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.FlowRule;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
-import org.opencord.cordvtn.api.Instance;
-import org.opencord.cordvtn.api.InstanceHandler;
-import org.opencord.cordvtn.api.VtnNetwork;
+import org.opencord.cordvtn.api.instance.Instance;
+import org.opencord.cordvtn.api.instance.InstanceHandler;
+import org.opencord.cordvtn.api.net.VtnNetwork;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
-import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.MANAGEMENT_HOST;
-import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.MANAGEMENT_LOCAL;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.MANAGEMENT_HOST;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.MANAGEMENT_LOCAL;
 
 /**
  * Provides local management network connectivity to the instance. The instance

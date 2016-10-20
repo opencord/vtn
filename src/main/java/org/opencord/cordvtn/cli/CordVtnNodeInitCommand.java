@@ -20,7 +20,7 @@ import org.apache.karaf.shell.commands.Argument;
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
-import org.opencord.cordvtn.api.CordVtnNode;
+import org.opencord.cordvtn.api.node.CordVtnNode;
 
 import java.util.NoSuchElementException;
 

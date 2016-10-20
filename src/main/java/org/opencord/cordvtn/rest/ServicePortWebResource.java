@@ -19,9 +19,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onosproject.rest.AbstractWebResource;
-import org.opencord.cordvtn.api.CordVtnAdminService;
-import org.opencord.cordvtn.api.PortId;
-import org.opencord.cordvtn.api.ServicePort;
+import org.opencord.cordvtn.api.core.CordVtnAdminService;
+import org.opencord.cordvtn.api.net.PortId;
+import org.opencord.cordvtn.api.net.ServicePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

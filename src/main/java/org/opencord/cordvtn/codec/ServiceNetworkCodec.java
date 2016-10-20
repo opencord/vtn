@@ -20,19 +20,19 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.Sets;
 import org.onosproject.codec.CodecContext;
 import org.onosproject.codec.JsonCodec;
-import org.opencord.cordvtn.api.Dependency;
-import org.opencord.cordvtn.api.NetworkId;
-import org.opencord.cordvtn.api.ProviderNetwork;
-import org.opencord.cordvtn.api.ServiceNetwork;
-import org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType;
+import org.opencord.cordvtn.api.dependency.Dependency;
+import org.opencord.cordvtn.api.net.NetworkId;
+import org.opencord.cordvtn.api.net.ProviderNetwork;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType;
 
 import java.util.Set;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
-import static org.opencord.cordvtn.api.Dependency.Type.BIDIRECTIONAL;
-import static org.opencord.cordvtn.api.Dependency.Type.UNIDIRECTIONAL;
-import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.valueOf;
+import static org.opencord.cordvtn.api.dependency.Dependency.Type.BIDIRECTIONAL;
+import static org.opencord.cordvtn.api.dependency.Dependency.Type.UNIDIRECTIONAL;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.valueOf;
 
 /**
  * Service network JSON codec.

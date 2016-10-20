@@ -22,7 +22,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
-import org.opencord.cordvtn.api.CordVtnNode;
+import org.opencord.cordvtn.api.node.CordVtnNode;
 
 import java.util.Collections;
 import java.util.List;

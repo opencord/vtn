@@ -21,8 +21,8 @@ import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onosproject.codec.CodecService;
-import org.opencord.cordvtn.api.ServiceNetwork;
-import org.opencord.cordvtn.api.ServicePort;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.api.net.ServicePort;
 import org.slf4j.Logger;
 
 import static org.slf4j.LoggerFactory.getLogger;

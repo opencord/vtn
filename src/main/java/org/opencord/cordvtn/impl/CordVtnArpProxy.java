@@ -34,8 +34,8 @@ import org.onosproject.net.config.NetworkConfigEvent;
 import org.onosproject.net.config.NetworkConfigListener;
 import org.onosproject.net.config.NetworkConfigRegistry;
 import org.onosproject.net.packet.PacketProcessor;
-import org.opencord.cordvtn.api.CordVtnConfig;
-import org.opencord.cordvtn.api.Instance;
+import org.opencord.cordvtn.api.config.CordVtnConfig;
+import org.opencord.cordvtn.api.instance.Instance;
 import org.onosproject.net.Host;
 import org.onosproject.net.flow.DefaultTrafficSelector;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
@@ -45,7 +45,7 @@ import org.onosproject.net.packet.DefaultOutboundPacket;
 import org.onosproject.net.packet.PacketContext;
 import org.onosproject.net.packet.PacketPriority;
 import org.onosproject.net.packet.PacketService;
-import org.opencord.cordvtn.api.VtnNetwork;
+import org.opencord.cordvtn.api.net.VtnNetwork;
 import org.opencord.cordvtn.impl.handler.AbstractInstanceHandler;
 import org.slf4j.Logger;
 
@@ -55,7 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.*;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**

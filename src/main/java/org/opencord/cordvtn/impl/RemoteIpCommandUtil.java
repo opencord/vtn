@@ -23,8 +23,8 @@ import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 import org.onlab.packet.IpAddress;
-import org.opencord.cordvtn.api.NetworkAddress;
-import org.opencord.cordvtn.api.SshAccessInfo;
+import org.opencord.cordvtn.api.node.NetworkAddress;
+import org.opencord.cordvtn.api.node.SshAccessInfo;
 import org.slf4j.Logger;
 
 import java.io.IOException;
