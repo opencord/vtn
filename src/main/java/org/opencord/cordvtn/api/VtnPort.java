@@ -30,7 +30,11 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Representation of the port containing all port information consumed by VTN service.
+ * Representation of a port holding the basic virtual port and additional service
+ * port specific information.
+ * All the services making use of {@link CordVtnService} are intended to interface
+ * with this VtnPort, and not allowed to directly access {@link Port} or
+ * {@link ServicePort}.
  */
 public final class VtnPort extends ServicePort {
 

@@ -117,7 +117,7 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
                     wanIps, true);
         } else {
             log.info(String.format(MSG_VSG_VM, MSG_DETECTED, instance));
-            VtnPort vtnPort = vtnService.getVtnPortOrDefault(instance.portId());
+            VtnPort vtnPort = vtnService.vtnPort(instance.portId());
             if (vtnPort == null || !vtnPort.vlanId().isPresent()) {
                 // service port can be updated after instance is created
                 return;
@@ -171,7 +171,7 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
 
     @Override
     protected VtnPort getVtnPort(Instance instance) {
-        VtnPort vtnPort = vtnService.getVtnPortOrDefault(instance.portId());
+        VtnPort vtnPort = vtnService.vtnPort(instance.portId());
         if (vtnPort == null || !vtnPort.vlanId().isPresent()) {
             final String error = String.format(ERR_VTN_PORT, instance);
             throw new IllegalStateException(error);

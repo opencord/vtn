@@ -121,7 +121,7 @@ public class NeutronMl2NetworksWebResource extends AbstractWebResource {
     public Response getNetworks() {
         log.trace(String.format(MESSAGE, "GET"));
 
-        Set<Network> nets = adminService.getNetworks();
+        Set<Network> nets = adminService.networks();
         ArrayNode arrayNodes = mapper().createArrayNode();
         nets.stream().forEach(net -> {
             arrayNodes.add(writeNetwork(net));
@@ -144,7 +144,7 @@ public class NeutronMl2NetworksWebResource extends AbstractWebResource {
     public Response getNetwork(@PathParam("id") String id) {
         log.trace(String.format(MESSAGE, "GET " + id));
 
-        Network net = adminService.getNetwork(NetworkId.of(id));
+        Network net = adminService.network(NetworkId.of(id));
         if (net == null) {
             return status(NOT_FOUND).build();
         }

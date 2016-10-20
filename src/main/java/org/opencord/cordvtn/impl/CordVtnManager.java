@@ -15,13 +15,13 @@
  */
 package org.opencord.cordvtn.impl;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.apache.felix.scr.annotations.Service;
-import org.onlab.util.Tools;
 import org.onosproject.event.ListenerRegistry;
 import org.onosproject.net.Host;
 import org.onosproject.net.HostId;
@@ -32,8 +32,10 @@ import org.opencord.cordvtn.api.CordVtnStore;
 import org.opencord.cordvtn.api.CordVtnStoreDelegate;
 import org.opencord.cordvtn.api.Instance;
 import org.opencord.cordvtn.api.NetworkId;
+import org.opencord.cordvtn.api.NetworkService;
 import org.opencord.cordvtn.api.PortId;
 import org.opencord.cordvtn.api.ServiceNetwork;
+import org.opencord.cordvtn.api.ServiceNetworkService;
 import org.opencord.cordvtn.api.ServicePort;
 import org.opencord.cordvtn.api.SubnetId;
 import org.opencord.cordvtn.api.VtnNetwork;
@@ -45,13 +47,12 @@ import org.openstack4j.model.network.Port;
 import org.openstack4j.model.network.Subnet;
 import org.slf4j.Logger;
 
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.opencord.cordvtn.api.Instance.NETWORK_ID;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -60,7 +61,8 @@ import static org.slf4j.LoggerFactory.getLogger;
 @Component(immediate = true)
 @Service
 public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetworkListener>
-        implements CordVtnAdminService, CordVtnService {
+        implements CordVtnAdminService, CordVtnService, NetworkService,
+        ServiceNetworkService {
 
     protected final Logger log = getLogger(getClass());
 
@@ -85,8 +87,6 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
 
     private static final String ERR_SYNC = "VTN store is out of sync: ";
     private static final String ERR_NOT_FOUND = " does not exist";
-    private static final String ERR_IN_USE_INSTANCE = "There are instances still in use on the network %s";
-    private static final String ERR_IN_USE_NETWORK = "There are subscribers still in use on the network %s";
     private static final String ERR_IN_USE_PORT = "There are ports still in use on the network %s";
     private static final String ERR_SUBNET_DUPLICATE = "Subnet already exists for network %s";
 
@@ -116,10 +116,10 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     }
 
     @Override
-    public void createVtnNetwork(ServiceNetwork serviceNet) {
+    public void createServiceNetwork(ServiceNetwork serviceNet) {
         checkNotNull(serviceNet, ERR_NULL_SERVICE_NET);
         synchronized (this) {
-            Network network = store.getNetwork(serviceNet.id());
+            Network network = store.network(serviceNet.id());
             if (network == null) {
                 final String error = ERR_SYNC + NETWORK + serviceNet.id() + ERR_NOT_FOUND;
                 throw new IllegalStateException(error);
@@ -133,7 +133,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
 
             // TODO check VTN network instead of network
             serviceNet.providers().stream().forEach(provider -> {
-                if (store.getNetwork(provider.id()) == null) {
+                if (store.network(provider.id()) == null) {
                     final String error = ERR_SYNC + PROVIDER + provider.id() + ERR_NOT_FOUND;
                     throw new IllegalStateException(error);
                 }
@@ -145,10 +145,10 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     }
 
     @Override
-    public void updateVtnNetwork(ServiceNetwork serviceNet) {
+    public void updateServiceNetwork(ServiceNetwork serviceNet) {
         checkNotNull(serviceNet, ERR_NULL_SERVICE_NET);
         synchronized (this) {
-            VtnNetwork existing = store.getVtnNetwork(serviceNet.id());
+            VtnNetwork existing = store.vtnNetwork(serviceNet.id());
             if (existing == null) {
                 final String error = ERR_SYNC + NETWORK + serviceNet.id() + ERR_NOT_FOUND;
                 throw new IllegalStateException(error);
@@ -163,7 +163,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     }
 
     @Override
-    public void removeVtnNetwork(NetworkId netId) {
+    public void removeServiceNetwork(NetworkId netId) {
         checkNotNull(netId, ERR_NULL_NET_ID);
         // TODO check if the network still exists?
         store.removeVtnNetwork(netId);
@@ -171,10 +171,10 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     }
 
     @Override
-    public void createVtnPort(ServicePort servicePort) {
+    public void createServicePort(ServicePort servicePort) {
         checkNotNull(servicePort, ERR_NULL_SERVICE_PORT);
         synchronized (this) {
-            Port port = store.getPort(servicePort.id());
+            Port port = store.port(servicePort.id());
             if (port == null) {
                 final String error = ERR_SYNC + PORT + servicePort.id() + ERR_NOT_FOUND;
                 throw new IllegalStateException(error);
@@ -185,10 +185,10 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     }
 
     @Override
-    public void updateVtnPort(ServicePort servicePort) {
+    public void updateServicePort(ServicePort servicePort) {
         checkNotNull(servicePort, ERR_NULL_SERVICE_PORT);
         synchronized (this) {
-            VtnPort vtnPort = store.getVtnPort(servicePort.id());
+            VtnPort vtnPort = store.vtnPort(servicePort.id());
             if (vtnPort == null) {
                 final String error = ERR_SYNC + PORT + servicePort.id() + ERR_NOT_FOUND;
                 throw new IllegalStateException(error);
@@ -199,7 +199,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     }
 
     @Override
-    public void removeVtnPort(PortId portId) {
+    public void removeServicePort(PortId portId) {
         checkNotNull(portId, ERR_NULL_PORT_ID);
         store.removeVtnPort(portId);
         log.info(String.format(MSG_SERVICE_PORT, REMOVED, portId));
@@ -231,7 +231,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     public void createPort(Port port) {
         checkNotNull(port, ERR_NULL_PORT);
         synchronized (this) {
-            if (store.getNetwork(NetworkId.of(port.getNetworkId())) == null) {
+            if (store.network(NetworkId.of(port.getNetworkId())) == null) {
                 final String error = ERR_SYNC + port.getNetworkId() + ERR_NOT_FOUND;
                 throw new IllegalStateException(error);
             }
@@ -244,7 +244,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     public void updatePort(Port port) {
         checkNotNull(port, ERR_NULL_PORT);
         synchronized (this) {
-            if (store.getNetwork(NetworkId.of(port.getNetworkId())) == null) {
+            if (store.network(NetworkId.of(port.getNetworkId())) == null) {
                 final String error = ERR_SYNC + port.getNetworkId() + ERR_NOT_FOUND;
                 throw new IllegalStateException(error);
             }
@@ -261,7 +261,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
                 final String error = String.format(ERR_IN_USE_PORT, portId);
                 throw new IllegalStateException(error);
             }
-            removeVtnPort(portId);
+            removeServicePort(portId);
             store.removePort(portId);
             log.info(String.format(MSG_PORT, REMOVED, portId));
         }
@@ -271,7 +271,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     public void createSubnet(Subnet subnet) {
         checkNotNull(subnet, ERR_NULL_SUBNET);
         synchronized (this) {
-            if (store.getNetwork(NetworkId.of(subnet.getNetworkId())) == null) {
+            if (store.network(NetworkId.of(subnet.getNetworkId())) == null) {
                 final String error = ERR_SYNC + subnet.getNetworkId() + ERR_NOT_FOUND;
                 throw new IllegalStateException(error);
             }
@@ -290,7 +290,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     public void updateSubnet(Subnet subnet) {
         checkNotNull(subnet, ERR_NULL_SUBNET);
         synchronized (this) {
-            if (store.getNetwork(NetworkId.of(subnet.getNetworkId())) == null) {
+            if (store.network(NetworkId.of(subnet.getNetworkId())) == null) {
                 final String error = ERR_SYNC + subnet.getNetworkId() + ERR_NOT_FOUND;
                 throw new IllegalStateException(error);
             }
@@ -304,105 +304,115 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
         checkNotNull(subnetId, ERR_NULL_SUBNET_ID);
         // FIXME Neutron removes network anyway even if there's an exception here
         synchronized (this) {
-            removeVtnNetwork(NetworkId.of(store.getSubnet(subnetId).getNetworkId()));
+            removeServiceNetwork(NetworkId.of(store.subnet(subnetId).getNetworkId()));
             store.removeSubnet(subnetId);
             log.info(String.format(MSG_SUBNET, REMOVED, subnetId));
         }
     }
 
     @Override
-    public VtnNetwork getVtnNetwork(NetworkId netId) {
-        checkNotNull(netId, ERR_NULL_NET_ID);
-        return store.getVtnNetwork(netId);
-    }
-
-    @Override
-    public VtnNetwork getVtnNetworkOrDefault(NetworkId netId) {
+    public VtnNetwork vtnNetwork(NetworkId netId) {
         checkNotNull(netId, ERR_NULL_NET_ID);
 
         // return default VTN network if the network and subnet exist
-        VtnNetwork vtnNet = store.getVtnNetwork(netId);
+        VtnNetwork vtnNet = store.vtnNetwork(netId);
         return vtnNet == null ? getDefaultVtnNetwork(netId) : vtnNet;
     }
 
     @Override
-    public Set<VtnNetwork> getVtnNetworks() {
-        return store.getVtnNetworks();
+    public Set<VtnNetwork> vtnNetworks() {
+        // TODO implement
+        return ImmutableSet.of();
     }
 
     @Override
-    public VtnPort getVtnPort(PortId portId) {
-        checkNotNull(portId, ERR_NULL_PORT_ID);
-        return store.getVtnPort(portId);
-    }
-
-    @Override
-    public VtnPort getVtnPortOrDefault(PortId portId) {
+    public VtnPort vtnPort(PortId portId) {
         checkNotNull(portId, ERR_NULL_PORT_ID);
 
         // return default VTN port if the port exists
-        VtnPort vtnPort = store.getVtnPort(portId);
+        VtnPort vtnPort = store.vtnPort(portId);
         return vtnPort == null ? getDefaultPort(portId) : vtnPort;
     }
 
     @Override
-    public VtnPort getVtnPort(String portName) {
-        Optional<Port> port = store.getPorts()
+    public VtnPort vtnPort(String portName) {
+        Optional<Port> port = store.ports()
                 .stream()
                 .filter(p -> p.getId().contains(portName.substring(3)))
                 .findFirst();
         if (!port.isPresent()) {
             return null;
         }
-        return getVtnPortOrDefault(PortId.of(port.get().getId()));
+        return vtnPort(PortId.of(port.get().getId()));
     }
 
     @Override
-    public Set<VtnPort> getVtnPorts() {
-        return store.getVtnPorts();
+    public Set<VtnPort> vtnPorts() {
+        // TODO implement
+        return ImmutableSet.of();
     }
 
     @Override
-    public Network getNetwork(NetworkId netId) {
+    public ServiceNetwork serviceNetwork(NetworkId netId) {
         checkNotNull(netId, ERR_NULL_NET_ID);
-        return store.getNetwork(netId);
+        return store.vtnNetwork(netId);
     }
 
     @Override
-    public Set<Network> getNetworks() {
-        return store.getNetworks();
+    public Set<ServiceNetwork> serviceNetworks() {
+        return new HashSet<>(store.vtnNetworks());
     }
 
     @Override
-    public Port getPort(PortId portId) {
+    public ServicePort servicePort(PortId portId) {
         checkNotNull(portId, ERR_NULL_PORT_ID);
-        return store.getPort(portId);
+        return store.vtnPort(portId);
     }
 
     @Override
-    public Set<Port> getPorts() {
-        return store.getPorts();
+    public Set<ServicePort> servicePorts() {
+        return new HashSet<>(store.vtnPorts());
     }
 
     @Override
-    public Subnet getSubnet(SubnetId subnetId) {
+    public Network network(NetworkId netId) {
+        checkNotNull(netId, ERR_NULL_NET_ID);
+        return store.network(netId);
+    }
+
+    @Override
+    public Set<Network> networks() {
+        return store.networks();
+    }
+
+    @Override
+    public Port port(PortId portId) {
+        checkNotNull(portId, ERR_NULL_PORT_ID);
+        return store.port(portId);
+    }
+
+    @Override
+    public Set<Port> ports() {
+        return store.ports();
+    }
+
+    @Override
+    public Subnet subnet(SubnetId subnetId) {
         checkNotNull(subnetId, ERR_NULL_SUBNET_ID);
-        return store.getSubnet(subnetId);
+        return store.subnet(subnetId);
     }
 
     @Override
-    public Set<Subnet> getSubnets() {
-        return store.getSubnets();
+    public Set<Subnet> subnets() {
+        return store.subnets();
     }
 
-    @Override
-    public Instance getInstance(PortId portId) {
-        VtnPort vtnPort = getVtnPortOrDefault(portId);
+    private Instance getInstance(PortId portId) {
+        VtnPort vtnPort = vtnPort(portId);
         if (vtnPort == null) {
             final String error = "Failed to build VTN port for " + portId.id();
             throw new IllegalStateException(error);
         }
-
         Host host = hostService.getHost(HostId.hostId(vtnPort.mac()));
         if (host == null) {
             return null;
@@ -410,18 +420,8 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
         return Instance.of(host);
     }
 
-    @Override
-    public Set<Instance> getInstances(NetworkId netId) {
-        return Tools.stream(hostService.getHosts())
-                .filter(host -> Objects.equals(
-                        host.annotations().value(NETWORK_ID),
-                        netId.id()))
-                .map(Instance::of)
-                .collect(Collectors.toSet());
-    }
-
     private VtnNetwork getDefaultVtnNetwork(NetworkId netId) {
-        Network network = getNetwork(netId);
+        Network network = network(netId);
         Subnet subnet = getSubnet(netId);
         if (network == null || subnet == null) {
             return null;
@@ -430,7 +430,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     }
 
     private VtnPort getDefaultPort(PortId portId) {
-        Port port = getPort(portId);
+        Port port = port(portId);
         if (port == null) {
             return null;
         }
@@ -439,7 +439,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
 
     private Subnet getSubnet(NetworkId netId) {
         // TODO fix networking-onos to send Network UPDATE when subnet created
-        Optional<Subnet> subnet = getSubnets().stream()
+        Optional<Subnet> subnet = subnets().stream()
                 .filter(s -> Objects.equals(s.getNetworkId(), netId.id()))
                 .findFirst();
         return subnet.orElse(null);

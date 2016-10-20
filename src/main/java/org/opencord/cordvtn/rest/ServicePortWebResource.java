@@ -40,8 +40,7 @@ import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Set;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 import static javax.ws.rs.core.Response.Status.NOT_FOUND;
@@ -87,7 +86,7 @@ public class ServicePortWebResource extends AbstractWebResource {
             }
 
             final ServicePort sport = codec(ServicePort.class).decode(portJson, this);
-            adminService.createVtnPort(sport);
+            adminService.createServicePort(sport);
 
             UriBuilder locationBuilder = uriInfo.getBaseUriBuilder()
                     .path(SERVICE_PORTS)
@@ -122,7 +121,7 @@ public class ServicePortWebResource extends AbstractWebResource {
             }
 
             final ServicePort sport = codec(ServicePort.class).decode(sportJson, this);
-            adminService.updateVtnPort(sport);
+            adminService.updateServicePort(sport);
 
             ObjectNode result = this.mapper().createObjectNode();
             result.set(SERVICE_PORT, codec(ServicePort.class).encode(sport, this));
@@ -143,7 +142,7 @@ public class ServicePortWebResource extends AbstractWebResource {
     public Response getServicePorts() {
         log.trace(MESSAGE + "GET");
 
-        List<ServicePort> sports = new ArrayList<>(adminService.getVtnPorts());
+        Set<ServicePort> sports = adminService.servicePorts();
         return ok(encodeArray(ServicePort.class, SERVICE_PORTS, sports)).build();
     }
 
@@ -161,7 +160,7 @@ public class ServicePortWebResource extends AbstractWebResource {
     public Response getServicePort(@PathParam("id") String id) {
         log.trace(MESSAGE + "GET " + id);
 
-        ServicePort sport = adminService.getVtnPort(PortId.of(id));
+        ServicePort sport = adminService.servicePort(PortId.of(id));
         if (sport == null) {
             log.trace("Returned NOT_FOUND");
             return status(NOT_FOUND).build();
@@ -186,7 +185,7 @@ public class ServicePortWebResource extends AbstractWebResource {
     public Response deleteServicePort(@PathParam("id") String id) {
         log.trace(MESSAGE + "DELETE " + id);
 
-        adminService.removeVtnPort(PortId.of(id));
+        adminService.removeServicePort(PortId.of(id));
         return noContent().build();
     }
 }

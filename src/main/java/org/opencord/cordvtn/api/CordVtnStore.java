@@ -30,16 +30,16 @@ public interface CordVtnStore extends Store<VtnNetworkEvent, CordVtnStoreDelegat
     /**
      * Creates vtn network.
      *
-     * @param serviceNet the new vtn network
+     * @param vtnNet vtn network
      */
-    void createVtnNetwork(VtnNetwork serviceNet);
+    void createVtnNetwork(VtnNetwork vtnNet);
 
     /**
      * Updates the vtn network.
      *
-     * @param serviceNet the updated vtn network
+     * @param vtnNet vtn network
      */
-    void updateVtnNetwork(VtnNetwork serviceNet);
+    void updateVtnNetwork(VtnNetwork vtnNet);
 
     /**
      * Returns the vtn network with the given network id.
@@ -47,17 +47,17 @@ public interface CordVtnStore extends Store<VtnNetworkEvent, CordVtnStoreDelegat
      * @param netId network id
      * @return vtn network
      */
-    VtnNetwork getVtnNetwork(NetworkId netId);
+    VtnNetwork vtnNetwork(NetworkId netId);
 
     /**
      * Returns all vtn networks.
      *
      * @return set of vtn networks
      */
-    Set<VtnNetwork> getVtnNetworks();
+    Set<VtnNetwork> vtnNetworks();
 
     /**
-     * Removes the vtn network.
+     * Removes the vtn network with the given network id.
      *
      * @param netId network id
      */
@@ -66,16 +66,16 @@ public interface CordVtnStore extends Store<VtnNetworkEvent, CordVtnStoreDelegat
     /**
      * Creates vtn port.
      *
-     * @param servicePort the new vtn port
+     * @param vtnPort the new vtn port
      */
-    void createVtnPort(VtnPort servicePort);
+    void createVtnPort(VtnPort vtnPort);
 
     /**
      * Updates the vtn port.
      *
-     * @param servicePort vtn port
+     * @param vtnPort vtn port
      */
-    void updateVtnPort(VtnPort servicePort);
+    void updateVtnPort(VtnPort vtnPort);
 
     /**
      * Returns the vtn port with the given port id.
@@ -83,14 +83,14 @@ public interface CordVtnStore extends Store<VtnNetworkEvent, CordVtnStoreDelegat
      * @param portId port id
      * @return vtn port
      */
-    VtnPort getVtnPort(PortId portId);
+    VtnPort vtnPort(PortId portId);
 
     /**
      * Returns all vtn ports.
      *
      * @return set of vtn ports
      */
-    Set<VtnPort> getVtnPorts();
+    Set<VtnPort> vtnPorts();
 
     /**
      * Removes vtn port.
@@ -119,14 +119,14 @@ public interface CordVtnStore extends Store<VtnNetworkEvent, CordVtnStoreDelegat
      * @param netId network id
      * @return network
      */
-    Network getNetwork(NetworkId netId);
+    Network network(NetworkId netId);
 
     /**
      * Returns all networks.
      *
      * @return set of networks
      */
-    Set<Network> getNetworks();
+    Set<Network> networks();
 
     /**
      * Removes the network with the given network id.
@@ -155,14 +155,14 @@ public interface CordVtnStore extends Store<VtnNetworkEvent, CordVtnStoreDelegat
      * @param portId port id
      * @return port
      */
-    Port getPort(PortId portId);
+    Port port(PortId portId);
 
     /**
      * Returns all ports.
      *
      * @return set of ports
      */
-    Set<Port> getPorts();
+    Set<Port> ports();
 
     /**
      * Removes the port with the given port id.
@@ -191,14 +191,14 @@ public interface CordVtnStore extends Store<VtnNetworkEvent, CordVtnStoreDelegat
      * @param subnetId subnet id
      * @return subnet
      */
-    Subnet getSubnet(SubnetId subnetId);
+    Subnet subnet(SubnetId subnetId);
 
     /**
      * Returns all subnets.
      *
      * @return set of subnets
      */
-    Set<Subnet> getSubnets();
+    Set<Subnet> subnets();
 
     /**
      * Removes the subnet with the given subnet id.

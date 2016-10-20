@@ -123,7 +123,7 @@ public class NeutronMl2SubnetsWebResource extends AbstractWebResource {
     public Response getSubnets() {
         log.trace(String.format(MESSAGE, "GET"));
 
-        Set<Subnet> subnets = adminService.getSubnets();
+        Set<Subnet> subnets = adminService.subnets();
         ArrayNode arrayNodes = mapper().createArrayNode();
         subnets.stream().forEach(subnet -> {
             arrayNodes.add(writeSubnet(subnet));
@@ -146,7 +146,7 @@ public class NeutronMl2SubnetsWebResource extends AbstractWebResource {
     public Response getSubnet(@PathParam("id") String id) {
         log.trace(String.format(MESSAGE, "GET " + id));
 
-        Subnet subnet = adminService.getSubnet(SubnetId.of(id));
+        Subnet subnet = adminService.subnet(SubnetId.of(id));
         if (subnet == null) {
             return status(NOT_FOUND).build();
         }

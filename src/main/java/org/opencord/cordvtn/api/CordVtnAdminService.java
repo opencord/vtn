@@ -20,51 +20,53 @@ import org.openstack4j.model.network.Port;
 import org.openstack4j.model.network.Subnet;
 
 /**
- * Service for administering the inventory of virtual network and service network.
+ * Service for administering the inventory of {@link Network} and
+ * {@link ServiceNetwork}.
  */
-public interface CordVtnAdminService extends CordVtnService {
+public interface CordVtnAdminService extends CordVtnService, NetworkService,
+        ServiceNetworkService {
 
     /**
-     * Creates vtn port with given service port information.
+     * Creates a service port with the given information.
      *
      * @param servicePort the new service port
      */
-    void createVtnPort(ServicePort servicePort);
+    void createServicePort(ServicePort servicePort);
 
     /**
-     * Updates vtn port with given service port information.
+     * Updates a service port with the given information.
      *
      * @param servicePort the updated service port
      */
-    void updateVtnPort(ServicePort servicePort);
+    void updateServicePort(ServicePort servicePort);
 
     /**
-     * Removes vtn port with given port id.
+     * Removes a service port with the given port id.
      *
      * @param portId port id
      */
-    void removeVtnPort(PortId portId);
+    void removeServicePort(PortId portId);
 
     /**
-     * Creates vtn network with given service network information.
+     * Creates a service network with the given information.
      *
      * @param serviceNet the new service network
      */
-    void createVtnNetwork(ServiceNetwork serviceNet);
+    void createServiceNetwork(ServiceNetwork serviceNet);
 
     /**
-     * Updates the vtn network with given service network information.
+     * Updates a service network with the given information.
      *
      * @param serviceNet the updated service network
      */
-    void updateVtnNetwork(ServiceNetwork serviceNet);
+    void updateServiceNetwork(ServiceNetwork serviceNet);
 
     /**
-     * Removes the vtn network.
+     * Removes a service network with the given network id.
      *
      * @param netId network id
      */
-    void removeVtnNetwork(NetworkId netId);
+    void removeServiceNetwork(NetworkId netId);
 
     /**
      * Creates a port.

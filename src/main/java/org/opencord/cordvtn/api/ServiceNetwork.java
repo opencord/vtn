@@ -24,7 +24,8 @@ import java.util.Set;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Representation of a service network.
+ * Representation of a service network which holds service specific information,
+ * like service type or dependency, in addition to the common network.
  */
 public class ServiceNetwork {
 

@@ -166,22 +166,22 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
     @Override
     public void createDependency(NetworkId subNetId, NetworkId proNetId, Type type) {
         // FIXME this is not safe
-        VtnNetwork existing = vtnService.getVtnNetworkOrDefault(subNetId);
+        VtnNetwork existing = vtnService.vtnNetwork(subNetId);
         if (existing == null) {
             log.warn("Failed to create dependency between {} and {}", subNetId, proNetId);
             return;
         }
-        vtnService.createVtnNetwork(existing);
+        vtnService.createServiceNetwork(existing);
         VtnNetwork updated = VtnNetwork.builder(existing)
                 .addProvider(proNetId, type)
                 .build();
-        vtnService.updateVtnNetwork(updated);
+        vtnService.updateServiceNetwork(updated);
     }
 
     @Override
     public void removeDependency(NetworkId subNetId, NetworkId proNetId) {
         // FIXME this is not safe
-        VtnNetwork subNet = vtnService.getVtnNetwork(subNetId);
+        VtnNetwork subNet = vtnService.vtnNetwork(subNetId);
         if (subNet == null) {
             log.warn("No dependency exists between {} and {}", subNetId, proNetId);
             return;
@@ -189,7 +189,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         VtnNetwork updated = VtnNetwork.builder(subNet)
                 .delProvider(proNetId)
                 .build();
-        vtnService.updateVtnNetwork(updated);
+        vtnService.updateServiceNetwork(updated);
     }
 
     @Override
@@ -200,7 +200,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
             return;
         }
 
-        VtnNetwork vtnNet = vtnService.getVtnNetworkOrDefault(instance.netId());
+        VtnNetwork vtnNet = vtnService.vtnNetwork(instance.netId());
         if (vtnNet == null) {
             final String error = ERR_NET_FAIL + instance.netId();
             throw new IllegalStateException(error);
@@ -221,7 +221,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
             return;
         }
 
-        VtnNetwork vtnNet = vtnService.getVtnNetworkOrDefault(instance.netId());
+        VtnNetwork vtnNet = vtnService.vtnNetwork(instance.netId());
         if (vtnNet == null) {
             final String error = ERR_NET_FAIL + instance.netId();
             throw new IllegalStateException(error);
@@ -540,7 +540,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
             Set<Dependency> dependencies = subscriber.providers().stream()
                     .map(provider -> Dependency.builder()
                             .subscriber(subscriber)
-                            .provider(vtnService.getVtnNetworkOrDefault(provider.id()))
+                            .provider(vtnService.vtnNetwork(provider.id()))
                             .type(provider.type())
                             .build())
                     .collect(Collectors.toSet());

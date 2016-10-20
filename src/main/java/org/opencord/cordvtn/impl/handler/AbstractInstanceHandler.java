@@ -102,7 +102,7 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
     }
 
     protected VtnNetwork getVtnNetwork(Instance instance) {
-        VtnNetwork vtnNet = vtnService.getVtnNetworkOrDefault(instance.netId());
+        VtnNetwork vtnNet = vtnService.vtnNetwork(instance.netId());
         if (vtnNet == null) {
             final String error = String.format(ERR_VTN_NETWORK, instance);
             throw new IllegalStateException(error);
@@ -111,7 +111,7 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
     }
 
     protected VtnPort getVtnPort(Instance instance) {
-        VtnPort vtnPort = vtnService.getVtnPortOrDefault(instance.portId());
+        VtnPort vtnPort = vtnService.vtnPort(instance.portId());
         if (vtnPort == null) {
             final String error = String.format(ERR_VTN_PORT, instance);
             throw new IllegalStateException(error);

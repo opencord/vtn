@@ -40,8 +40,7 @@ import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Set;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 import static javax.ws.rs.core.Response.Status.NOT_FOUND;
@@ -87,7 +86,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
             }
 
             final ServiceNetwork snet = codec(ServiceNetwork.class).decode(snetJson, this);
-            adminService.createVtnNetwork(snet);
+            adminService.createServiceNetwork(snet);
 
             UriBuilder locationBuilder = uriInfo.getBaseUriBuilder()
                     .path(SERVICE_NETWORKS)
@@ -122,7 +121,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
             }
 
             final ServiceNetwork snet = codec(ServiceNetwork.class).decode(snetJson, this);
-            adminService.updateVtnNetwork(snet);
+            adminService.updateServiceNetwork(snet);
 
             ObjectNode result = this.mapper().createObjectNode();
             result.set(SERVICE_NETWORK, codec(ServiceNetwork.class).encode(snet, this));
@@ -143,7 +142,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     public Response getServiceNetworks() {
         log.trace(MESSAGE + "GET");
 
-        List<ServiceNetwork> snets = new ArrayList<>(adminService.getVtnNetworks());
+        Set<ServiceNetwork> snets = adminService.serviceNetworks();
         return ok(encodeArray(ServiceNetwork.class, SERVICE_NETWORKS, snets)).build();
     }
 
@@ -161,7 +160,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     public Response getServiceNetwork(@PathParam("id") String id) {
         log.trace(MESSAGE + "GET " + id);
 
-        ServiceNetwork snet = adminService.getVtnNetwork(NetworkId.of(id));
+        ServiceNetwork snet = adminService.serviceNetwork(NetworkId.of(id));
         if (snet == null) {
             log.trace("Returned NOT_FOUND");
             return status(NOT_FOUND).build();
@@ -186,7 +185,7 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     public Response deleteServiceNetwork(@PathParam("id") String id) {
         log.trace(MESSAGE + "DELETE " + id);
 
-        adminService.removeVtnNetwork(NetworkId.of(id));
+        adminService.removeServiceNetwork(NetworkId.of(id));
         return noContent().build();
     }
 }

@@ -174,13 +174,13 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
             return;
         }
 
-        VtnPort vtnPort = vtnService.getVtnPort(port.annotations().value(PORT_NAME));
+        VtnPort vtnPort = vtnService.vtnPort(port.annotations().value(PORT_NAME));
         if (vtnPort == null) {
             log.warn(String.format(ERR_VTN_PORT, port));
             return;
         }
 
-        VtnNetwork vtnNet = vtnService.getVtnNetworkOrDefault(vtnPort.netId());
+        VtnNetwork vtnNet = vtnService.vtnNetwork(vtnPort.netId());
         if (vtnNet == null) {
             log.warn(String.format(ERR_VTN_NETWORK, vtnPort));
             return;
@@ -290,6 +290,19 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
         hostProvider.hostDetected(hostId, hostDesc, false);
     }
 
+    private Instance getInstance(PortId portId) {
+        VtnPort vtnPort = vtnService.vtnPort(portId);
+        if (vtnPort == null) {
+            final String error = "Failed to build VTN port for " + portId.id();
+            throw new IllegalStateException(error);
+        }
+        Host host = hostService.getHost(HostId.hostId(vtnPort.mac()));
+        if (host == null) {
+            return null;
+        }
+        return Instance.of(host);
+    }
+
     private class InternalVtnNetworkListener implements VtnNetworkListener {
 
         @Override
@@ -306,7 +319,7 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
                     log.debug("Processing service port {}", event.vtnPort());
                     PortId portId = event.vtnPort().id();
                     eventExecutor.execute(() -> {
-                        Instance instance = vtnService.getInstance(portId);
+                        Instance instance = getInstance(portId);
                         if (instance != null) {
                             addInstance(instance.host().location());
                         }

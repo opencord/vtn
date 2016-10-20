@@ -26,7 +26,8 @@ import java.util.Set;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Representation of a service port.
+ * Representation of a service port which holds service specific port information,
+ * like vlan tag or additional addresses, to the common network port.
  */
 public class ServicePort {
 

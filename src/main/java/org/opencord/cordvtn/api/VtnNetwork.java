@@ -32,8 +32,11 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.PRIVATE;
 
 /**
- * Representation of the network containing all network information consumed by
- * VTN service.
+ * Representation of a network holding the basic virtual network and additional
+ * service network specific information.
+ * All the services making use of {@link CordVtnService} are intended to interface
+ * with this VtnNetwork, and not allowed to directly access {@link Network} or
+ * {@link ServiceNetwork}.
  */
 public final class VtnNetwork extends ServiceNetwork {
 

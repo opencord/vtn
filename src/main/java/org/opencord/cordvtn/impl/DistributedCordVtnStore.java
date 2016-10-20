@@ -222,13 +222,13 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
     }
 
     @Override
-    public VtnNetwork getVtnNetwork(NetworkId netId) {
+    public VtnNetwork vtnNetwork(NetworkId netId) {
         Versioned<VtnNetwork> versioned = vtnNetworkStore.get(netId);
         return versioned == null ? null : versioned.value();
     }
 
     @Override
-    public Set<VtnNetwork> getVtnNetworks() {
+    public Set<VtnNetwork> vtnNetworks() {
         return vtnNetworkStore.values().stream().map(Versioned::value)
                 .collect(Collectors.toSet());
     }
@@ -257,13 +257,13 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
     }
 
     @Override
-    public VtnPort getVtnPort(PortId portId) {
+    public VtnPort vtnPort(PortId portId) {
         Versioned<VtnPort> versioned = vtnPortStore.get(portId);
         return versioned == null ? null : versioned.value();
     }
 
     @Override
-    public Set<VtnPort> getVtnPorts() {
+    public Set<VtnPort> vtnPorts() {
         return vtnPortStore.values().stream().map(Versioned::value)
                 .collect(Collectors.toSet());
     }
@@ -292,13 +292,13 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
     }
 
     @Override
-    public Network getNetwork(NetworkId netId) {
+    public Network network(NetworkId netId) {
         Versioned<Network> versioned = networkStore.get(netId);
         return versioned == null ? null : versioned.value();
     }
 
     @Override
-    public Set<Network> getNetworks() {
+    public Set<Network> networks() {
         return networkStore.values().stream().map(Versioned::value)
                 .collect(Collectors.toSet());
     }
@@ -327,13 +327,13 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
     }
 
     @Override
-    public Port getPort(PortId portId) {
+    public Port port(PortId portId) {
         Versioned<Port> versioned = portStore.get(portId);
         return versioned == null ? null : versioned.value();
     }
 
     @Override
-    public Set<Port> getPorts() {
+    public Set<Port> ports() {
         return portStore.values().stream().map(Versioned::value)
                 .collect(Collectors.toSet());
     }
@@ -362,19 +362,19 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
     }
 
     @Override
-    public Subnet getSubnet(SubnetId subnetId) {
+    public Subnet subnet(SubnetId subnetId) {
         Versioned<Subnet> versioned = subnetStore.get(subnetId);
         return versioned == null ? null : versioned.value();
     }
 
     @Override
-    public Set<Subnet> getSubnets() {
+    public Set<Subnet> subnets() {
         return subnetStore.values().stream().map(Versioned::value)
                 .collect(Collectors.toSet());
     }
 
     private Set<VtnNetwork> getSubscribers(NetworkId netId) {
-        return getVtnNetworks().stream().filter(net -> net.isProvider(netId))
+        return vtnNetworks().stream().filter(net -> net.isProvider(netId))
                 .collect(Collectors.toSet());
     }
 
@@ -424,7 +424,7 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
                     eventExecutor.execute(() -> {
                         notifyDelegate(new VtnNetworkEvent(
                                 VTN_PORT_UPDATED,
-                                getVtnNetwork(event.newValue().value().netId()),
+                                vtnNetwork(event.newValue().value().netId()),
                                 event.newValue().value()));
                     });
                     break;
@@ -433,7 +433,7 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
                     eventExecutor.execute(() -> {
                         notifyDelegate(new VtnNetworkEvent(
                                 VTN_PORT_CREATED,
-                                getVtnNetwork(event.newValue().value().netId()),
+                                vtnNetwork(event.newValue().value().netId()),
                                 event.newValue().value()));
                     });
                     break;
@@ -442,7 +442,7 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
                     eventExecutor.execute(() -> {
                         notifyDelegate(new VtnNetworkEvent(
                                 VTN_PORT_REMOVED,
-                                getVtnNetwork(event.oldValue().value().netId()),
+                                vtnNetwork(event.oldValue().value().netId()),
                                 event.oldValue().value()));
                     });
                     break;

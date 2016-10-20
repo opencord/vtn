@@ -123,7 +123,7 @@ public class NeutronMl2PortsWebResource extends AbstractWebResource {
     public Response getPorts() {
         log.trace(String.format(MESSAGE, "GET"));
 
-        Set<Port> ports = adminService.getPorts();
+        Set<Port> ports = adminService.ports();
         ArrayNode arrayNodes = mapper().createArrayNode();
         ports.stream().forEach(port -> {
             arrayNodes.add(writePort(port));
@@ -146,7 +146,7 @@ public class NeutronMl2PortsWebResource extends AbstractWebResource {
     public Response getPort(@PathParam("id") String id) {
         log.trace(String.format(MESSAGE, "GET " + id));
 
-        Port port = adminService.getPort(PortId.of(id));
+        Port port = adminService.port(PortId.of(id));
         if (port == null) {
             return status(NOT_FOUND).build();
         }
