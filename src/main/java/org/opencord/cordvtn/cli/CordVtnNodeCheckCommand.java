@@ -23,7 +23,7 @@ import org.onlab.packet.IpAddress;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Port;
-import org.opencord.cordvtn.api.CordVtnNode;
+import org.opencord.cordvtn.api.node.CordVtnNode;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.onosproject.net.Device;
 import org.onosproject.net.device.DeviceService;

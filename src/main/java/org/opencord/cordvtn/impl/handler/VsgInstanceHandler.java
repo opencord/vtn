@@ -29,10 +29,10 @@ import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
 import org.onosproject.net.Host;
-import org.opencord.cordvtn.api.AddressPair;
-import org.opencord.cordvtn.api.InstanceService;
-import org.opencord.cordvtn.api.Instance;
-import org.opencord.cordvtn.api.InstanceHandler;
+import org.opencord.cordvtn.api.net.AddressPair;
+import org.opencord.cordvtn.api.instance.InstanceService;
+import org.opencord.cordvtn.api.instance.Instance;
+import org.opencord.cordvtn.api.instance.InstanceHandler;
 import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.HostId;
 import org.onosproject.net.PortNumber;
@@ -50,7 +50,7 @@ import org.onosproject.net.flow.instructions.Instructions;
 import org.onosproject.net.flow.instructions.L2ModificationInstruction;
 import org.onosproject.net.host.DefaultHostDescription;
 import org.onosproject.net.host.HostDescription;
-import org.opencord.cordvtn.api.VtnPort;
+import org.opencord.cordvtn.api.net.VtnPort;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
 
 import static org.onosproject.net.flow.criteria.Criterion.Type.IPV4_DST;
 import static org.onosproject.net.flow.instructions.L2ModificationInstruction.L2SubType.VLAN_PUSH;
-import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.VSG;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.VSG;
 
 /**
  * Provides network connectivity for vSG instances.

@@ -32,16 +32,16 @@ import org.onosproject.net.flow.FlowRule;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
 import org.onosproject.net.flow.instructions.ExtensionTreatment;
-import org.opencord.cordvtn.api.VtnNetwork;
-import org.opencord.cordvtn.api.CordVtnNode;
-import org.opencord.cordvtn.api.Instance;
-import org.opencord.cordvtn.api.InstanceHandler;
+import org.opencord.cordvtn.api.net.VtnNetwork;
+import org.opencord.cordvtn.api.node.CordVtnNode;
+import org.opencord.cordvtn.api.instance.Instance;
+import org.opencord.cordvtn.api.instance.InstanceHandler;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
-import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.PRIVATE;
-import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.PUBLIC;
-import static org.opencord.cordvtn.api.ServiceNetwork.ServiceNetworkType.VSG;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.PRIVATE;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.PUBLIC;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.VSG;
 
 /**
  * Provides network connectivity for default service instances.

@@ -23,9 +23,9 @@ import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
 import org.onosproject.codec.CodecContext;
 import org.onosproject.codec.JsonCodec;
-import org.opencord.cordvtn.api.AddressPair;
-import org.opencord.cordvtn.api.PortId;
-import org.opencord.cordvtn.api.ServicePort;
+import org.opencord.cordvtn.api.net.AddressPair;
+import org.opencord.cordvtn.api.net.PortId;
+import org.opencord.cordvtn.api.net.ServicePort;
 
 import java.util.Set;
 

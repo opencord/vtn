@@ -16,9 +16,9 @@
 package org.opencord.cordvtn.rest;
 
 import org.onosproject.rest.AbstractWebResource;
-import org.opencord.cordvtn.api.Dependency.Type;
-import org.opencord.cordvtn.api.DependencyService;
-import org.opencord.cordvtn.api.NetworkId;
+import org.opencord.cordvtn.api.dependency.Dependency.Type;
+import org.opencord.cordvtn.api.dependency.DependencyService;
+import org.opencord.cordvtn.api.net.NetworkId;
 
 import javax.ws.rs.DELETE;
 import javax.ws.rs.POST;
@@ -29,8 +29,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.Objects;
 
-import static org.opencord.cordvtn.api.Dependency.Type.BIDIRECTIONAL;
-import static org.opencord.cordvtn.api.Dependency.Type.UNIDIRECTIONAL;
+import static org.opencord.cordvtn.api.dependency.Dependency.Type.BIDIRECTIONAL;
+import static org.opencord.cordvtn.api.dependency.Dependency.Type.UNIDIRECTIONAL;
 
 /**
  * Manages service dependency.

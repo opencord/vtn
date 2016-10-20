@@ -30,7 +30,7 @@ import org.onlab.packet.VlanId;
 import org.onosproject.net.AnnotationKeys;
 import org.onosproject.net.Port;
 import org.opencord.cordvtn.api.Constants;
-import org.opencord.cordvtn.api.CordVtnNode;
+import org.opencord.cordvtn.api.node.CordVtnNode;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.net.Device;
