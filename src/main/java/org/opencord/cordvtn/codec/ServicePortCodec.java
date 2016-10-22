@@ -16,6 +16,7 @@
 package org.opencord.cordvtn.codec;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.Sets;
 import org.onlab.packet.IpAddress;
@@ -29,6 +30,8 @@ import org.opencord.cordvtn.api.net.ServicePort;
 
 import java.util.Set;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * Service port JSON codec.
  */
@@ -39,6 +42,9 @@ public final class ServicePortCodec extends JsonCodec<ServicePort> {
     private static final String FLOATING_ADDRESS_PAIRS = "floating_address_pairs";
     private static final String IP_ADDRESS = "ip_address";
     private static final String MAC_ADDRESS = "mac_address";
+
+    private static final String ERR_JSON = "Invalid ServicePort received";
+    private static final String ERR_ID = ": port ID cannot be null";
 
     @Override
     public ObjectNode encode(ServicePort sport, CodecContext context) {
@@ -61,13 +67,14 @@ public final class ServicePortCodec extends JsonCodec<ServicePort> {
 
     @Override
     public ServicePort decode(ObjectNode json, CodecContext context) {
-        if (json == null || !json.isObject()) {
-            return null;
-        }
+        checkArgument(json != null && json.isObject(), ERR_JSON);
+        checkArgument(json.get(ID) != null &&
+                              json.get(ID) != NullNode.getInstance(),
+                      ERR_JSON + ERR_ID);
 
         PortId portId = PortId.of(json.get(ID).asText());
         VlanId vlanId = null;
-        if (json.get(VLAN_ID) != null) {
+        if (json.get(VLAN_ID) != NullNode.getInstance()) {
             try {
                 vlanId = VlanId.vlanId(json.get(VLAN_ID).asText());
             } catch (Exception ignore) {

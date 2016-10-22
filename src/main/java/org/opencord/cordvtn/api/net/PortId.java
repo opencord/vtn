@@ -15,7 +15,10 @@
  */
 package org.opencord.cordvtn.api.net;
 
+import com.google.common.base.Strings;
 import org.onlab.util.Identifier;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Representation of the port identifier.
@@ -38,6 +41,7 @@ public final class PortId extends Identifier<String> {
      * @return port identifier
      */
     public static PortId of(String id) {
+        checkArgument(!Strings.isNullOrEmpty(id));
         return new PortId(id);
     }
 }
