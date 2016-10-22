@@ -248,4 +248,17 @@ public class CordVtnConfig extends Config<ApplicationId> {
                              getConfig(jsonNode, USER),
                              getConfig(jsonNode, PASSWORD));
     }
+
+    /**
+     * Returns OpenStack API endpoint and credential configuration.
+     *
+     * @return openstack api configuration
+     */
+    public OpenStackConfig openStackConfig() {
+        JsonNode jsonNode = object.get(OPENSTACK);
+        return new OpenStackConfig(jsonNode.path(ENDPOINT).asText(),
+                                   jsonNode.path(TENANT).asText(),
+                                   jsonNode.path(USER).asText(),
+                                   jsonNode.path(PASSWORD).asText());
+    }
 }
