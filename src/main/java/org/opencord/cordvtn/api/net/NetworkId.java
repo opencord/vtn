@@ -15,7 +15,10 @@
  */
 package org.opencord.cordvtn.api.net;
 
+import com.google.common.base.Strings;
 import org.onlab.util.Identifier;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Representation of the network identifier.
@@ -38,6 +41,7 @@ public final class NetworkId extends Identifier<String> {
      * @return network identifier
      */
     public static NetworkId of(String id) {
+        checkArgument(!Strings.isNullOrEmpty(id));
         return new NetworkId(id);
     }
 }

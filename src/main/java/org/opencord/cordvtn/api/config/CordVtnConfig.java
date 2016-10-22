@@ -237,5 +237,15 @@ public class CordVtnConfig extends Config<ApplicationId> {
         return publicGateways;
     }
 
-    // TODO add methods to get XOS and OpenStack API access
+    /**
+     * Returns XOS API endpoint and credential configuration.
+     *
+     * @return xos api configuration
+     */
+    public XosConfig xosConfig() {
+        JsonNode jsonNode = object.get(XOS);
+        return new XosConfig(getConfig(jsonNode, ENDPOINT),
+                             getConfig(jsonNode, USER),
+                             getConfig(jsonNode, PASSWORD));
+    }
 }

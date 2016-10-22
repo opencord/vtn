@@ -13,35 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.api.net;
-
-import com.google.common.base.Strings;
-import org.onlab.util.Identifier;
-
-import static com.google.common.base.Preconditions.checkArgument;
+package org.opencord.cordvtn.api.config;
 
 /**
- * Representation of the port identifier.
+ * Representation of XOS API access configuration.
  */
-public final class PortId extends Identifier<String> {
+public final class XosConfig extends AbstractApiConfig {
 
     /**
      * Default constructor.
      *
-     * @param id string port identifier
+     * @param endpoint api endpoint
+     * @param user     user name
+     * @param password password of the user
      */
-    private PortId(String id) {
-        super(id);
-    }
-
-    /**
-     * Returns the port identifier with the supplied value.
-     *
-     * @param id string port identifier
-     * @return port identifier
-     */
-    public static PortId of(String id) {
-        checkArgument(!Strings.isNullOrEmpty(id));
-        return new PortId(id);
+    public XosConfig(String endpoint, String user, String password) {
+        super(endpoint, user, password);
     }
 }

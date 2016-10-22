@@ -16,6 +16,7 @@
 package org.opencord.cordvtn.codec;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.Sets;
 import org.onosproject.codec.CodecContext;
@@ -28,6 +29,7 @@ import org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType;
 
 import java.util.Set;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static org.opencord.cordvtn.api.dependency.Dependency.Type.BIDIRECTIONAL;
@@ -43,6 +45,10 @@ public final class ServiceNetworkCodec extends JsonCodec<ServiceNetwork> {
     private static final String TYPE = "type";
     private static final String PROVIDER_NETWORKS = "providerNetworks";
     private static final String BIDIRECT = "bidirectional";
+
+    private static final String ERR_JSON = "Invalid ServiceNetwork received";
+    private static final String ERR_ID = ": network ID cannot be null";
+    private static final String ERR_TYPE = ": type cannot be null";
 
     @Override
     public ObjectNode encode(ServiceNetwork snet, CodecContext context) {
@@ -64,9 +70,13 @@ public final class ServiceNetworkCodec extends JsonCodec<ServiceNetwork> {
 
     @Override
     public ServiceNetwork decode(ObjectNode json, CodecContext context) {
-        if (json == null || !json.isObject()) {
-            return null;
-        }
+        checkArgument(json != null && json.isObject(), ERR_JSON);
+        checkArgument(json.get(ID) != null &&
+                              json.get(ID) != NullNode.getInstance(),
+                      ERR_JSON + ERR_ID);
+        checkArgument(json.get(TYPE) != null &&
+                              json.get(TYPE) != NullNode.getInstance(),
+                      ERR_JSON + ERR_TYPE);
 
         NetworkId netId = NetworkId.of(json.get(ID).asText());
         ServiceNetworkType netType = valueOf(json.get(TYPE).asText().toUpperCase());
@@ -79,7 +89,6 @@ public final class ServiceNetworkCodec extends JsonCodec<ServiceNetwork> {
                 providers.add(ProviderNetwork.of(providerId, type));
             });
         }
-
         return new ServiceNetwork(netId, netType, providers);
     }
 }
