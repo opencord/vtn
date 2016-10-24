@@ -23,6 +23,7 @@ import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
 import org.openstack4j.model.network.Port;
 
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.Set;
 
@@ -38,7 +39,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public final class VtnPort extends ServicePort {
 
-    private static final String ERR_IP_MISSING = "VTN port IP adderess is missing";
+    private static final String ERR_IP_MISSING = "VTN port IP address is missing";
 
     private final NetworkId netId;
     private final MacAddress mac;
@@ -55,6 +56,9 @@ public final class VtnPort extends ServicePort {
         this.mac = mac;
         this.ip = ip;
     }
+
+    public static final Comparator<VtnPort> VTN_PORT_COMPARATOR =
+            (port1, port2) -> port1.netId().id().compareTo(port2.netId().id());
 
     /**
      * Returns the network ID of this port.

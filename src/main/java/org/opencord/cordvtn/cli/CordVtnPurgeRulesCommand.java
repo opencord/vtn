@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.opencord.cordvtn.cli;
 
 import org.apache.karaf.shell.commands.Command;
@@ -21,16 +20,15 @@ import org.onosproject.cli.AbstractShellCommand;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
 /**
- * Deletes nodes from the service.
+ * Purges all flow rules installed by CORD VTN service.
  */
-@Command(scope = "onos", name = "cordvtn-flush-rules",
-        description = "Flush flow rules installed by CORD VTN")
-public class CordVtnFlushRules extends AbstractShellCommand {
+@Command(scope = "onos", name = "cordvtn-purge-rules",
+        description = "Purges all flow rules installed by CORD VTN")
+public class CordVtnPurgeRulesCommand extends AbstractShellCommand {
 
     @Override
     protected void execute() {
         CordVtnPipeline pipeline = AbstractShellCommand.get(CordVtnPipeline.class);
         pipeline.flushRules();
-        print("Successfully flushed");
     }
 }
