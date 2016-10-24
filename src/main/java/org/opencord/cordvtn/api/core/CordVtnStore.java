@@ -34,6 +34,11 @@ import java.util.Set;
 public interface CordVtnStore extends Store<VtnNetworkEvent, CordVtnStoreDelegate> {
 
     /**
+     * Purges vtn store.
+     */
+    void clear();
+
+    /**
      * Creates vtn network.
      *
      * @param vtnNet vtn network

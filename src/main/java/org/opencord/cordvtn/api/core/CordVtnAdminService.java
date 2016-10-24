@@ -34,6 +34,16 @@ public interface CordVtnAdminService extends CordVtnService, NetworkService,
         ServiceNetworkService {
 
     /**
+     * Purges internal network states.
+     */
+    void purgeStates();
+
+    /**
+     * Synchronizes internal network states with external services.
+     */
+    void syncStates();
+
+    /**
      * Creates a service port with the given information.
      *
      * @param servicePort the new service port
