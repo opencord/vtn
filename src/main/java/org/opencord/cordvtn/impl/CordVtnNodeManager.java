@@ -289,7 +289,7 @@ public class CordVtnNodeManager {
      */
     public boolean isNodeInitComplete(CordVtnNode node) {
         checkNotNull(node);
-        return getNodeState(node).equals(NodeState.COMPLETE);
+        return isNodeStateComplete(node);
     }
 
     /**
