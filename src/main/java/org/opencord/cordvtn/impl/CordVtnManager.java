@@ -22,10 +22,17 @@ import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.apache.felix.scr.annotations.Service;
+import org.onosproject.core.ApplicationId;
+import org.onosproject.core.CoreService;
 import org.onosproject.event.ListenerRegistry;
 import org.onosproject.net.Host;
 import org.onosproject.net.HostId;
+import org.onosproject.net.config.NetworkConfigService;
 import org.onosproject.net.host.HostService;
+import org.opencord.cordvtn.api.Constants;
+import org.opencord.cordvtn.api.config.CordVtnConfig;
+import org.opencord.cordvtn.api.config.OpenStackConfig;
+import org.opencord.cordvtn.api.config.XosConfig;
 import org.opencord.cordvtn.api.core.CordVtnAdminService;
 import org.opencord.cordvtn.api.core.CordVtnService;
 import org.opencord.cordvtn.api.core.CordVtnStore;
@@ -42,6 +49,8 @@ import org.opencord.cordvtn.api.net.VtnNetwork;
 import org.opencord.cordvtn.api.net.VtnNetworkEvent;
 import org.opencord.cordvtn.api.net.VtnNetworkListener;
 import org.opencord.cordvtn.api.net.VtnPort;
+import org.opencord.cordvtn.impl.external.OpenStackNetworking;
+import org.opencord.cordvtn.impl.external.XosServiceNetworking;
 import org.openstack4j.model.network.Network;
 import org.openstack4j.model.network.Port;
 import org.openstack4j.model.network.Subnet;
@@ -96,15 +105,23 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     private static final String PROVIDER = "provider ";
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected NetworkConfigService configService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CoreService coreService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected HostService hostService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnStore store;
 
-    private CordVtnStoreDelegate delegate = new InternalCordVtnStoreDelegate();
+    private final CordVtnStoreDelegate delegate = new InternalCordVtnStoreDelegate();
+    private ApplicationId appId;
 
     @Activate
     protected void activate() {
+        appId = coreService.registerApplication(Constants.CORDVTN_APP_ID);
         store.setDelegate(delegate);
         log.info("Started");
     }
@@ -113,6 +130,17 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     protected void deactivate() {
         store.unsetDelegate(delegate);
         log.info("Stopped");
+    }
+
+    @Override
+    public void purgeStates() {
+        store.clear();
+    }
+
+    @Override
+    public void syncStates() {
+        syncNetwork();
+        syncServiceNetwork();
     }
 
     @Override
@@ -405,6 +433,44 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     @Override
     public Set<Subnet> subnets() {
         return store.subnets();
+    }
+
+    private void syncNetwork() {
+        CordVtnConfig config = configService.getConfig(appId, CordVtnConfig.class);
+        if (config == null) {
+            final String error = "Failed to read network configurations";
+            throw new IllegalArgumentException(error);
+        }
+
+        OpenStackConfig osConfig = config.openStackConfig();
+        NetworkService netService = OpenStackNetworking.builder()
+                .endpoint(osConfig.endpoint())
+                .tenant(osConfig.tenant())
+                .user(osConfig.user())
+                .password(osConfig.password())
+                .build();
+
+        netService.networks().forEach(this::createNetwork);
+        netService.subnets().forEach(this::createSubnet);
+        netService.ports().forEach(this::createPort);
+    }
+
+    private void syncServiceNetwork() {
+        CordVtnConfig config = configService.getConfig(appId, CordVtnConfig.class);
+        if (config == null) {
+            final String error = "Failed to read network configurations";
+            throw new IllegalArgumentException(error);
+        }
+
+        XosConfig xosConfig = config.xosConfig();
+        ServiceNetworkService snetService = XosServiceNetworking.builder()
+                .endpoint(xosConfig.endpoint())
+                .user(xosConfig.user())
+                .password(xosConfig.password())
+                .build();
+
+        snetService.serviceNetworks().forEach(this::createServiceNetwork);
+        snetService.servicePorts().forEach(this::createServicePort);
     }
 
     private Instance getInstance(PortId portId) {

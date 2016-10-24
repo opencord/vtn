@@ -187,6 +187,17 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
     }
 
     @Override
+    public void clear() {
+        synchronized (this) {
+            vtnNetworkStore.clear();
+            vtnPortStore.clear();
+            networkStore.clear();
+            portStore.clear();
+            subnetStore.clear();
+        }
+    }
+
+    @Override
     public void createVtnNetwork(VtnNetwork vtnNet) {
         vtnNetworkStore.compute(vtnNet.id(), (id, existing) -> {
             final String error = ERR_SYNC + vtnNet.id().id() + ERR_DUPLICATE;
