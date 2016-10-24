@@ -56,10 +56,10 @@ import org.openstack4j.model.network.Port;
 import org.openstack4j.model.network.Subnet;
 import org.slf4j.Logger;
 
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.slf4j.LoggerFactory.getLogger;
@@ -349,8 +349,10 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
 
     @Override
     public Set<VtnNetwork> vtnNetworks() {
-        // TODO implement
-        return ImmutableSet.of();
+        Set<VtnNetwork> vtnNetworks = networks().stream()
+                .map(net -> vtnNetwork(NetworkId.of(net.getId())))
+                .collect(Collectors.toSet());
+        return ImmutableSet.copyOf(vtnNetworks);
     }
 
     @Override
@@ -376,8 +378,10 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
 
     @Override
     public Set<VtnPort> vtnPorts() {
-        // TODO implement
-        return ImmutableSet.of();
+        Set<VtnPort> vtnPorts = ports().stream()
+                .map(port -> vtnPort(PortId.of(port.getId())))
+                .collect(Collectors.toSet());
+        return ImmutableSet.copyOf(vtnPorts);
     }
 
     @Override
@@ -388,7 +392,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
 
     @Override
     public Set<ServiceNetwork> serviceNetworks() {
-        return new HashSet<>(store.vtnNetworks());
+        return ImmutableSet.copyOf(store.vtnNetworks());
     }
 
     @Override
@@ -399,7 +403,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
 
     @Override
     public Set<ServicePort> servicePorts() {
-        return new HashSet<>(store.vtnPorts());
+        return ImmutableSet.copyOf(store.vtnPorts());
     }
 
     @Override
@@ -410,7 +414,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
 
     @Override
     public Set<Network> networks() {
-        return store.networks();
+        return ImmutableSet.copyOf(store.networks());
     }
 
     @Override
@@ -421,7 +425,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
 
     @Override
     public Set<Port> ports() {
-        return store.ports();
+        return ImmutableSet.copyOf(store.ports());
     }
 
     @Override
@@ -432,7 +436,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
 
     @Override
     public Set<Subnet> subnets() {
-        return store.subnets();
+        return ImmutableSet.copyOf(store.subnets());
     }
 
     private void syncNetwork() {
