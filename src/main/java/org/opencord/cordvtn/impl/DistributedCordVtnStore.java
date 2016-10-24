@@ -244,8 +244,10 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
 
     @Override
     public Set<VtnNetwork> vtnNetworks() {
-        return vtnNetworkStore.values().stream().map(Versioned::value)
+        Set<VtnNetwork> vtnNetworks = vtnNetworkStore.values().stream()
+                .map(Versioned::value)
                 .collect(Collectors.toSet());
+        return ImmutableSet.copyOf(vtnNetworks);
     }
 
     @Override
@@ -279,8 +281,10 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
 
     @Override
     public Set<VtnPort> vtnPorts() {
-        return vtnPortStore.values().stream().map(Versioned::value)
+        Set<VtnPort> vtnPorts = vtnPortStore.values().stream()
+                .map(Versioned::value)
                 .collect(Collectors.toSet());
+        return ImmutableSet.copyOf(vtnPorts);
     }
 
     @Override
@@ -314,8 +318,10 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
 
     @Override
     public Set<Network> networks() {
-        return networkStore.values().stream().map(Versioned::value)
+        Set<Network> networks = networkStore.values().stream()
+                .map(Versioned::value)
                 .collect(Collectors.toSet());
+        return ImmutableSet.copyOf(networks);
     }
 
     @Override
@@ -349,8 +355,10 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
 
     @Override
     public Set<Port> ports() {
-        return portStore.values().stream().map(Versioned::value)
+        Set<Port> ports = portStore.values().stream()
+                .map(Versioned::value)
                 .collect(Collectors.toSet());
+        return ImmutableSet.copyOf(ports);
     }
 
     @Override
@@ -384,13 +392,17 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
 
     @Override
     public Set<Subnet> subnets() {
-        return subnetStore.values().stream().map(Versioned::value)
+        Set<Subnet> subnets = subnetStore.values().stream()
+                .map(Versioned::value)
                 .collect(Collectors.toSet());
+        return ImmutableSet.copyOf(subnets);
     }
 
     private Set<VtnNetwork> getSubscribers(NetworkId netId) {
-        return vtnNetworks().stream().filter(net -> net.isProvider(netId))
+        Set<VtnNetwork> subscribers = vtnNetworks().stream()
+                .filter(net -> net.isProvider(netId))
                 .collect(Collectors.toSet());
+        return ImmutableSet.copyOf(subscribers);
     }
 
     private boolean equalNetworks(Network netA, Network netB) {
