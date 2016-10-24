@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.opencord.cordvtn.cli;
 
 import com.jcraft.jsch.Session;
@@ -45,6 +44,11 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
             required = true, multiValued = false)
     private String hostname = null;
 
+    private static final String COMPLETE = "COMPLETE";
+    private static final String INCOMPLETE = "INCOMPLETE";
+    private static final String HINT = "hint: try init again if the state is INCOMPLETE" +
+            " but all settings OK";
+
     @Override
     protected void execute() {
         CordVtnNodeManager nodeManager = AbstractShellCommand.get(CordVtnNodeManager.class);
@@ -60,7 +64,7 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
             print("Cannot find %s from registered nodes", hostname);
             return;
         }
-
+        print("Current state: %s (%s)", getState(nodeManager, node), HINT);
         print("%n[Integration Bridge Status]");
         Device device = deviceService.getDevice(node.integrationBridgeId());
         if (device != null) {
@@ -130,5 +134,9 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
               iface,
               isUp ? Boolean.TRUE : Boolean.FALSE,
               isIp ? Boolean.TRUE : Boolean.FALSE);
+    }
+
+    private String getState(CordVtnNodeManager nodeManager, CordVtnNode node) {
+        return nodeManager.isNodeInitComplete(node) ? COMPLETE : INCOMPLETE;
     }
 }

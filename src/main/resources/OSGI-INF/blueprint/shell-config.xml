@@ -29,7 +29,19 @@
             <action class="org.opencord.cordvtn.cli.CordVtnNodeCheckCommand"/>
         </command>
         <command>
-            <action class="org.opencord.cordvtn.cli.CordVtnFlushRules"/>
+            <action class="org.opencord.cordvtn.cli.CordVtnPurgeRulesCommand"/>
+        </command>
+        <command>
+            <action class="org.opencord.cordvtn.cli.CordVtnPurgeStatesCommand"/>
+        </command>
+        <command>
+            <action class="org.opencord.cordvtn.cli.CordVtnSyncStatesCommand"/>
+        </command>
+        <command>
+            <action class="org.opencord.cordvtn.cli.CordVtnNetworkListCommand"/>
+        </command>
+        <command>
+            <action class="org.opencord.cordvtn.cli.CordVtnPortListCommand"/>
         </command>
     </command-bundle>
 </blueprint>

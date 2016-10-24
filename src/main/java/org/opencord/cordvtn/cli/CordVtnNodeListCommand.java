@@ -13,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.opencord.cordvtn.cli;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
@@ -26,6 +25,8 @@ import org.opencord.cordvtn.api.node.CordVtnNode;
 
 import java.util.Collections;
 import java.util.List;
+
+import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 
 /**
  * Lists all nodes registered to the service.
@@ -36,6 +37,7 @@ public class CordVtnNodeListCommand extends AbstractShellCommand {
 
     private static final String COMPLETE = "COMPLETE";
     private static final String INCOMPLETE = "INCOMPLETE";
+    private static final String FORMAT = "%-30s%-20s%-20s%-15s%-24s%s";
 
     @Override
     protected void execute() {
@@ -44,15 +46,21 @@ public class CordVtnNodeListCommand extends AbstractShellCommand {
         Collections.sort(nodes, CordVtnNode.CORDVTN_NODE_COMPARATOR);
 
         if (outputJson()) {
-            print("%s", json(nodeManager, nodes));
+            try {
+                print("%s", mapper().writeValueAsString(json(nodeManager, nodes)));
+            } catch (JsonProcessingException e) {
+                print("Failed to list networks in JSON format");
+            }
         } else {
+            print(FORMAT, "Hostname", "Management IP", "Data IP", "Data Iface",
+                  "Br-int", "State");
+
             for (CordVtnNode node : nodes) {
-                print("hostname=%s, hostMgmtIp=%s, dataIp=%s, br-int=%s, dataIface=%s, init=%s",
-                      node.hostname(),
+                print(FORMAT, node.hostname(),
                       node.hostMgmtIp().cidr(),
                       node.dataIp().cidr(),
-                      node.integrationBridgeId().toString(),
                       node.dataIface(),
+                      node.integrationBridgeId().toString(),
                       getState(nodeManager, node));
             }
             print("Total %s nodes", nodeManager.getNodeCount());
@@ -60,16 +68,15 @@ public class CordVtnNodeListCommand extends AbstractShellCommand {
     }
 
     private JsonNode json(CordVtnNodeManager nodeManager, List<CordVtnNode> nodes) {
-        ObjectMapper mapper = new ObjectMapper();
-        ArrayNode result = mapper.createArrayNode();
+        ArrayNode result = mapper().enable(INDENT_OUTPUT).createArrayNode();
         for (CordVtnNode node : nodes) {
-            result.add(mapper.createObjectNode()
+            result.add(mapper().createObjectNode()
                                .put("hostname", node.hostname())
-                               .put("hostManagementIp", node.hostMgmtIp().cidr())
-                               .put("dataPlaneIp", node.dataIp().cidr())
+                               .put("managementIp", node.hostMgmtIp().cidr())
+                               .put("dataIp", node.dataIp().cidr())
+                               .put("dataInterface", node.dataIface())
                                .put("bridgeId", node.integrationBridgeId().toString())
-                               .put("dataPlaneInterface", node.dataIface())
-                               .put("init", getState(nodeManager, node)));
+                               .put("state", getState(nodeManager, node)));
         }
         return result;
     }
