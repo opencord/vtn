@@ -304,7 +304,8 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
                 throw new IllegalStateException(error);
             }
 
-            if (getSubnet(NetworkId.of(subnet.getNetworkId())) != null) {
+            Subnet existing = getSubnet(NetworkId.of(subnet.getNetworkId()));
+            if (existing != null && !Objects.equals(existing.getId(), subnet.getId())) {
                 // CORD does not allow multiple subnets for a network
                 final String error = String.format(ERR_SUBNET_DUPLICATE, subnet.getNetworkId());
                 throw new IllegalStateException(error);
