@@ -1,0 +1,12 @@
+{
+  "serviceNetwork": {
+    "id": "B",
+    "type": "private",
+    "providerNetworks": [
+      {
+        "id": "A",
+        "bidirectional": true
+      }
+    ]
+  }
+}
