@@ -22,6 +22,7 @@ import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.apache.felix.scr.annotations.Service;
+import org.onlab.util.Tools;
 import org.onosproject.store.AbstractStore;
 import org.onosproject.store.service.MapEvent;
 import org.onosproject.store.service.MapEventListener;
@@ -46,6 +47,7 @@ import org.opencord.cordvtn.api.net.SubnetId;
 import org.opencord.cordvtn.api.net.VtnNetwork;
 import org.opencord.cordvtn.api.net.VtnNetworkEvent;
 import org.opencord.cordvtn.api.net.VtnPort;
+import org.openstack4j.model.network.IP;
 import org.openstack4j.model.network.IPVersionType;
 import org.openstack4j.model.network.Network;
 import org.openstack4j.model.network.NetworkType;
@@ -62,6 +64,8 @@ import org.openstack4j.openstack.networking.domain.NeutronPort;
 import org.openstack4j.openstack.networking.domain.NeutronSubnet;
 import org.slf4j.Logger;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
@@ -283,7 +287,7 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
     public void createNetwork(Network net) {
         networkStore.compute(NetworkId.of(net.getId()), (id, existing) -> {
             final String error = ERR_SYNC + net.getId() + ERR_DUPLICATE;
-            checkArgument(existing == null || net.equals(existing), error);
+            checkArgument(existing == null || equalNetworks(net, existing), error);
             return net;
         });
     }
@@ -318,7 +322,7 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
     public void createPort(Port port) {
         portStore.compute(PortId.of(port.getId()), (id, existing) -> {
             final String error = ERR_SYNC + port.getId() + ERR_DUPLICATE;
-            checkArgument(existing == null || port.equals(existing), error);
+            checkArgument(existing == null || equalPorts(port, existing), error);
             return port;
         });
     }
@@ -353,7 +357,7 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
     public void createSubnet(Subnet subnet) {
         subnetStore.compute(SubnetId.of(subnet.getId()), (id, existing) -> {
             final String error = ERR_SYNC + subnet.getId() + ERR_DUPLICATE;
-            checkArgument(existing == null || subnet.equals(existing), error);
+            checkArgument(existing == null || equalSubnets(subnet, existing), error);
             return subnet;
         });
     }
@@ -387,6 +391,52 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
     private Set<VtnNetwork> getSubscribers(NetworkId netId) {
         return vtnNetworks().stream().filter(net -> net.isProvider(netId))
                 .collect(Collectors.toSet());
+    }
+
+    private boolean equalNetworks(Network netA, Network netB) {
+        if (netA == netB) {
+            return true;
+        }
+        if (Objects.equals(netA.getId(), netB.getId()) &&
+                Objects.equals(netA.getProviderSegID(), netB.getProviderSegID()) &&
+                Objects.equals(netA.getSubnets(), netB.getSubnets())) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean equalSubnets(Subnet subnetA, Subnet subnetB) {
+        if (subnetA == subnetB) {
+            return true;
+        }
+        if (Objects.equals(subnetA.getId(), subnetB.getId()) &&
+                Objects.equals(subnetA.getNetworkId(), subnetB.getNetworkId()) &&
+                Objects.equals(subnetA.getCidr(), subnetB.getCidr()) &&
+                Objects.equals(subnetA.getGateway(), subnetB.getGateway())) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean equalPorts(Port portA, Port portB) {
+        if (portA == portB) {
+            return true;
+        }
+
+        List<String> portAIps = Tools.stream(portA.getFixedIps())
+                .map(IP::getIpAddress)
+                .collect(Collectors.toList());
+        List<String> portBIps = Tools.stream(portB.getFixedIps())
+                .map(IP::getIpAddress)
+                .collect(Collectors.toList());
+
+        if (Objects.equals(portA.getId(), portB.getId()) &&
+                Objects.equals(portA.getNetworkId(), portB.getNetworkId()) &&
+                Objects.equals(portA.getMacAddress(), portB.getMacAddress()) &&
+                Objects.equals(portAIps, portBIps)) {
+            return true;
+        }
+        return false;
     }
 
     private class VtnNetworkMapListener implements MapEventListener<NetworkId, VtnNetwork> {
