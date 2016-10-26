@@ -39,6 +39,8 @@ class SyncPortAddresses(SyncStep):
         if vtn_service.vtnAPIVersion >= 2:
             logger.info("skipping SyncPortAddresses due to VTN API Version")
             return
+        else:
+            raise Exception("VTN API Version 1 is no longer supported by VTN Synchronizer")
 
         # build up a dictionary of port-->[wan_addrs] mappings
         port_addrs = {}
