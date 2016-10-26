@@ -221,6 +221,7 @@ class SyncVTNService(SyncStep):
         else:
             # default to legacy
             logger.info("Using Old API")
-            self.sync_legacy_vtn_api()
+            raise Exception("VTN API Version 1 is no longer supported by VTN Synchronizer")
+            #self.sync_legacy_vtn_api()
 
 
