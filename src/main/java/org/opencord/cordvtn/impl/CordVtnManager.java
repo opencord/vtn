@@ -311,6 +311,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
                 throw new IllegalStateException(error);
             }
             store.createSubnet(subnet);
+            // FIXME update the network as well with the new subnet
             log.info(String.format(MSG_SUBNET, CREATED, subnet.getId()));
         }
     }
@@ -351,6 +352,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     @Override
     public Set<VtnNetwork> vtnNetworks() {
         Set<VtnNetwork> vtnNetworks = networks().stream()
+                .filter(net -> vtnNetwork(NetworkId.of(net.getId())) != null)
                 .map(net -> vtnNetwork(NetworkId.of(net.getId())))
                 .collect(Collectors.toSet());
         return ImmutableSet.copyOf(vtnNetworks);
@@ -380,6 +382,7 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     @Override
     public Set<VtnPort> vtnPorts() {
         Set<VtnPort> vtnPorts = ports().stream()
+                .filter(port -> vtnPort(PortId.of(port.getId())) != null)
                 .map(port -> vtnPort(PortId.of(port.getId())))
                 .collect(Collectors.toSet());
         return ImmutableSet.copyOf(vtnPorts);
@@ -509,7 +512,6 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     }
 
     private Subnet getSubnet(NetworkId netId) {
-        // TODO fix networking-onos to send Network UPDATE when subnet created
         Optional<Subnet> subnet = subnets().stream()
                 .filter(s -> Objects.equals(s.getNetworkId(), netId.id()))
                 .findFirst();
