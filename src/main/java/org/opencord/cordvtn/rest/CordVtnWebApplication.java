@@ -31,6 +31,7 @@ public class CordVtnWebApplication extends AbstractWebApplication {
                           ServiceDependencyWebResource.class,
                           NeutronMl2NetworksWebResource.class,
                           NeutronMl2SubnetsWebResource.class,
-                          NeutronMl2PortsWebResource.class);
+                          NeutronMl2PortsWebResource.class,
+                          CordVtnWebLoggingFilter.class);
     }
 }
