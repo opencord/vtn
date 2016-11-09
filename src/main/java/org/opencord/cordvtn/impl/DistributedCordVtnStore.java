@@ -409,9 +409,9 @@ public class DistributedCordVtnStore extends AbstractStore<VtnNetworkEvent, Cord
         if (netA == netB) {
             return true;
         }
+        // FIXME compare subnet here when CordVtnManager.createSubnet is fixed
         if (Objects.equals(netA.getId(), netB.getId()) &&
-                Objects.equals(netA.getProviderSegID(), netB.getProviderSegID()) &&
-                Objects.equals(netA.getSubnets(), netB.getSubnets())) {
+                Objects.equals(netA.getProviderSegID(), netB.getProviderSegID())) {
             return true;
         }
         return false;
