@@ -18,12 +18,14 @@ package org.opencord.cordvtn.cli;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.google.common.collect.Lists;
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
 import org.opencord.cordvtn.api.core.CordVtnService;
 import org.opencord.cordvtn.api.net.VtnNetwork;
 
-import java.util.Set;
+import java.util.Collections;
+import java.util.List;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 
@@ -39,7 +41,8 @@ public class CordVtnNetworkListCommand extends AbstractShellCommand {
     @Override
     protected void execute() {
         CordVtnService service = AbstractShellCommand.get(CordVtnService.class);
-        Set<VtnNetwork> networks = service.vtnNetworks();
+        List<VtnNetwork> networks = Lists.newArrayList(service.vtnNetworks());
+        Collections.sort(networks, VtnNetwork.VTN_NETWORK_COMPARATOR);
 
         if (outputJson()) {
             try {
@@ -59,7 +62,7 @@ public class CordVtnNetworkListCommand extends AbstractShellCommand {
         }
     }
 
-    private JsonNode json(Set<VtnNetwork> networks) {
+    private JsonNode json(List<VtnNetwork> networks) {
         ArrayNode result = mapper().enable(INDENT_OUTPUT).createArrayNode();
         for (VtnNetwork net: networks) {
             ArrayNode providers = mapper().createArrayNode();

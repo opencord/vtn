@@ -24,8 +24,6 @@ import org.apache.karaf.shell.commands.Argument;
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
 import org.opencord.cordvtn.api.core.CordVtnService;
-import org.opencord.cordvtn.api.net.NetworkId;
-import org.opencord.cordvtn.api.net.VtnNetwork;
 import org.opencord.cordvtn.api.net.VtnPort;
 
 import java.util.Collections;
@@ -41,7 +39,7 @@ import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
         description = "Lists all VTN ports")
 public class CordVtnPortListCommand extends AbstractShellCommand {
 
-    private static final String FORMAT = "%-40s%-20s%-18s%-6s%s";
+    private static final String FORMAT = "%-40s%-20s%-18s%-8s%s";
 
     @Argument(name = "networkId", description = "Network ID")
     private String networkId = null;
@@ -50,19 +48,10 @@ public class CordVtnPortListCommand extends AbstractShellCommand {
     protected void execute() {
         CordVtnService service = AbstractShellCommand.get(CordVtnService.class);
 
-        List<VtnPort> ports;
-        if (Strings.isNullOrEmpty(networkId)) {
-            ports = Lists.newArrayList(service.vtnPorts());
-        } else {
-            VtnNetwork vtnNet = service.vtnNetwork(NetworkId.of(networkId));
-            if (vtnNet == null) {
-                print("Network %s does not exists", networkId);
-                return;
-            }
-            ports = service.vtnPorts().stream()
-                    .filter(p -> p.netId().equals(NetworkId.of(networkId)))
-                    .collect(Collectors.toList());
-            Collections.sort(ports, VtnPort.VTN_PORT_COMPARATOR);
+        List<VtnPort> ports = Lists.newArrayList(service.vtnPorts());
+        Collections.sort(ports, VtnPort.VTN_PORT_COMPARATOR);
+        if (!Strings.isNullOrEmpty(networkId)) {
+            ports.removeIf(port -> !port.netId().id().equals(networkId));
         }
 
         if (outputJson()) {
@@ -72,7 +61,7 @@ public class CordVtnPortListCommand extends AbstractShellCommand {
                 print("Failed to list networks in JSON format");
             }
         } else {
-            print(FORMAT, "ID", "MAC", "IP", "VLAN", "Additional IPs");
+            print(FORMAT, "ID", "MAC", "IP", "VLAN", "WAN IPs");
             for (VtnPort port: ports) {
                 List<String> floatingIps = port.addressPairs().stream()
                         .map(ip -> ip.ip().toString())
