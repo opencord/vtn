@@ -25,6 +25,7 @@ import org.opencord.cordvtn.api.dependency.Dependency;
 import org.openstack4j.model.network.Network;
 import org.openstack4j.model.network.Subnet;
 
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.Set;
 
@@ -59,6 +60,9 @@ public final class VtnNetwork extends ServiceNetwork {
         this.subnet = subnet;
         this.serviceIp = serviceIp;
     }
+
+    public static final Comparator<VtnNetwork> VTN_NETWORK_COMPARATOR =
+            (net1, net2) -> net1.serviceIp().compareTo(net2.serviceIp());
 
     /**
      * Returns the network ID.

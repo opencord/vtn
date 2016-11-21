@@ -58,7 +58,7 @@ public final class VtnPort extends ServicePort {
     }
 
     public static final Comparator<VtnPort> VTN_PORT_COMPARATOR =
-            (port1, port2) -> port1.netId().id().compareTo(port2.netId().id());
+            (port1, port2) -> port1.ip().compareTo(port2.ip());
 
     /**
      * Returns the network ID of this port.
