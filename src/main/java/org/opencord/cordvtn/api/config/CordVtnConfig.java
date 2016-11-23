@@ -18,23 +18,33 @@ package org.opencord.cordvtn.api.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.onlab.osgi.DefaultServiceDirectory;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.TpPort;
+import org.onosproject.cluster.ClusterService;
 import org.onosproject.core.ApplicationId;
+import org.onosproject.net.behaviour.ControllerInfo;
 import org.onosproject.net.config.Config;
+import org.onosproject.net.config.InvalidFieldException;
 import org.opencord.cordvtn.api.node.CordVtnNode;
 import org.opencord.cordvtn.api.node.NetworkAddress;
 import org.opencord.cordvtn.api.node.SshAccessInfo;
 import org.slf4j.Logger;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.onosproject.net.config.Config.FieldPresence.MANDATORY;
 import static org.onosproject.net.config.Config.FieldPresence.OPTIONAL;
+import static org.opencord.cordvtn.api.Constants.DEFAULT_OF_PORT;
+import static org.opencord.cordvtn.api.Constants.DEFAULT_OF_PROTOCOL;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -66,13 +76,18 @@ public class CordVtnConfig extends Config<ApplicationId> {
 
     private static final String OPENSTACK = "openstack";
     private static final String XOS = "xos";
-
     private static final String ENDPOINT = "endpoint";
     private static final String TENANT = "tenant";
     private static final String USER = "user";
     private static final String PASSWORD = "password";
 
-    // TODO implement isValid
+    private static final String CONTROLLERS = "controllers";
+    private static final int INDEX_IP = 0;
+    private static final int INDEX_PORT = 1;
+
+    private final ClusterService clusterService =
+            DefaultServiceDirectory.getService(ClusterService.class);
+
     @Override
     public boolean isValid() {
         // check only allowed fields are present
@@ -84,7 +99,8 @@ public class CordVtnConfig extends Config<ApplicationId> {
                 SSH,
                 OPENSTACK,
                 XOS,
-                CORDVTN_NODES);
+                CORDVTN_NODES,
+                CONTROLLERS);
 
         if (object.get(CORDVTN_NODES) == null || object.get(CORDVTN_NODES).size() < 1) {
             final String msg = "No node is present";
@@ -92,20 +108,20 @@ public class CordVtnConfig extends Config<ApplicationId> {
         }
 
         // check all mandatory fields are present and valid
-        result = result && isMacAddress(PRIVATE_GATEWAY_MAC, MANDATORY);
-        result = result && isIpPrefix(LOCAL_MANAGEMENT_IP, MANDATORY);
+        result &= isMacAddress(PRIVATE_GATEWAY_MAC, MANDATORY);
+        result &= isIpPrefix(LOCAL_MANAGEMENT_IP, MANDATORY);
 
         for (JsonNode node : object.get(CORDVTN_NODES)) {
             ObjectNode vtnNode = (ObjectNode) node;
-            result = result && hasFields(
+            result &= hasFields(
                     vtnNode,
                     HOSTNAME,
                     HOST_MANAGEMENT_IP,
                     DATA_IP,
                     DATA_IFACE,
                     INTEGRATION_BRIDGE_ID);
-            result = result && isIpPrefix(vtnNode, HOST_MANAGEMENT_IP, MANDATORY);
-            result = result && isIpPrefix(vtnNode, DATA_IP, MANDATORY);
+            result &= isIpPrefix(vtnNode, HOST_MANAGEMENT_IP, MANDATORY);
+            result &= isIpPrefix(vtnNode, DATA_IP, MANDATORY);
 
             NetworkAddress localMgmt = NetworkAddress.valueOf(get(LOCAL_MANAGEMENT_IP, ""));
             NetworkAddress hostsMgmt = NetworkAddress.valueOf(getConfig(vtnNode, HOST_MANAGEMENT_IP));
@@ -116,40 +132,72 @@ public class CordVtnConfig extends Config<ApplicationId> {
             }
         }
 
-        result = result && hasFields(
+        result &= hasFields(
                 (ObjectNode) object.get(SSH),
                 SSH_PORT,
                 SSH_USER,
                 SSH_KEY_FILE);
-        result = result && isTpPort(
+        result &= isTpPort(
                 (ObjectNode) object.get(SSH),
                 SSH_PORT,
                 MANDATORY);
 
-        result = result && hasFields(
+        result &= hasFields(
                 (ObjectNode) object.get(OPENSTACK),
                 ENDPOINT,
                 TENANT,
                 USER,
                 PASSWORD);
 
-        result = result && hasFields(
+        result &= hasFields(
                 (ObjectNode) object.get(XOS),
                 ENDPOINT,
                 USER,
                 PASSWORD);
 
         // check all optional fields are valid
-        result = result && isTpPort(OVSDB_PORT, OPTIONAL);
+        result &= isTpPort(OVSDB_PORT, OPTIONAL);
 
         if (object.get(PUBLIC_GATEWAYS) != null && object.get(PUBLIC_GATEWAYS).isArray()) {
             for (JsonNode node : object.get(PUBLIC_GATEWAYS)) {
                 ObjectNode gateway = (ObjectNode) node;
-                result = result && isIpAddress(gateway, GATEWAY_IP, MANDATORY);
-                result = result && isMacAddress(gateway, GATEWAY_MAC, MANDATORY);
+                result &= isIpAddress(gateway, GATEWAY_IP, MANDATORY);
+                result &= isMacAddress(gateway, GATEWAY_MAC, MANDATORY);
+            }
+        }
+
+        if (object.get(CONTROLLERS) != null) {
+            for (JsonNode jsonNode : object.get(CONTROLLERS)) {
+                result &= isController(jsonNode);
             }
         }
         return result;
+    }
+
+    private boolean isController(JsonNode jsonNode) {
+        String[] ctrl = jsonNode.asText().split(":");
+        final String error = "Malformed controller string " + jsonNode.asText() +
+                ". Controller only takes a list of 'IP:port', 'IP', " +
+                "or just one ':port'.";
+        try {
+            if (ctrl.length == 1) {
+                IpAddress.valueOf(ctrl[INDEX_IP]);
+                return true;
+            }
+            if (ctrl.length == 2 && ctrl[INDEX_IP].isEmpty() &&
+                    object.get(CONTROLLERS).size() == 1) {
+                TpPort.tpPort(Integer.valueOf(ctrl[INDEX_PORT]));
+                return true;
+            }
+            if (ctrl.length == 2 && !ctrl[INDEX_IP].isEmpty()) {
+                IpAddress.valueOf(ctrl[INDEX_IP]);
+                TpPort.tpPort(Integer.valueOf(ctrl[INDEX_PORT]));
+                return true;
+            }
+            throw new InvalidFieldException(CONTROLLERS, error);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidFieldException(CONTROLLERS, error);
+        }
     }
 
     /**
@@ -260,5 +308,51 @@ public class CordVtnConfig extends Config<ApplicationId> {
                                    jsonNode.path(TENANT).asText(),
                                    jsonNode.path(USER).asText(),
                                    jsonNode.path(PASSWORD).asText());
+    }
+
+    /**
+     * Returns controllers for the integration bridge.
+     * It returns the information taken from cluster service with the default OF
+     * port if no controller is specified in the network config.
+     *
+     * @return list of controller information
+     */
+    public List<ControllerInfo> controllers() {
+        List<ControllerInfo> ctrls = Lists.newArrayList();
+        JsonNode ctrlNodes = object.get(CONTROLLERS);
+
+        if (ctrlNodes == null || isCtrlPortOnly()) {
+            ctrls = clusterService.getNodes().stream()
+                    .map(ctrl -> new ControllerInfo(
+                            ctrl.ip(),
+                            ctrlNodes == null ? DEFAULT_OF_PORT : getCtrlPort(),
+                            DEFAULT_OF_PROTOCOL))
+                    .collect(Collectors.toList());
+        } else {
+            for (JsonNode ctrlNode : ctrlNodes) {
+                String[] ctrl = ctrlNode.asText().split(":");
+                ctrls.add(new ControllerInfo(
+                        IpAddress.valueOf(ctrl[INDEX_IP]),
+                        ctrl.length == 1 ? DEFAULT_OF_PORT :
+                                Integer.parseInt(ctrl[INDEX_PORT]),
+                        DEFAULT_OF_PROTOCOL));
+            }
+        }
+        return ImmutableList.copyOf(ctrls);
+    }
+
+    private boolean isCtrlPortOnly() {
+        if (object.get(CONTROLLERS).size() != 1) {
+            return false;
+        }
+        JsonNode jsonNode = object.get(CONTROLLERS).get(0);
+        String[] ctrl = jsonNode.asText().split(":");
+        return ctrl.length == 2 && ctrl[INDEX_IP].isEmpty();
+    }
+
+    private int getCtrlPort() {
+        JsonNode jsonNode = object.get(CONTROLLERS).get(0);
+        String[] ctrl = jsonNode.asText().split(":");
+        return Integer.parseInt(ctrl[INDEX_PORT]);
     }
 }
