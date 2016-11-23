@@ -197,11 +197,11 @@ class VTNViewSet(XOSViewSet):
     def get_networks(self, request):
         result=[]
         for network in Network.objects.all():
-            result.append(VTNNetworkSerializer(VTNNetwork(network)).data)
+            if network.id is not None:
+                result.append(VTNNetworkSerializer(VTNNetwork(network)).data)
         return Response({"networks": result})
 
     def get_network(self, request, network_id=None):
-        #network = Network.objects.filter(network_id = network_id)
         network = [x for x in Network.objects.all() if VTNNetwork(x).id == network_id]
         if network:
             network=network[0]
@@ -212,11 +212,11 @@ class VTNViewSet(XOSViewSet):
     def get_service_networks(self, request):
         result=[]
         for network in Network.objects.all():
-            result.append(VTNServiceNetworkSerializer(VTNNetwork(network)).data)
+            if network.id is not None:
+                result.append(VTNServiceNetworkSerializer(VTNNetwork(network)).data)
         return Response({"serviceNetworks": result})
 
     def get_service_network(self, request, network_id=None):
-        #network = Network.objects.filter(network_id = network_id)
         network = [x for x in Network.objects.all() if VTNNetwork(x).id == network_id]
         if network:
             network=network[0]
