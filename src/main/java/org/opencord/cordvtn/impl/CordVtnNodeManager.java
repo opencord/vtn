@@ -16,6 +16,7 @@
 package org.opencord.cordvtn.impl;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 import com.jcraft.jsch.Session;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
@@ -170,6 +171,7 @@ public class CordVtnNodeManager {
     private final BridgeHandler bridgeHandler = new BridgeHandler();
 
     private ConsistentMap<String, CordVtnNode> nodeStore;
+    private List<ControllerInfo> controllers = Lists.newArrayList();
     private ApplicationId appId;
     private NodeId localNodeId;
 
@@ -226,10 +228,9 @@ public class CordVtnNodeManager {
     @Activate
     protected void activate() {
         appId = coreService.registerApplication(CORDVTN_APP_ID);
-
-        configRegistry.registerConfigFactory(configFactory);
-        localNodeId = clusterService.getLocalNode().id();
         leadershipService.runForLeadership(appId.name());
+        localNodeId = clusterService.getLocalNode().id();
+        configRegistry.registerConfigFactory(configFactory);
 
         nodeStore = storageService.<String, CordVtnNode>consistentMapBuilder()
                 .withSerializer(Serializer.using(NODE_SERIALIZER.build()))
@@ -241,6 +242,8 @@ public class CordVtnNodeManager {
         deviceService.addListener(deviceListener);
         configService.addListener(configListener);
 
+        // TODO read nodes as well after more tests
+        readControllers();
         log.info("Started");
     }
 
@@ -329,7 +332,7 @@ public class CordVtnNodeManager {
     public PortNumber dataPort(DeviceId deviceId) {
         CordVtnNode node = nodeByBridgeId(deviceId);
         if (node == null) {
-            log.warn("Failed to get node for {}", deviceId);
+            log.debug("Failed to get node for {}", deviceId);
             return null;
         }
 
@@ -346,7 +349,7 @@ public class CordVtnNodeManager {
     public IpAddress dataIp(DeviceId deviceId) {
         CordVtnNode node = nodeByBridgeId(deviceId);
         if (node == null) {
-            log.warn("Failed to get node for {}", deviceId);
+            log.debug("Failed to get node for {}", deviceId);
             return null;
         }
         return node.dataIp().ip();
@@ -372,7 +375,7 @@ public class CordVtnNodeManager {
     public PortNumber hostManagementPort(DeviceId deviceId) {
         CordVtnNode node = nodeByBridgeId(deviceId);
         if (node == null) {
-            log.warn("Failed to get node for {}", deviceId);
+            log.debug("Failed to get node for {}", deviceId);
             return null;
         }
 
@@ -539,10 +542,6 @@ public class CordVtnNodeManager {
             log.error("Failed to create integration bridge on {}", node.ovsdbId());
             return;
         }
-
-        List<ControllerInfo> controllers = clusterService.getNodes().stream()
-                .map(controller -> new ControllerInfo(controller.ip(), OF_PORT, "tcp"))
-                .collect(Collectors.toList());
 
         String dpid = node.integrationBridgeId().toString().substring(DPID_BEGIN);
         BridgeDescription bridgeDesc = DefaultBridgeDescription.builder()
@@ -844,7 +843,13 @@ public class CordVtnNodeManager {
     /**
      * Reads cordvtn nodes from config file.
      */
-    private void readConfiguration() {
+    private void readNodes() {
+        NodeId leaderNodeId = leadershipService.getLeader(appId.name());
+        if (!Objects.equals(localNodeId, leaderNodeId)) {
+            // do not allow to proceed without leadership
+            return;
+        }
+
         CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
             log.debug("No configuration found");
@@ -853,16 +858,22 @@ public class CordVtnNodeManager {
         config.cordVtnNodes().forEach(this::addOrUpdateNode);
     }
 
+    private void readControllers() {
+        CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
+        if (config == null) {
+            log.debug("No configuration found");
+            return;
+        }
+        controllers = config.controllers();
+        controllers.stream().forEach(ctrl -> {
+            log.debug("Added controller {}:{}", ctrl.ip(), ctrl.port());
+        });
+    }
+
     private class InternalConfigListener implements NetworkConfigListener {
 
         @Override
         public void event(NetworkConfigEvent event) {
-            NodeId leaderNodeId = leadershipService.getLeader(appId.name());
-            if (!Objects.equals(localNodeId, leaderNodeId)) {
-                // do not allow to proceed without leadership
-                return;
-            }
-
             if (!event.configClass().equals(CordVtnConfig.class)) {
                 return;
             }
@@ -870,7 +881,10 @@ public class CordVtnNodeManager {
             switch (event.type()) {
                 case CONFIG_ADDED:
                 case CONFIG_UPDATED:
-                    eventExecutor.execute(CordVtnNodeManager.this::readConfiguration);
+                    eventExecutor.execute(() -> {
+                        readControllers();
+                        readNodes();
+                    });
                     break;
                 default:
                     break;

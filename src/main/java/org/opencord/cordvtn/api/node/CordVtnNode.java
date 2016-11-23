@@ -28,8 +28,8 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.opencord.cordvtn.api.Constants.DEFAULT_OVSDB_PORT;
 import static org.opencord.cordvtn.api.Constants.DEFAULT_TUNNEL;
-import static org.opencord.cordvtn.api.Constants.OVSDB_PORT;
 
 /**
  * Representation of a compute infrastructure node for CORD VTN service.
@@ -149,7 +149,7 @@ public final class CordVtnNode {
         if (this.ovsdbPort.isPresent()) {
             return this.ovsdbPort.get();
         } else {
-            return OVSDB_PORT;
+            return TpPort.tpPort(DEFAULT_OVSDB_PORT);
         }
     }
 
@@ -289,7 +289,8 @@ public final class CordVtnNode {
         private NetworkAddress hostMgmtIp;
         private NetworkAddress localMgmtIp;
         private NetworkAddress dataIp;
-        private Optional<TpPort> ovsdbPort = Optional.of(OVSDB_PORT);
+        private Optional<TpPort> ovsdbPort =
+                Optional.of(TpPort.tpPort(DEFAULT_OVSDB_PORT));
         private SshAccessInfo sshInfo;
         private DeviceId integrationBridgeId;
         private String dataIface;
