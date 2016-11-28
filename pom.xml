@@ -42,7 +42,6 @@
         <onos.app.requires>
             org.onosproject.ovsdb-base,
             org.onosproject.drivers.ovsdb,
-            org.onosproject.dhcp,
             org.opencord.config
         </onos.app.requires>
         <web.context>/onos/cordvtn</web.context>
@@ -110,11 +109,6 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-annotations</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.onosproject</groupId>
-            <artifactId>onos-apps-dhcp-api</artifactId>
-            <version>${onos.version}</version>
         </dependency>
         <dependency>
             <groupId>org.opencord</groupId>
