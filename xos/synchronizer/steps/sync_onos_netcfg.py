@@ -58,6 +58,7 @@ class SyncONOSNetcfg(SyncStep):
         xosEndpoint = vtn.xosEndpoint
         xosUser = vtn.xosUser
         xosPassword = vtn.xosPassword
+        controllerPort = vtn.controllerPort
 
         data = {
             "apps" : {
@@ -78,6 +79,7 @@ class SyncONOSNetcfg(SyncStep):
                         },
                         "publicGateways": [],
                         "nodes" : []
+                        "controllers": [":%s" % controllerPort],
                     }
                 }
             }
