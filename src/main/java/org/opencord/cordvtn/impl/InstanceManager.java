@@ -22,20 +22,12 @@ import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.apache.felix.scr.annotations.Service;
-import org.onlab.packet.Ip4Address;
-import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
 import org.onosproject.cluster.ClusterService;
 import org.onosproject.cluster.LeadershipService;
 import org.onosproject.cluster.NodeId;
-import org.opencord.cordconfig.CordConfigService;
-import org.opencord.cordconfig.access.AccessAgentData;
-import org.opencord.cordvtn.api.core.CordVtnService;
-import org.opencord.cordvtn.api.instance.Instance;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
-import org.onosproject.dhcp.DhcpService;
-import org.onosproject.dhcp.IpAssignment;
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.Host;
@@ -51,6 +43,10 @@ import org.onosproject.net.host.HostProviderService;
 import org.onosproject.net.host.HostService;
 import org.onosproject.net.provider.AbstractProvider;
 import org.onosproject.net.provider.ProviderId;
+import org.opencord.cordconfig.CordConfigService;
+import org.opencord.cordconfig.access.AccessAgentData;
+import org.opencord.cordvtn.api.core.CordVtnService;
+import org.opencord.cordvtn.api.instance.Instance;
 import org.opencord.cordvtn.api.instance.InstanceService;
 import org.opencord.cordvtn.api.net.PortId;
 import org.opencord.cordvtn.api.net.VtnNetwork;
@@ -59,19 +55,16 @@ import org.opencord.cordvtn.api.net.VtnNetworkListener;
 import org.opencord.cordvtn.api.net.VtnPort;
 import org.slf4j.Logger;
 
-import java.util.Date;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
-import static org.onosproject.dhcp.IpAssignment.AssignmentStatus.Option_RangeNotEnforced;
 import static org.onosproject.net.AnnotationKeys.PORT_NAME;
-import static org.opencord.cordvtn.api.Constants.*;
+import static org.opencord.cordvtn.api.Constants.CORDVTN_APP_ID;
+import static org.opencord.cordvtn.api.Constants.NOT_APPLICABLE;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.ACCESS_AGENT;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.MANAGEMENT_HOST;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.MANAGEMENT_LOCAL;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -103,9 +96,6 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected ClusterService clusterService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected DhcpService dhcpService;
 
     // TODO get access agent container information from XOS
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
@@ -186,9 +176,6 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
             return;
         }
 
-        // register DHCP lease for the new instance
-        registerDhcpLease(vtnPort.mac(), vtnPort.ip().getIp4Address(), vtnNet);
-
         // Added CREATE_TIME intentionally to trigger HOST_UPDATED event for the
         // existing instances.
         DefaultAnnotations.Builder annotations = DefaultAnnotations.builder()
@@ -229,7 +216,6 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     public void removeInstance(ConnectPoint connectPoint) {
         hostService.getConnectedHosts(connectPoint).stream()
                 .forEach(host -> {
-                    dhcpService.removeStaticMapping(host.mac());
                     hostProvider.hostVanished(host.id());
                 });
     }
@@ -237,28 +223,6 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     @Override
     public void removeNestedInstance(HostId hostId) {
         hostProvider.hostVanished(hostId);
-    }
-
-    private void registerDhcpLease(MacAddress macAddr, Ip4Address ipAddr, VtnNetwork vtnNet) {
-        Ip4Address broadcast = Ip4Address.makeMaskedAddress(
-                ipAddr,
-                vtnNet.subnet().prefixLength());
-
-        IpAssignment.Builder ipBuilder = IpAssignment.builder()
-                .ipAddress(ipAddr)
-                .leasePeriod(DHCP_INFINITE_LEASE)
-                .timestamp(new Date())
-                .subnetMask(Ip4Address.makeMaskPrefix(vtnNet.subnet().prefixLength()))
-                .broadcast(broadcast)
-                .domainServer(DEFAULT_DNS)
-                .assignmentStatus(Option_RangeNotEnforced);
-
-        if (vtnNet.type() != MANAGEMENT_HOST && vtnNet.type() != MANAGEMENT_LOCAL) {
-            ipBuilder = ipBuilder.routerAddress(vtnNet.serviceIp().getIp4Address());
-        }
-
-        log.debug("Set static DHCP mapping for {} {}", macAddr, ipAddr);
-        dhcpService.setStaticMapping(macAddr, ipBuilder.build());
     }
 
     // TODO remove this when XOS provides access agent information
