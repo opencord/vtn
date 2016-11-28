@@ -40,6 +40,7 @@ class VTNService(Service):
                           ("xosUser", "padmin@vicci.org"),
                           ("xosPassword", "letmein"),
                           ("vtnAPIVersion", 1),
+                          ("controllerPort", "6653"),
 
                          )
 
