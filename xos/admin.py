@@ -31,6 +31,7 @@ class VTNServiceForm(forms.ModelForm):
     xosUser = forms.CharField(required=False)
     xosPassword = forms.CharField(required=False)
     vtnAPIVersion = forms.IntegerField(required=False)
+    controllerPort = forms.CharField(required=False)
 
     def __init__(self,*args,**kwargs):
         super (VTNServiceForm,self ).__init__(*args,**kwargs)
@@ -46,6 +47,7 @@ class VTNServiceForm(forms.ModelForm):
             self.fields['xosUser'].initial = self.instance.xosUser
             self.fields['xosPassword'].initial = self.instance.xosPassword
             self.fields['vtnAPIVersion'].initial = self.instance.vtnAPIVersion
+            self.fields['controllerPort'].initial = self.instance.controllerPort
 
     def save(self, commit=True):
         self.instance.privateGatewayMac = self.cleaned_data.get("privateGatewayMac")
@@ -59,6 +61,7 @@ class VTNServiceForm(forms.ModelForm):
         self.instance.xosUser = self.cleaned_data.get("xosUser")
         self.instance.xosPassword = self.cleaned_data.get("xosPassword")
         self.instance.vtnAPIVersion = self.cleaned_data.get("vtnAPIVersion")
+        self.instance.controllerPort = self.cleaned_data.get("controllerPort")
         return super(VTNServiceForm, self).save(commit=commit)
 
     class Meta:
@@ -73,7 +76,7 @@ class VTNServiceAdmin(ReadOnlyAwareAdmin):
     list_display = ("backend_status_icon", "name", "enabled")
     list_display_links = ('backend_status_icon', 'name', )
     fieldsets = [(None, {'fields': ['backend_status_text', 'name','enabled','versionNumber','description',"view_url","icon_url",
-                                    'privateGatewayMac', 'localManagementIp', 'ovsdbPort', 'sshPort', 'sshUser', 'sshKeyFile', 'mgmtSubnetBits', 'xosEndpoint', 'xosUser', 'xosPassword', 'vtnAPIVersion' ], 'classes':['suit-tab suit-tab-general']})]
+                                    'privateGatewayMac', 'localManagementIp', 'ovsdbPort', 'sshPort', 'sshUser', 'sshKeyFile', 'mgmtSubnetBits', 'xosEndpoint', 'xosUser', 'xosPassword', 'vtnAPIVersion', 'controllerPort' ], 'classes':['suit-tab suit-tab-general']})]
     readonly_fields = ('backend_status_text', )
     inlines = [SliceInline,ServiceAttrAsTabInline,ServicePrivilegeInline]
 

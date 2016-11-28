@@ -59,6 +59,13 @@ class SyncONOSNetcfg(SyncStep):
         xosUser = vtn.xosUser
         xosPassword = vtn.xosPassword
 
+        controllerPort = vtn.controllerPort
+        if ":" in controllerPort:
+            (c_hostname, c_port) = controllerPort.split(":",1)
+            controllerPort = socket.gethostbyname(c_hostname) + ":" + c_port
+        else:
+            controllerPort = ":" + controllerPort
+
         data = {
             "apps" : {
                 "org.opencord.vtn" : {
@@ -77,7 +84,8 @@ class SyncONOSNetcfg(SyncStep):
                             "password": xosPassword
                         },
                         "publicGateways": [],
-                        "nodes" : []
+                        "nodes" : [],
+                        "controllers": [controllerPort]
                     }
                 }
             }
