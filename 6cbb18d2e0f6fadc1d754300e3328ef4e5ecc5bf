@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1a014df3_ac5818fb",
+        "filename": "src/main/java/org/opencord/cordvtn/api/config/CordVtnConfig.java",
+        "patchSetId": 2
+      },
+      "lineNbr": 111,
+      "author": {
+        "id": 1000004
+      },
+      "writtenOn": "2016-11-29T19:21:46Z",
+      "side": 1,
+      "message": "This is a bitwise and and not a logical and. It will not make a difference on a boolean value but you should keep that in mind if result becomes something different.",
+      "range": {
+        "startLine": 111,
+        "startChar": 15,
+        "endLine": 111,
+        "endChar": 17
+      },
+      "revId": "6cbb18d2e0f6fadc1d754300e3328ef4e5ecc5bf",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
+      "unresolved": false
+    }
+  ]
+}
