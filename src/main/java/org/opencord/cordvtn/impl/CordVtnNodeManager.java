@@ -29,36 +29,26 @@ import org.onlab.util.KryoNamespace;
 import org.onosproject.cluster.ClusterService;
 import org.onosproject.cluster.LeadershipService;
 import org.onosproject.cluster.NodeId;
-import org.onosproject.net.AnnotationKeys;
-import org.onosproject.net.behaviour.BridgeDescription;
-import org.onosproject.net.behaviour.DefaultBridgeDescription;
-import org.onosproject.net.behaviour.InterfaceConfig;
-import org.onosproject.net.behaviour.TunnelEndPoints;
-import org.onosproject.net.behaviour.TunnelKeys;
-import org.onosproject.net.config.ConfigFactory;
-import org.onosproject.net.config.basics.SubjectFactories;
-import org.opencord.cordvtn.api.node.ConnectionHandler;
-import org.opencord.cordvtn.api.config.CordVtnConfig;
-import org.opencord.cordvtn.api.node.CordVtnNode;
-import org.opencord.cordvtn.api.node.CordVtnNodeState;
-import org.opencord.cordvtn.api.instance.InstanceService;
-import org.opencord.cordvtn.api.node.NetworkAddress;
-import org.opencord.cordvtn.api.node.SshAccessInfo;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
+import org.onosproject.net.AnnotationKeys;
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Port;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.behaviour.BridgeConfig;
+import org.onosproject.net.behaviour.BridgeDescription;
 import org.onosproject.net.behaviour.BridgeName;
 import org.onosproject.net.behaviour.ControllerInfo;
+import org.onosproject.net.behaviour.DefaultBridgeDescription;
 import org.onosproject.net.behaviour.DefaultTunnelDescription;
+import org.onosproject.net.behaviour.InterfaceConfig;
 import org.onosproject.net.behaviour.TunnelDescription;
+import org.onosproject.net.behaviour.TunnelEndPoints;
+import org.onosproject.net.behaviour.TunnelKeys;
 import org.onosproject.net.config.NetworkConfigEvent;
 import org.onosproject.net.config.NetworkConfigListener;
-import org.onosproject.net.config.NetworkConfigRegistry;
 import org.onosproject.net.config.NetworkConfigService;
 import org.onosproject.net.device.DeviceAdminService;
 import org.onosproject.net.device.DeviceEvent;
@@ -75,6 +65,13 @@ import org.onosproject.store.service.MapEventListener;
 import org.onosproject.store.service.Serializer;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.store.service.Versioned;
+import org.opencord.cordvtn.api.config.CordVtnConfig;
+import org.opencord.cordvtn.api.instance.InstanceService;
+import org.opencord.cordvtn.api.node.ConnectionHandler;
+import org.opencord.cordvtn.api.node.CordVtnNode;
+import org.opencord.cordvtn.api.node.CordVtnNodeState;
+import org.opencord.cordvtn.api.node.NetworkAddress;
+import org.opencord.cordvtn.api.node.SshAccessInfo;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -118,9 +115,6 @@ public class CordVtnNodeManager {
     protected CoreService coreService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected NetworkConfigRegistry configRegistry;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected NetworkConfigService configService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
@@ -149,16 +143,6 @@ public class CordVtnNodeManager {
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnPipeline pipeline;
-
-    private static final Class<CordVtnConfig> CONFIG_CLASS = CordVtnConfig.class;
-    private final ConfigFactory configFactory =
-            new ConfigFactory<ApplicationId, CordVtnConfig>(
-                    SubjectFactories.APP_SUBJECT_FACTORY, CONFIG_CLASS, "cordvtn") {
-                @Override
-                public CordVtnConfig createConfig() {
-                    return new CordVtnConfig();
-                }
-            };
 
     private final ExecutorService eventExecutor =
             newSingleThreadExecutor(groupedThreads("onos/cordvtn-node", "event-handler", log));
@@ -230,7 +214,6 @@ public class CordVtnNodeManager {
         appId = coreService.registerApplication(CORDVTN_APP_ID);
         leadershipService.runForLeadership(appId.name());
         localNodeId = clusterService.getLocalNode().id();
-        configRegistry.registerConfigFactory(configFactory);
 
         nodeStore = storageService.<String, CordVtnNode>consistentMapBuilder()
                 .withSerializer(Serializer.using(NODE_SERIALIZER.build()))
@@ -254,7 +237,6 @@ public class CordVtnNodeManager {
         nodeStore.removeListener(nodeStoreListener);
 
         leadershipService.withdraw(appId.name());
-        configRegistry.unregisterConfigFactory(configFactory);
         eventExecutor.shutdown();
 
         log.info("Stopped");
@@ -850,7 +832,7 @@ public class CordVtnNodeManager {
             return;
         }
 
-        CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
+        CordVtnConfig config = configService.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
             log.debug("No configuration found");
             return;
@@ -859,7 +841,7 @@ public class CordVtnNodeManager {
     }
 
     private void readControllers() {
-        CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
+        CordVtnConfig config = configService.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
             log.debug("No configuration found");
             return;

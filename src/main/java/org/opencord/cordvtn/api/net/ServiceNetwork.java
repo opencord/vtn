@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.opencord.cordvtn.api.dependency.Dependency.Type.BIDIRECTIONAL;
 
 /**
  * Representation of a service network which holds service specific information,
@@ -88,6 +89,19 @@ public class ServiceNetwork {
      */
     public boolean isProvider(NetworkId netId) {
         return providers.stream().filter(p -> Objects.equals(p.id(), netId))
+                .findAny().isPresent();
+    }
+
+    /**
+     * Returns if the given network is the provider of this network with
+     * bidirectional access type.
+     *
+     * @param netId network id
+     * @return true if the given network is a bidrectional provider
+     */
+    public boolean isBidirectionalProvider(NetworkId netId) {
+        return providers.stream().filter(p -> Objects.equals(p.id(), netId))
+                .filter(p -> p.type() == BIDIRECTIONAL)
                 .findAny().isPresent();
     }
 

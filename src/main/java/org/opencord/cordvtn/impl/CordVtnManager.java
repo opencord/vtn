@@ -27,7 +27,10 @@ import org.onosproject.core.CoreService;
 import org.onosproject.event.ListenerRegistry;
 import org.onosproject.net.Host;
 import org.onosproject.net.HostId;
+import org.onosproject.net.config.ConfigFactory;
+import org.onosproject.net.config.NetworkConfigRegistry;
 import org.onosproject.net.config.NetworkConfigService;
+import org.onosproject.net.config.basics.SubjectFactories;
 import org.onosproject.net.host.HostService;
 import org.opencord.cordvtn.api.Constants;
 import org.opencord.cordvtn.api.config.CordVtnConfig;
@@ -108,6 +111,9 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     protected NetworkConfigService configService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected NetworkConfigRegistry configRegistry;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CoreService coreService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
@@ -116,18 +122,31 @@ public class CordVtnManager extends ListenerRegistry<VtnNetworkEvent, VtnNetwork
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnStore store;
 
+    // TODO add cordvtn config service and move this
+    private static final Class<CordVtnConfig> CONFIG_CLASS = CordVtnConfig.class;
+    private final ConfigFactory configFactory =
+            new ConfigFactory<ApplicationId, CordVtnConfig>(
+                    SubjectFactories.APP_SUBJECT_FACTORY, CONFIG_CLASS, "cordvtn") {
+                @Override
+                public CordVtnConfig createConfig() {
+                    return new CordVtnConfig();
+                }
+            };
+
     private final CordVtnStoreDelegate delegate = new InternalCordVtnStoreDelegate();
     private ApplicationId appId;
 
     @Activate
     protected void activate() {
         appId = coreService.registerApplication(Constants.CORDVTN_APP_ID);
+        configRegistry.registerConfigFactory(configFactory);
         store.setDelegate(delegate);
         log.info("Started");
     }
 
     @Deactivate
     protected void deactivate() {
+        configRegistry.unregisterConfigFactory(configFactory);
         store.unsetDelegate(delegate);
         log.info("Stopped");
     }
