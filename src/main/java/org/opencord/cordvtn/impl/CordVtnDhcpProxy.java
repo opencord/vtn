@@ -16,6 +16,7 @@
 package org.opencord.cordvtn.impl;
 
 import com.google.common.collect.Lists;
+import com.google.common.primitives.Bytes;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
@@ -27,6 +28,7 @@ import org.onlab.packet.DHCPPacketType;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.IPv4;
 import org.onlab.packet.Ip4Address;
+import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.TpPort;
 import org.onlab.packet.UDP;
@@ -56,7 +58,11 @@ import org.opencord.cordvtn.api.net.VtnNetwork;
 import org.slf4j.Logger;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.onlab.packet.DHCP.DHCPOptionCode.*;
@@ -76,8 +82,9 @@ public class CordVtnDhcpProxy {
 
     private static final Ip4Address DEFAULT_DNS = Ip4Address.valueOf("8.8.8.8");
     private static final byte PACKET_TTL = (byte) 127;
-    // TODO add MTU option code to ONOS DHCP implementation and remove this
+    // TODO add MTU, static route option codes to ONOS DHCP and remove here
     private static final byte DHCP_OPTION_MTU = (byte) 26;
+    private static final byte DHCP_OPTION_CLASSLESS_STATIC_ROUTE = (byte) 121;
     private static final byte[] DHCP_DATA_LEASE_INFINITE =
             ByteBuffer.allocate(4).putInt(-1).array();
     private static final byte[] DHCP_DATA_MTU_DEFAULT =
@@ -117,12 +124,11 @@ public class CordVtnDhcpProxy {
 
     @Deactivate
     protected void deactivate() {
+        configRegistry.removeListener(configListener);
         packetService.removeProcessor(packetProcessor);
         cancelPackets();
         log.info("Stopped");
     }
-
-    // TODO implement public method forceRenew
 
     private void requestPackets() {
         TrafficSelector selector = DefaultTrafficSelector.builder()
@@ -341,6 +347,7 @@ public class CordVtnDhcpProxy {
             option.setData(broadcast.toOctets());
             options.add(option);
 
+            // domain server
             option = new DHCPOption();
             option.setCode(OptionCode_DomainServer.getValue());
             option.setLength((byte) 4);
@@ -363,7 +370,15 @@ public class CordVtnDhcpProxy {
                 options.add(option);
             }
 
-            // TODO add host route option if network has service dependency
+            // classless static routes
+            byte[] data = getClasslessStaticRoutesData(vtnNet);
+            if (data.length >= 5) {
+                option = new DHCPOption();
+                option.setCode(DHCP_OPTION_CLASSLESS_STATIC_ROUTE);
+                option.setLength((byte) data.length);
+                option.setData(data);
+                options.add(option);
+            }
 
             // end option
             option = new DHCPOption();
@@ -373,6 +388,45 @@ public class CordVtnDhcpProxy {
 
             dhcpReply.setOptions(options);
             return dhcpReply;
+        }
+
+        private byte[] getClasslessStaticRoutesData(VtnNetwork vtnNet) {
+            List<Byte> result = Lists.newArrayList();
+            List<Byte> router = Bytes.asList(vtnNet.serviceIp().toOctets());
+
+            // static routes for the providers
+            Set<VtnNetwork> providers = vtnNet.providers().stream()
+                    .map(provider -> cordVtnService.vtnNetwork(provider.id()))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+
+            providers.stream().forEach(provider -> {
+                result.add((byte) provider.subnet().prefixLength());
+                result.addAll(getSignificantOctets(provider.subnet()));
+                result.addAll(router);
+            });
+
+            // static routes for the bidirectional subscribers
+            Set<VtnNetwork> subscribers = cordVtnService.vtnNetworks().stream()
+                    .filter(net -> net.isBidirectionalProvider(vtnNet.id()))
+                    .collect(Collectors.toSet());
+
+            subscribers.stream().forEach(subscriber -> {
+                result.add((byte) subscriber.subnet().prefixLength());
+                result.addAll(getSignificantOctets(subscriber.subnet()));
+                result.addAll(router);
+            });
+
+            return Bytes.toArray(result);
+        }
+
+        private List<Byte> getSignificantOctets(IpPrefix ipPrefix) {
+            int numOfOctets = ipPrefix.prefixLength() / 8;
+            if (ipPrefix.prefixLength() % 8 != 0) {
+                numOfOctets += 1;
+            }
+            byte[] result = Arrays.copyOfRange(ipPrefix.address().toOctets(), 0, numOfOctets);
+            return Bytes.asList(result);
         }
     }
 
