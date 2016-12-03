@@ -54,18 +54,14 @@ class VTNNetwork(object):
         for tenant in service.subscribed_tenants.all():
             if tenant.provider_service:
                 bidirectional = tenant.connect_method!="private-unidirectional"
-                for slice in tenant.provider_service.slices.all():
-                    for net in slice.networks.all():
-                        if net.template.vtn_kind not in VTN_SERVCOMP_KINDS:
-                            continue
+                for net in tenant.provider_service.get_composable_networks():
+                    if not net.controllernetworks.exists():
+                        continue
 
-                        if not net.controllernetworks.exists():
-                            continue
-
-                        cn = net.controllernetworks.all()[0]
-                        nets.append({"id": cn.net_id,
-                                     "name": net.name,
-                                     "bidirectional": bidirectional})
+                    cn = net.controllernetworks.all()[0]
+                    nets.append({"id": cn.net_id,
+                                 "name": net.name,
+                                 "bidirectional": bidirectional})
         return nets
 
     @property
@@ -79,18 +75,14 @@ class VTNNetwork(object):
         for tenant in service.provided_tenants.all():
             if tenant.subscriber_service:
                 bidirectional = tenant.connect_method!="private-unidirectional"
-                for slice in tenant.subscriber_service.slices.all():
-                    for net in slice.networks.all():
-                        if net.template.vtn_kind not in VTN_SERVCOMP_KINDS:
-                            continue
+                for net in tenant.subscriber_service.get_composable_networks():
+                    if not net.controllernetworks.exists():
+                        continue
 
-                        if not net.controllernetworks.exists():
-                            continue
-
-                        cn = net.controllernetworks.all()[0]
-                        nets.append({"id": cn.net_id,
-                                     "name": net.name,
-                                     "bidirectional": bidirectional})
+                    cn = net.controllernetworks.all()[0]
+                    nets.append({"id": cn.net_id,
+                                 "name": net.name,
+                                 "bidirectional": bidirectional})
         return nets
 
     @property
