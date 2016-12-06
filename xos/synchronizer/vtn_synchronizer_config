@@ -32,6 +32,7 @@ log_file=console
 driver=openstack
 pretend=False
 backoff_disabled=True
+enable_watchers=True
 
 [nova]
 ca_ssl_cert=/etc/ssl/certs/ca-certificates.crt
