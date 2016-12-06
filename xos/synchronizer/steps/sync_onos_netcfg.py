@@ -5,19 +5,27 @@ import sys
 import base64
 import json
 from synchronizers.base.syncstep import SyncStep
-from core.models import Service, Slice, Controller, ControllerSlice, ControllerUser, Node, TenantAttribute, Tag
+from core.models import Service, Slice, Controller, ControllerSlice, ControllerUser, Node, TenantAttribute, Tag, ModelLink, AddressPool
 from services.vtn.models import VTNService
 from xos.logger import Logger, logging
 
 logger = Logger(level=logging.INFO)
 
 class SyncONOSNetcfg(SyncStep):
-    provides=[]
-    observes=None
+    provides=[VTNService]
+    observes=VTNService
+    watches=[ModelLink(Node,via='node'), ModelLink(AddressPool,via='addresspool')]
     requested_interval=0
 
     def __init__(self, **args):
         SyncStep.__init__(self, **args)
+
+    def handle_watched_object(self, o):
+        logger.info("handle_watched_object is invoked for object %s" % (str(o)),extra=o.tologdict())
+        if (type(o) is Node): # For Node add/delete/modify
+            self.call()
+        if (type(o) is AddressPool): # For public gateways
+            self.call()
 
     def get_node_tag(self, node, tagname):
         tags = Tag.select_by_content_object(node).filter(name=tagname)
