@@ -21,8 +21,8 @@
 
     <parent>
         <groupId>org.onosproject</groupId>
-        <artifactId>onos</artifactId>
-        <version>1.7.1</version>
+        <artifactId>onos-dependencies</artifactId>
+        <version>1.8.0</version>
         <relativePath></relativePath>
     </parent>
 
@@ -35,7 +35,7 @@
 
     <properties>
         <onos.app.name>org.opencord.vtn</onos.app.name>
-        <onos.version>1.7.1</onos.version>
+        <onos.version>1.8.0</onos.version>
         <onos.app.title>VTN App</onos.app.title>
         <onos.app.category>Traffic Steering</onos.app.category>
         <onos.app.url>http://opencord.org</onos.app.url>
@@ -55,92 +55,47 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.compendium</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-api</artifactId>
             <version>${onos.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-core-serializers</artifactId>
             <version>${onos.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-protocols-ovsdb-api</artifactId>
             <version>${onos.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-cli</artifactId>
             <version>${onos.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.karaf.shell</groupId>
-            <artifactId>org.apache.karaf.shell.console</artifactId>
-            <version>3.0.5</version>
-        </dependency>
+
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-rest</artifactId>
             <version>${onos.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onlab-rest</artifactId>
             <version>${onos.version}</version>
         </dependency>
-        <dependency>
-            <groupId>javax.ws.rs</groupId>
-            <artifactId>javax.ws.rs-api</artifactId>
-            <version>2.0.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.glassfish.jersey.containers</groupId>
-            <artifactId>jersey-container-servlet</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-annotations</artifactId>
-        </dependency>
+
         <dependency>
             <groupId>org.opencord</groupId>
             <artifactId>cord-config</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.jcraft</groupId>
-            <artifactId>jsch</artifactId>
-            <version>0.1.53</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.felix</groupId>
-            <artifactId>org.apache.felix.scr.annotations</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.pacesys</groupId>
-            <artifactId>openstack4j-core</artifactId>
-            <version>2.11</version>
-        </dependency>
-        <dependency>
-            <groupId>org.pacesys.openstack4j.connectors</groupId>
-            <artifactId>openstack4j-http-connector</artifactId>
-            <version>2.11</version>
-        </dependency>
-        <dependency>
-            <groupId>org.pacesys.openstack4j.connectors</groupId>
-            <artifactId>openstack4j-httpclient</artifactId>
-            <version>2.11</version>
-        </dependency>
 
-        <!-- TODO FIX ONOS ROOT POM to split thirdparty and onos dependencies -->
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onlab-osgi</artifactId>
@@ -164,7 +119,7 @@
             <artifactId>onos-incubator-api</artifactId>
             <version>${onos.version}</version>
         </dependency>
-        
+
         <dependency>
             <groupId>org.onosproject</groupId>
             <artifactId>onos-incubator-net</artifactId>
@@ -182,6 +137,30 @@
             <artifactId>onlab-junit</artifactId>
             <version>${onos.version}</version>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.jcraft</groupId>
+            <artifactId>jsch</artifactId>
+            <version>0.1.53</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.pacesys</groupId>
+            <artifactId>openstack4j-core</artifactId>
+            <version>2.11</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.pacesys.openstack4j.connectors</groupId>
+            <artifactId>openstack4j-http-connector</artifactId>
+            <version>2.11</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.pacesys.openstack4j.connectors</groupId>
+            <artifactId>openstack4j-httpclient</artifactId>
+            <version>2.11</version>
         </dependency>
 
     </dependencies>
@@ -243,4 +222,30 @@
         </plugins>
     </build>
 
+    <repositories>
+        <repository>
+            <id>central</id>
+            <name>Central Repository</name>
+            <url>http://repo.maven.apache.org/maven2</url>
+            <layout>default</layout>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+                <checksumPolicy>fail</checksumPolicy>
+            </releases>
+        </repository>
+
+        <repository>
+            <id>snapshots</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+                <checksumPolicy>fail</checksumPolicy>
+            </snapshots>
+        </repository>
+    </repositories>
 </project>
