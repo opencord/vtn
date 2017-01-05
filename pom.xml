@@ -28,7 +28,7 @@
 
     <groupId>org.opencord</groupId>
     <artifactId>vtn</artifactId>
-    <version>1.1-SNAPSHOT</version>
+    <version>1.1-rc1</version>
     <packaging>bundle</packaging>
 
     <description>Virtual tenant network service for CORD</description>
