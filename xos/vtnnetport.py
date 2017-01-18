@@ -59,6 +59,10 @@ class VTNNetwork(object):
                         continue
 
                     cn = net.controllernetworks.all()[0]
+
+                    if not cn.net_id:
+                        continue
+
                     nets.append({"id": cn.net_id,
                                  "name": net.name,
                                  "bidirectional": bidirectional})
@@ -80,6 +84,10 @@ class VTNNetwork(object):
                         continue
 
                     cn = net.controllernetworks.all()[0]
+
+                    if not cn.net_id:
+                        continue
+
                     nets.append({"id": cn.net_id,
                                  "name": net.name,
                                  "bidirectional": bidirectional})
