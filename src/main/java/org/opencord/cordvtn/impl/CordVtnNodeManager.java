@@ -65,12 +65,12 @@ import org.onosproject.store.service.MapEventListener;
 import org.onosproject.store.service.Serializer;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.store.service.Versioned;
-import org.opencord.cordvtn.api.config.CordVtnConfig;
-import org.opencord.cordvtn.api.instance.InstanceService;
+import org.opencord.cordvtn.api.CordVtnConfig;
+import org.opencord.cordvtn.api.core.InstanceService;
+import org.opencord.cordvtn.api.net.CidrAddr;
 import org.opencord.cordvtn.api.node.ConnectionHandler;
 import org.opencord.cordvtn.api.node.CordVtnNode;
 import org.opencord.cordvtn.api.node.CordVtnNodeState;
-import org.opencord.cordvtn.api.node.NetworkAddress;
 import org.opencord.cordvtn.api.node.SshAccessInfo;
 import org.slf4j.Logger;
 
@@ -107,7 +107,7 @@ public class CordVtnNodeManager {
             .register(CordVtnNode.class)
             .register(NodeState.class)
             .register(SshAccessInfo.class)
-            .register(NetworkAddress.class);
+            .register(CidrAddr.class);
 
     private static final int DPID_BEGIN = 3;
 
@@ -751,6 +751,7 @@ public class CordVtnNodeManager {
             if (node.systemIfaces().contains(portName)) {
                 setNodeState(node, getNodeState(node));
             } else if (isNodeStateComplete(node)) {
+                // TODO move this logic to InstanceManager
                 instanceService.addInstance(connectPoint(port));
             } else {
                 log.warn("Instance is detected on incomplete node, ignore it.", portName);
@@ -777,6 +778,7 @@ public class CordVtnNodeManager {
             if (node.systemIfaces().contains(portName)) {
                 setNodeState(node, NodeState.INCOMPLETE);
             } else if (isNodeStateComplete(node)) {
+                // TODO move this logic to InstanceManager
                 instanceService.removeInstance(connectPoint(port));
             } else {
                 log.warn("VM is vanished from incomplete node, ignore it.", portName);

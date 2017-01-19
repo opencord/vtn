@@ -13,50 +13,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.api.dependency;
+package org.opencord.cordvtn.api.net;
 
 import com.google.common.base.MoreObjects;
-import org.opencord.cordvtn.api.net.VtnNetwork;
+import org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType;
 
 import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Representation of a dependency between two networks, subscriber and provider.
+ * Representation of a provider network between two networks, subscriber and provider.
  */
-public final class Dependency {
+public final class Provider {
 
-    public enum Type {
-        BIDIRECTIONAL,
-        UNIDIRECTIONAL
-    }
+    private final ServiceNetwork provider;
+    private final DependencyType type;
 
-    private final VtnNetwork subscriber;
-    private final VtnNetwork provider;
-    private final Type type;
-
-    private Dependency(VtnNetwork subscriber, VtnNetwork provider, Type type) {
-        this.subscriber = subscriber;
+    private Provider(ServiceNetwork provider, DependencyType type) {
         this.provider = provider;
         this.type = type;
     }
 
     /**
-     * Returns subscriber network.
-     *
-     * @return vtn network
-     */
-    public VtnNetwork subscriber() {
-        return subscriber;
-    }
-
-    /**
      * Returns provider network.
      *
-     * @return vtn network
+     * @return service network
      */
-    public VtnNetwork provider() {
+    public ServiceNetwork provider() {
         return provider;
     }
 
@@ -65,7 +49,7 @@ public final class Dependency {
      *
      * @return type
      */
-    public Type type() {
+    public DependencyType type() {
         return type;
     }
 
@@ -75,10 +59,9 @@ public final class Dependency {
             return true;
         }
 
-        if (obj instanceof Dependency) {
-            Dependency that = (Dependency) obj;
-            if (Objects.equals(subscriber, that.subscriber) &&
-                    Objects.equals(provider, that.provider) &&
+        if (obj instanceof Provider) {
+            Provider that = (Provider) obj;
+            if (Objects.equals(provider, that.provider) &&
                     Objects.equals(type, that.type)) {
                 return true;
             }
@@ -88,80 +71,66 @@ public final class Dependency {
 
     @Override
     public int hashCode() {
-        return Objects.hash(subscriber, provider, type);
+        return Objects.hash(provider, type);
     }
 
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(getClass())
-                .add("subscriber", subscriber.id())
                 .add("provider", provider.id())
                 .add("type", type)
                 .toString();
     }
 
     /**
-     * Returns new dependency builder instance.
+     * Returns new provider network builder instance.
      *
-     * @return dependency
+     * @return provider network
      */
     public static Builder builder() {
         return new Builder();
     }
 
     /**
-     * Builder of the dependency entities.
+     * Builder of the provider network entities.
      */
     public static final class Builder {
-        private VtnNetwork subscriber;
-        private VtnNetwork provider;
-        private Type type;
+        private ServiceNetwork provider;
+        private DependencyType type;
 
         private Builder() {
         }
 
         /**
-         * Builds an immutable dependency.
+         * Builds an immutable provider network.
          *
-         * @return dependency instance
+         * @return provider network instance
          */
-        public Dependency build() {
-            checkNotNull(subscriber);
+        public Provider build() {
             checkNotNull(provider);
             checkNotNull(type);
 
-            return new Dependency(subscriber, provider, type);
+            return new Provider(provider, type);
         }
 
         /**
-         * Returns dependency with the supplied subscriber.
-         *
-         * @param subscriber subscriber network
-         * @return dependency builder
-         */
-        public Builder subscriber(VtnNetwork subscriber) {
-            this.subscriber = subscriber;
-            return this;
-        }
-
-        /**
-         * Returns dependency with the supplied provider.
+         * Returns provider network with the supplied provider.
          *
          * @param provider provider network
-         * @return dependency builder
+         * @return provider network builder
          */
-        public Builder provider(VtnNetwork provider) {
+        public Builder provider(ServiceNetwork provider) {
             this.provider = provider;
             return this;
         }
 
         /**
-         * Returns dependency with the supplied type.
+         * Returns provider network with the supplied type.
          *
          * @param type type
-         * @return dependency builder
+         * @return provider network builder
          */
-        public Builder type(Type type) {
+        public Builder type(DependencyType type) {
             this.type = type;
             return this;
         }

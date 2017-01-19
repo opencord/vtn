@@ -23,7 +23,7 @@ import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 import org.onlab.packet.IpAddress;
-import org.opencord.cordvtn.api.node.NetworkAddress;
+import org.opencord.cordvtn.api.net.CidrAddr;
 import org.opencord.cordvtn.api.node.SshAccessInfo;
 import org.slf4j.Logger;
 
@@ -76,7 +76,7 @@ public final class RemoteIpCommandUtil {
      * @param device device name to assign the ip address
      * @return true if the command succeeds, or false
      */
-    public static boolean addIp(Session session, NetworkAddress ip, String device) {
+    public static boolean addIp(Session session, CidrAddr ip, String device) {
         if (session == null || !session.isConnected()) {
             return false;
         }

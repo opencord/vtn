@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.impl.external;
+package org.opencord.cordvtn.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -26,7 +26,6 @@ import org.onosproject.rest.AbstractWebResource;
 import org.opencord.cordvtn.api.net.NetworkId;
 import org.opencord.cordvtn.api.net.PortId;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
-import org.opencord.cordvtn.api.net.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.ServicePort;
 import org.slf4j.Logger;
 
@@ -45,10 +44,9 @@ import static java.net.HttpURLConnection.HTTP_OK;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
- * Implementation of {@link ServiceNetworkService} with XOS VTN service.
+ * Implementation of REST client for XOS VTN networking service.
  */
-public final class XosServiceNetworking extends AbstractWebResource
-        implements ServiceNetworkService {
+public final class XosVtnNetworkingClient extends AbstractWebResource {
 
     protected final Logger log = getLogger(getClass());
 
@@ -72,7 +70,7 @@ public final class XosServiceNetworking extends AbstractWebResource
     private final String password;
     private final Client client = ClientBuilder.newClient();
 
-    private XosServiceNetworking(String endpoint, String user, String password) {
+    private XosVtnNetworkingClient(String endpoint, String user, String password) {
         this.endpoint = endpoint;
         this.user = user;
         this.password = password;
@@ -82,7 +80,6 @@ public final class XosServiceNetworking extends AbstractWebResource
         mapper().enable(SerializationFeature.INDENT_OUTPUT);
     }
 
-    @Override
     public Set<ServiceNetwork> serviceNetworks() {
         String response = restGet(URL_SERVICE_NETWORKS);
         final String error = String.format(ERR_LOG, SERVICE_NETWORKS, response);
@@ -101,7 +98,6 @@ public final class XosServiceNetworking extends AbstractWebResource
         }
     }
 
-    @Override
     public ServiceNetwork serviceNetwork(NetworkId netId) {
         String response = restGet(URL_SERVICE_NETWORKS + netId.id());
         final String error = String.format(ERR_LOG, SERVICE_NETWORK, response);
@@ -118,7 +114,6 @@ public final class XosServiceNetworking extends AbstractWebResource
         }
     }
 
-    @Override
     public Set<ServicePort> servicePorts() {
         String response = restGet(URL_SERVICE_PORTS);
         final String error = String.format(ERR_LOG, SERVICE_PORTS, response);
@@ -137,7 +132,6 @@ public final class XosServiceNetworking extends AbstractWebResource
         }
     }
 
-    @Override
     public ServicePort servicePort(PortId portId) {
         String response = restGet(URL_SERVICE_PORTS + portId.id());
         final String error = String.format(ERR_LOG, SERVICE_PORT, response);
@@ -222,13 +216,13 @@ public final class XosServiceNetworking extends AbstractWebResource
          *
          * @return xos service networking instance
          */
-        public XosServiceNetworking build() {
+        public XosVtnNetworkingClient build() {
             checkArgument(!Strings.isNullOrEmpty(endpoint));
             checkArgument(!Strings.isNullOrEmpty(user));
             checkArgument(!Strings.isNullOrEmpty(password));
 
             // TODO perform authentication when XOS provides it
-            return new XosServiceNetworking(endpoint, user, password);
+            return new XosVtnNetworkingClient(endpoint, user, password);
         }
 
         /**

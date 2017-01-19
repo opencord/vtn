@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.api.node;
+package org.opencord.cordvtn.api.net;
 
 import com.google.common.base.MoreObjects;
 import org.onlab.packet.IpAddress;
@@ -24,19 +24,19 @@ import java.util.Objects;
 import static com.google.common.base.Preconditions.checkArgument;
 
 /**
- * Representation of a network address, which consists of IP address and prefix.
+ * Representation of a network address with CIDR notation.
  */
-public final class NetworkAddress {
+public final class CidrAddr {
     private final IpAddress ip;
     private final IpPrefix prefix;
 
     /**
      * Constructor for a given IP address and prefix.
      *
-     * @param ip ip address
+     * @param ip     ip address
      * @param prefix ip prefix
      */
-    public NetworkAddress(IpAddress ip, IpPrefix prefix) {
+    public CidrAddr(IpAddress ip, IpPrefix prefix) {
         this.ip = ip;
         this.prefix = prefix;
     }
@@ -48,13 +48,13 @@ public final class NetworkAddress {
      * @return network address
      * @throws IllegalArgumentException if the cidr is not valid
      */
-    public static NetworkAddress valueOf(String cidr) {
+    public static CidrAddr valueOf(String cidr) {
         checkArgument(cidr.contains("/"));
 
         IpAddress ipAddress = IpAddress.valueOf(cidr.split("/")[0]);
         IpPrefix ipPrefix = IpPrefix.valueOf(cidr);
 
-        return new NetworkAddress(ipAddress, ipPrefix);
+        return new CidrAddr(ipAddress, ipPrefix);
     }
 
     /**
@@ -90,8 +90,8 @@ public final class NetworkAddress {
             return true;
         }
 
-        if (obj instanceof NetworkAddress) {
-            NetworkAddress that = (NetworkAddress) obj;
+        if (obj instanceof CidrAddr) {
+            CidrAddr that = (CidrAddr) obj;
             if (Objects.equals(ip, that.ip) && Objects.equals(prefix, that.prefix)) {
                 return true;
             }
