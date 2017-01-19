@@ -13,12 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.api.net;
-
-import org.onosproject.event.EventListener;
+package org.opencord.cordvtn.api.core;
 
 /**
- * Listener for vtn network event.
+ * Handles service instance detection and removal.
  */
-public interface VtnNetworkListener extends EventListener<VtnNetworkEvent> {
+public interface InstanceHandler {
+
+    /**
+     * Handles newly detected instance.
+     *
+     * @param instance instance
+     */
+    void instanceDetected(Instance instance);
+
+    /**
+     * Handles updated instance.
+     *
+     * @param instance instance
+     */
+    void instanceUpdated(Instance instance);
+
+    /**
+     * Handles removed instance.
+     *
+     * @param instance instance
+     */
+    void instanceRemoved(Instance instance);
 }

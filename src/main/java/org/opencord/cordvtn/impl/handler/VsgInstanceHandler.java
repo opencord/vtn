@@ -28,12 +28,8 @@ import org.onlab.packet.IpAddress;
 import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
-import org.onosproject.net.Host;
-import org.opencord.cordvtn.api.net.AddressPair;
-import org.opencord.cordvtn.api.instance.InstanceService;
-import org.opencord.cordvtn.api.instance.Instance;
-import org.opencord.cordvtn.api.instance.InstanceHandler;
 import org.onosproject.net.DefaultAnnotations;
+import org.onosproject.net.Host;
 import org.onosproject.net.HostId;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.flow.DefaultFlowRule;
@@ -50,7 +46,11 @@ import org.onosproject.net.flow.instructions.Instructions;
 import org.onosproject.net.flow.instructions.L2ModificationInstruction;
 import org.onosproject.net.host.DefaultHostDescription;
 import org.onosproject.net.host.HostDescription;
-import org.opencord.cordvtn.api.net.VtnPort;
+import org.opencord.cordvtn.api.core.Instance;
+import org.opencord.cordvtn.api.core.InstanceHandler;
+import org.opencord.cordvtn.api.core.InstanceService;
+import org.opencord.cordvtn.api.net.AddressPair;
+import org.opencord.cordvtn.api.net.ServicePort;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
 
 import static org.onosproject.net.flow.criteria.Criterion.Type.IPV4_DST;
 import static org.onosproject.net.flow.instructions.L2ModificationInstruction.L2SubType.VLAN_PUSH;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.VSG;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.VSG;
 
 /**
  * Provides network connectivity for vSG instances.
@@ -108,34 +108,34 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
                 throw new IllegalStateException(error);
             }
 
-            VtnPort vtnPort = getVtnPort(vsgVm);
-            Set<IpAddress> wanIps = vtnPort.addressPairs().stream()
+            ServicePort sport = getServicePort(vsgVm);
+            Set<IpAddress> wanIps = sport.addressPairs().stream()
                     .map(AddressPair::ip).collect(Collectors.toSet());
             populateVsgRules(
-                    vsgVm, vtnPort.vlanId().get(),
+                    vsgVm, sport.vlanId(),
                     nodeManager.dataPort(vsgVm.deviceId()),
                     wanIps, true);
         } else {
             log.info(String.format(MSG_VSG_VM, MSG_DETECTED, instance));
-            VtnPort vtnPort = vtnService.vtnPort(instance.portId());
-            if (vtnPort == null || !vtnPort.vlanId().isPresent()) {
+            ServicePort sport = snetService.servicePort(instance.portId());
+            if (sport == null || sport.vlanId() == null) {
                 // service port can be updated after instance is created
                 return;
             }
 
             // insert vSG containers inside the vSG VM as a host
-            vtnPort.addressPairs().stream().forEach(pair -> addVsgContainer(
+            sport.addressPairs().stream().forEach(pair -> addVsgContainer(
                     instance,
                     pair.ip(),
                     pair.mac(),
-                    vtnPort.vlanId().get()));
+                    sport.vlanId()));
         }
     }
 
     @Override
     public void instanceUpdated(Instance instance) {
         if (!isVsgContainer(instance)) {
-            Set<MacAddress> vsgMacs = getVtnPort(instance).addressPairs().stream()
+            Set<MacAddress> vsgMacs = getServicePort(instance).addressPairs().stream()
                     .map(AddressPair::mac)
                     .collect(Collectors.toSet());
             hostService.getConnectedHosts(instance.host().location()).stream()
@@ -159,24 +159,25 @@ public final class VsgInstanceHandler extends AbstractInstanceHandler implements
             return;
         }
 
-        VtnPort vtnPort = getVtnPort(instance);
-        Set<IpAddress> wanIps = vtnPort.addressPairs().stream()
+        // FIXME service port can be removed already
+        ServicePort sport = getServicePort(instance);
+        Set<IpAddress> wanIps = sport.addressPairs().stream()
                 .map(AddressPair::ip).collect(Collectors.toSet());
         populateVsgRules(
-                vsgVm, vtnPort.vlanId().get(),
+                vsgVm, sport.vlanId(),
                 nodeManager.dataPort(vsgVm.deviceId()),
                 isVsgContainer ? wanIps : ImmutableSet.of(),
                 false);
     }
 
     @Override
-    protected VtnPort getVtnPort(Instance instance) {
-        VtnPort vtnPort = vtnService.vtnPort(instance.portId());
-        if (vtnPort == null || !vtnPort.vlanId().isPresent()) {
+    protected ServicePort getServicePort(Instance instance) {
+        ServicePort sport = snetService.servicePort(instance.portId());
+        if (sport == null || sport.vlanId() == null) {
             final String error = String.format(ERR_VTN_PORT, instance);
             throw new IllegalStateException(error);
         }
-        return vtnPort;
+        return sport;
     }
 
     private boolean isVsgContainer(Instance instance) {

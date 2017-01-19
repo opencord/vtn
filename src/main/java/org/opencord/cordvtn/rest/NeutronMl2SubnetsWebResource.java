@@ -16,21 +16,21 @@
 package org.opencord.cordvtn.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.onlab.osgi.DefaultServiceDirectory;
+import org.onlab.packet.IpAddress;
+import org.onlab.packet.IpPrefix;
 import org.onosproject.rest.AbstractWebResource;
-import org.opencord.cordvtn.api.core.CordVtnAdminService;
-import org.opencord.cordvtn.api.net.SubnetId;
+import org.opencord.cordvtn.api.core.ServiceNetworkAdminService;
+import org.opencord.cordvtn.api.net.NetworkId;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.impl.DefaultServiceNetwork;
 import org.openstack4j.core.transport.ObjectMapperSingleton;
-import org.openstack4j.model.network.Subnet;
 import org.openstack4j.openstack.networking.domain.NeutronSubnet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
@@ -42,10 +42,9 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.io.InputStream;
-import java.util.Set;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
-import static javax.ws.rs.core.Response.Status.NOT_FOUND;
+import static javax.ws.rs.core.Response.Status.OK;
 import static javax.ws.rs.core.Response.created;
 import static javax.ws.rs.core.Response.noContent;
 import static javax.ws.rs.core.Response.status;
@@ -58,11 +57,10 @@ public class NeutronMl2SubnetsWebResource extends AbstractWebResource {
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
     private static final String MESSAGE = "Received subnets %s request";
-    private static final String SUBNET  = "subnet";
     private static final String SUBNETS = "subnets";
 
-    private final CordVtnAdminService adminService =
-            DefaultServiceDirectory.getService(CordVtnAdminService.class);
+    private final ServiceNetworkAdminService adminService =
+            DefaultServiceDirectory.getService(ServiceNetworkAdminService.class);
 
     @Context
     private UriInfo uriInfo;
@@ -80,13 +78,14 @@ public class NeutronMl2SubnetsWebResource extends AbstractWebResource {
     public Response createSubnet(InputStream input) {
         log.trace(String.format(MESSAGE, "CREATE"));
 
-        final NeutronSubnet subnet = readSubnet(input);
-        adminService.createSubnet(subnet);
+        // FIXME do not allow more than one subnet per network
+        final ServiceNetwork snet = readSubnet(input);
+        adminService.updateServiceNetwork(snet);
         UriBuilder locationBuilder = uriInfo.getBaseUriBuilder()
                 .path(SUBNETS)
-                .path(subnet.getId());
+                .path(snet.id().id());
 
-        // TODO fix networking-onos to send Network UPDATE when subnet created
+        // TODO fix Neutron networking-onos to send Network UPDATE when subnet created
         return created(locationBuilder.build()).build();
     }
 
@@ -105,54 +104,10 @@ public class NeutronMl2SubnetsWebResource extends AbstractWebResource {
     public Response updateSubnet(@PathParam("id") String id, InputStream input) {
         log.trace(String.format(MESSAGE, "UPDATE " + id));
 
-        final NeutronSubnet subnet = readSubnet(input);
-        adminService.updateSubnet(subnet);
+        final ServiceNetwork snet = readSubnet(input);
+        adminService.updateServiceNetwork(snet);
 
-        ObjectNode result = this.mapper().createObjectNode();
-        return ok(result.set(SUBNET, writeSubnet(subnet))).build();
-    }
-
-    /**
-     * Returns all subnets.
-     *
-     * @return 200 OK with set of subnets
-     */
-    @GET
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response getSubnets() {
-        log.trace(String.format(MESSAGE, "GET"));
-
-        Set<Subnet> subnets = adminService.subnets();
-        ArrayNode arrayNodes = mapper().createArrayNode();
-        subnets.stream().forEach(subnet -> {
-            arrayNodes.add(writeSubnet(subnet));
-        });
-
-        ObjectNode result = this.mapper().createObjectNode();
-        return ok(result.set(SUBNETS, arrayNodes)).build();
-    }
-
-    /**
-     * Returns the subnet with the given subnet id.
-     *
-     * @param id subnet id
-     * @return 200 OK with the subnet, 404 NOT_FOUND if the subnet does not exist
-     */
-    @GET
-    @Path("{id}")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response getSubnet(@PathParam("id") String id) {
-        log.trace(String.format(MESSAGE, "GET " + id));
-
-        Subnet subnet = adminService.subnet(SubnetId.of(id));
-        if (subnet == null) {
-            return status(NOT_FOUND).build();
-        }
-
-        ObjectNode result = this.mapper().createObjectNode();
-        return ok(result.set(SUBNET, writeSubnet(subnet))).build();
+        return status(OK).build();
     }
 
     /**
@@ -167,32 +122,24 @@ public class NeutronMl2SubnetsWebResource extends AbstractWebResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response deleteSubnet(@PathParam("id") String id) {
         log.trace(String.format(MESSAGE, "DELETE " + id));
-
-        adminService.removeSubnet(SubnetId.of(id));
         return noContent().build();
     }
 
-    private NeutronSubnet readSubnet(InputStream input) {
+    private ServiceNetwork readSubnet(InputStream input) {
         try {
             JsonNode jsonTree = mapper().enable(INDENT_OUTPUT).readTree(input);
             log.trace(mapper().writeValueAsString(jsonTree));
-            return ObjectMapperSingleton.getContext(NeutronSubnet.class)
+            NeutronSubnet osSubnet = ObjectMapperSingleton.getContext(NeutronSubnet.class)
                     .readerFor(NeutronSubnet.class)
                     .readValue(jsonTree);
-        } catch (Exception e) {
-            throw new IllegalArgumentException();
-        }
-    }
 
-    private ObjectNode writeSubnet(Subnet subnet) {
-        try {
-            String strSubnet = ObjectMapperSingleton.getContext(NeutronSubnet.class)
-                    .writerFor(NeutronSubnet.class)
-                    .writeValueAsString(subnet);
-            log.trace(strSubnet);
-            return (ObjectNode) mapper().readTree(strSubnet.getBytes());
+            return DefaultServiceNetwork.builder()
+                    .id(NetworkId.of(osSubnet.getNetworkId()))
+                    .subnet(IpPrefix.valueOf(osSubnet.getCidr()))
+                    .serviceIp(IpAddress.valueOf(osSubnet.getGateway()))
+                    .build();
         } catch (Exception e) {
-            throw new IllegalStateException();
+            throw new IllegalArgumentException(e);
         }
     }
 }

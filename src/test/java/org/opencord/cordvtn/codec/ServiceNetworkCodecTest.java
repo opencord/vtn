@@ -18,25 +18,28 @@ package org.opencord.cordvtn.codec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableMap;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.onosproject.codec.JsonCodec;
 import org.opencord.cordvtn.api.net.NetworkId;
-import org.opencord.cordvtn.api.net.ProviderNetwork;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType;
+import org.opencord.cordvtn.impl.DefaultServiceNetwork;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.opencord.cordvtn.api.dependency.Dependency.Type.BIDIRECTIONAL;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.MANAGEMENT_LOCAL;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.PRIVATE;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType.BIDIRECTIONAL;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.MANAGEMENT_LOCAL;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.PRIVATE;
 import static org.opencord.cordvtn.codec.ServiceNetworkJsonMatcher.matchesServiceNetwork;
 
 /**
@@ -45,21 +48,29 @@ import static org.opencord.cordvtn.codec.ServiceNetworkJsonMatcher.matchesServic
 public final class ServiceNetworkCodecTest {
     private static final String SERVICE_NETWORK = "serviceNetwork";
     private static final String ID = "id";
+    private static final String NAME = "name";
     private static final String TYPE = "type";
-    private static final String PROVIDER_NETWORKS = "providerNetworks";
+    private static final String PROVIDERS = "providers";
 
-    private final ProviderNetwork providerA =
-            ProviderNetwork.of(NetworkId.of("A"), BIDIRECTIONAL);
+    private final Map<NetworkId, DependencyType> providerA =
+            new HashMap<NetworkId, DependencyType>() {
+                {
+                    put(NetworkId.of("A"), BIDIRECTIONAL);
+                }
+            };
 
-    private final ServiceNetwork networkB = new ServiceNetwork(
-            NetworkId.of("A"),
-            MANAGEMENT_LOCAL,
-            ImmutableSet.of());
+    private final ServiceNetwork networkA = DefaultServiceNetwork.builder()
+            .id(NetworkId.of("A"))
+            .name("A")
+            .type(MANAGEMENT_LOCAL)
+            .build();
 
-    private final ServiceNetwork networkA = new ServiceNetwork(
-            NetworkId.of("B"),
-            PRIVATE,
-            ImmutableSet.of(providerA));
+    private final ServiceNetwork networkB = DefaultServiceNetwork.builder()
+            .id(NetworkId.of("B"))
+            .name("B")
+            .type(PRIVATE)
+            .providers(providerA)
+            .build();
 
     @Rule
     public ExpectedException exception = ExpectedException.none();
@@ -93,20 +104,23 @@ public final class ServiceNetworkCodecTest {
     public void testServiceNetworkDecode() throws IOException {
         ServiceNetwork snet = getServiceNetwork("service-network.json");
         assertThat(snet.id(), is(NetworkId.of("A")));
+        assertThat(snet.name(), is("A"));
         assertThat(snet.type(), is(MANAGEMENT_LOCAL));
-        assertThat(snet.providers(), is(ImmutableSet.of()));
+        assertThat(snet.providers(), is(ImmutableMap.of()));
 
         snet = getServiceNetwork("service-network-with-provider.json");
         assertThat(snet.id(), is(NetworkId.of("B")));
+        assertThat(snet.name(), is("B"));
         assertThat(snet.type(), is(PRIVATE));
-        assertThat(snet.providers(), is(ImmutableSet.of(providerA)));
+        assertThat(snet.providers(), is(providerA));
     }
 
     @Test
     public void testServiceNetworkDecodeMissingId() throws IllegalArgumentException {
         final JsonNode jsonMissingId = context.mapper().createObjectNode()
+                .put(NAME, "A")
                 .put(TYPE, PRIVATE.name())
-                .put(PROVIDER_NETWORKS, "");
+                .put(PROVIDERS, "");
         exception.expect(IllegalArgumentException.class);
         codec.decode((ObjectNode) jsonMissingId, context);
     }
@@ -115,8 +129,9 @@ public final class ServiceNetworkCodecTest {
     public void testServiceNetworkDecodeEmptyId() throws IllegalArgumentException {
         final JsonNode jsonEmptyId = context.mapper().createObjectNode()
                 .put(ID, "")
+                .put(NAME, "A")
                 .put(TYPE, PRIVATE.name())
-                .put(PROVIDER_NETWORKS, "");
+                .put(PROVIDERS, "");
         exception.expect(IllegalArgumentException.class);
         codec.decode((ObjectNode) jsonEmptyId, context);
     }
@@ -124,50 +139,12 @@ public final class ServiceNetworkCodecTest {
     @Test
     public void testServiceNetworkDecodeNullId() throws NullPointerException {
         final JsonNode jsonNullId = context.mapper().createObjectNode()
+                .put(NAME, "A")
                 .put(TYPE, PRIVATE.name())
-                .put(PROVIDER_NETWORKS, "")
+                .put(PROVIDERS, "")
                 .set(ID, NullNode.getInstance());
         exception.expect(IllegalArgumentException.class);
         codec.decode((ObjectNode) jsonNullId, context);
-    }
-
-    @Test
-    public void testServiceNetworkDecodeMissingType() throws IllegalArgumentException {
-        final JsonNode jsonMissingType = context.mapper().createObjectNode()
-                .put(ID, "A")
-                .put(PROVIDER_NETWORKS, "");
-        exception.expect(IllegalArgumentException.class);
-        codec.decode((ObjectNode) jsonMissingType, context);
-    }
-
-    @Test
-    public void testServiceNetworkDecodeEmptyType() throws IllegalArgumentException {
-        final JsonNode jsonEmptyType = context.mapper().createObjectNode()
-                .put(ID, "A")
-                .put(TYPE, "")
-                .put(PROVIDER_NETWORKS, "");
-        exception.expect(IllegalArgumentException.class);
-        codec.decode((ObjectNode) jsonEmptyType, context);
-    }
-
-    @Test
-    public void testServiceNetworkDecodeNullType() throws IllegalArgumentException {
-        final JsonNode jsonNullType = context.mapper().createObjectNode()
-                .put(ID, "A")
-                .put(PROVIDER_NETWORKS, "")
-                .set(TYPE, NullNode.getInstance());
-        exception.expect(IllegalArgumentException.class);
-        codec.decode((ObjectNode) jsonNullType, context);
-    }
-
-    @Test
-    public void testServiceNetworkDecodeWrongType() throws IllegalArgumentException {
-        final JsonNode jsonNoneType = context.mapper().createObjectNode()
-                .put(ID, "A")
-                .put(TYPE, "none")
-                .put(PROVIDER_NETWORKS, "");
-        exception.expect(IllegalArgumentException.class);
-        codec.decode((ObjectNode) jsonNoneType, context);
     }
 
     @Test
@@ -176,9 +153,10 @@ public final class ServiceNetworkCodecTest {
                 .put(TYPE, "B");
         final JsonNode jsonWithProvider = context.mapper().createObjectNode()
                 .put(ID, "A")
+                .put(NAME, "A")
                 .put(TYPE, PRIVATE.name())
-                .set(PROVIDER_NETWORKS, jsonMissingProviderId);
-        exception.expect(NullPointerException.class);
+                .set(PROVIDERS, jsonMissingProviderId);
+        exception.expect(IllegalArgumentException.class);
         codec.decode((ObjectNode) jsonWithProvider, context);
     }
 
@@ -189,9 +167,10 @@ public final class ServiceNetworkCodecTest {
                 .put(TYPE, "none");
         final JsonNode jsonWithProvider = context.mapper().createObjectNode()
                 .put(ID, "A")
+                .put(NAME, "A")
                 .put(TYPE, PRIVATE.name())
-                .set(PROVIDER_NETWORKS, jsonWrongProviderType);
-        exception.expect(NullPointerException.class);
+                .set(PROVIDERS, jsonWrongProviderType);
+        exception.expect(IllegalArgumentException.class);
         codec.decode((ObjectNode) jsonWithProvider, context);
     }
 

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.api.config;
+package org.opencord.cordvtn.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -31,8 +31,8 @@ import org.onosproject.core.ApplicationId;
 import org.onosproject.net.behaviour.ControllerInfo;
 import org.onosproject.net.config.Config;
 import org.onosproject.net.config.InvalidFieldException;
+import org.opencord.cordvtn.api.net.CidrAddr;
 import org.opencord.cordvtn.api.node.CordVtnNode;
-import org.opencord.cordvtn.api.node.NetworkAddress;
 import org.opencord.cordvtn.api.node.SshAccessInfo;
 import org.slf4j.Logger;
 
@@ -74,12 +74,10 @@ public class CordVtnConfig extends Config<ApplicationId> {
     private static final String SSH_USER = "sshUser";
     private static final String SSH_KEY_FILE = "sshKeyFile";
 
+    @Deprecated
     private static final String OPENSTACK = "openstack";
+    @Deprecated
     private static final String XOS = "xos";
-    private static final String ENDPOINT = "endpoint";
-    private static final String TENANT = "tenant";
-    private static final String USER = "user";
-    private static final String PASSWORD = "password";
 
     private static final String CONTROLLERS = "controllers";
     private static final int INDEX_IP = 0;
@@ -108,23 +106,23 @@ public class CordVtnConfig extends Config<ApplicationId> {
         }
 
         // check all mandatory fields are present and valid
-        result &= isMacAddress(PRIVATE_GATEWAY_MAC, MANDATORY);
-        result &= isIpPrefix(LOCAL_MANAGEMENT_IP, MANDATORY);
+        result = result && isMacAddress(PRIVATE_GATEWAY_MAC, MANDATORY);
+        result = result && isIpPrefix(LOCAL_MANAGEMENT_IP, MANDATORY);
 
         for (JsonNode node : object.get(CORDVTN_NODES)) {
             ObjectNode vtnNode = (ObjectNode) node;
-            result &= hasFields(
+            result = result && hasFields(
                     vtnNode,
                     HOSTNAME,
                     HOST_MANAGEMENT_IP,
                     DATA_IP,
                     DATA_IFACE,
                     INTEGRATION_BRIDGE_ID);
-            result &= isIpPrefix(vtnNode, HOST_MANAGEMENT_IP, MANDATORY);
-            result &= isIpPrefix(vtnNode, DATA_IP, MANDATORY);
+            result = result && isIpPrefix(vtnNode, HOST_MANAGEMENT_IP, MANDATORY);
+            result = result && isIpPrefix(vtnNode, DATA_IP, MANDATORY);
 
-            NetworkAddress localMgmt = NetworkAddress.valueOf(get(LOCAL_MANAGEMENT_IP, ""));
-            NetworkAddress hostsMgmt = NetworkAddress.valueOf(getConfig(vtnNode, HOST_MANAGEMENT_IP));
+            CidrAddr localMgmt = CidrAddr.valueOf(get(LOCAL_MANAGEMENT_IP, ""));
+            CidrAddr hostsMgmt = CidrAddr.valueOf(getConfig(vtnNode, HOST_MANAGEMENT_IP));
             if (hostsMgmt.prefix().contains(localMgmt.prefix()) ||
                     localMgmt.prefix().contains(hostsMgmt.prefix())) {
                 final String msg = "Host and local management network IP conflict";
@@ -132,43 +130,30 @@ public class CordVtnConfig extends Config<ApplicationId> {
             }
         }
 
-        result &= hasFields(
+        result = result && hasFields(
                 (ObjectNode) object.get(SSH),
                 SSH_PORT,
                 SSH_USER,
                 SSH_KEY_FILE);
-        result &= isTpPort(
+        result = result && isTpPort(
                 (ObjectNode) object.get(SSH),
                 SSH_PORT,
                 MANDATORY);
 
-        result &= hasFields(
-                (ObjectNode) object.get(OPENSTACK),
-                ENDPOINT,
-                TENANT,
-                USER,
-                PASSWORD);
-
-        result &= hasFields(
-                (ObjectNode) object.get(XOS),
-                ENDPOINT,
-                USER,
-                PASSWORD);
-
         // check all optional fields are valid
-        result &= isTpPort(OVSDB_PORT, OPTIONAL);
+        result = result && isTpPort(OVSDB_PORT, OPTIONAL);
 
         if (object.get(PUBLIC_GATEWAYS) != null && object.get(PUBLIC_GATEWAYS).isArray()) {
             for (JsonNode node : object.get(PUBLIC_GATEWAYS)) {
                 ObjectNode gateway = (ObjectNode) node;
-                result &= isIpAddress(gateway, GATEWAY_IP, MANDATORY);
-                result &= isMacAddress(gateway, GATEWAY_MAC, MANDATORY);
+                result = result && isIpAddress(gateway, GATEWAY_IP, MANDATORY);
+                result = result && isMacAddress(gateway, GATEWAY_MAC, MANDATORY);
             }
         }
 
         if (object.get(CONTROLLERS) != null) {
             for (JsonNode jsonNode : object.get(CONTROLLERS)) {
-                result &= isController(jsonNode);
+                result = result && isController(jsonNode);
             }
         }
         return result;
@@ -211,8 +196,8 @@ public class CordVtnConfig extends Config<ApplicationId> {
         String ovsdbPort = getConfig(object, OVSDB_PORT);
 
         object.get(CORDVTN_NODES).forEach(vtnNode -> {
-            NetworkAddress localMgmt = NetworkAddress.valueOf(get(LOCAL_MANAGEMENT_IP, ""));
-            NetworkAddress hostsMgmt = NetworkAddress.valueOf(getConfig(vtnNode, HOST_MANAGEMENT_IP));
+            CidrAddr localMgmt = CidrAddr.valueOf(get(LOCAL_MANAGEMENT_IP, ""));
+            CidrAddr hostsMgmt = CidrAddr.valueOf(getConfig(vtnNode, HOST_MANAGEMENT_IP));
 
             SshAccessInfo sshInfo = new SshAccessInfo(
                     hostsMgmt.ip().getIp4Address(),
@@ -283,31 +268,6 @@ public class CordVtnConfig extends Config<ApplicationId> {
                 IpAddress.valueOf(jsonNode.path(GATEWAY_IP).asText()),
                 MacAddress.valueOf(jsonNode.path(GATEWAY_MAC).asText())));
         return publicGateways;
-    }
-
-    /**
-     * Returns XOS API endpoint and credential configuration.
-     *
-     * @return xos api configuration
-     */
-    public XosConfig xosConfig() {
-        JsonNode jsonNode = object.get(XOS);
-        return new XosConfig(getConfig(jsonNode, ENDPOINT),
-                             getConfig(jsonNode, USER),
-                             getConfig(jsonNode, PASSWORD));
-    }
-
-    /**
-     * Returns OpenStack API endpoint and credential configuration.
-     *
-     * @return openstack api configuration
-     */
-    public OpenStackConfig openStackConfig() {
-        JsonNode jsonNode = object.get(OPENSTACK);
-        return new OpenStackConfig(jsonNode.path(ENDPOINT).asText(),
-                                   jsonNode.path(TENANT).asText(),
-                                   jsonNode.path(USER).asText(),
-                                   jsonNode.path(PASSWORD).asText());
     }
 
     /**

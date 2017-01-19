@@ -13,7 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.api.net;
+package org.opencord.cordvtn.api.core;
+
+import org.onosproject.event.ListenerService;
+import org.opencord.cordvtn.api.net.NetworkId;
+import org.opencord.cordvtn.api.net.PortId;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.api.net.ServicePort;
 
 import java.util.Set;
 
@@ -21,15 +27,16 @@ import java.util.Set;
  * Service for interacting with the inventory of {@link ServiceNetwork} and
  * {@link ServicePort}.
  */
-public interface ServiceNetworkService {
+public interface ServiceNetworkService
+        extends ListenerService<ServiceNetworkEvent, ServiceNetworkListener> {
 
     /**
      * Returns the service network with the supplied network ID.
      *
-     * @param netId network id
+     * @param networkId network id
      * @return service network
      */
-    ServiceNetwork serviceNetwork(NetworkId netId);
+    ServiceNetwork serviceNetwork(NetworkId networkId);
 
     /**
      * Returns all service networks registered in the service.
@@ -52,4 +59,11 @@ public interface ServiceNetworkService {
      * @return set of service ports
      */
     Set<ServicePort> servicePorts();
+
+    /**
+     * Returns all service ports associated with the supplied network.
+     * @param networkId network id
+     * @return set of service ports
+     */
+    Set<ServicePort> servicePorts(NetworkId networkId);
 }
