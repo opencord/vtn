@@ -23,8 +23,8 @@ import com.google.common.collect.Lists;
 import org.apache.karaf.shell.commands.Argument;
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
-import org.opencord.cordvtn.api.core.CordVtnService;
-import org.opencord.cordvtn.api.net.VtnPort;
+import org.opencord.cordvtn.api.core.ServiceNetworkService;
+import org.opencord.cordvtn.api.net.ServicePort;
 
 import java.util.Collections;
 import java.util.List;
@@ -46,12 +46,12 @@ public class CordVtnPortListCommand extends AbstractShellCommand {
 
     @Override
     protected void execute() {
-        CordVtnService service = AbstractShellCommand.get(CordVtnService.class);
+        ServiceNetworkService service = AbstractShellCommand.get(ServiceNetworkService.class);
 
-        List<VtnPort> ports = Lists.newArrayList(service.vtnPorts());
-        Collections.sort(ports, VtnPort.VTN_PORT_COMPARATOR);
+        List<ServicePort> ports = Lists.newArrayList(service.servicePorts());
+        Collections.sort(ports, ServicePort.SERVICE_PORT_COMPARATOR);
         if (!Strings.isNullOrEmpty(networkId)) {
-            ports.removeIf(port -> !port.netId().id().equals(networkId));
+            ports.removeIf(port -> !port.networkId().id().equals(networkId));
         }
 
         if (outputJson()) {
@@ -62,22 +62,22 @@ public class CordVtnPortListCommand extends AbstractShellCommand {
             }
         } else {
             print(FORMAT, "ID", "MAC", "IP", "VLAN", "WAN IPs");
-            for (VtnPort port: ports) {
+            for (ServicePort port: ports) {
                 List<String> floatingIps = port.addressPairs().stream()
                         .map(ip -> ip.ip().toString())
                         .collect(Collectors.toList());
                 print(FORMAT, port.id(),
                       port.mac(),
                       port.ip(),
-                      port.vlanId().isPresent() ? port.vlanId().get() : "",
+                      port.vlanId() != null ? port.vlanId() : "",
                       floatingIps.isEmpty() ? "" : floatingIps);
             }
         }
     }
 
-    private JsonNode json(List<VtnPort> ports) {
+    private JsonNode json(List<ServicePort> ports) {
         ArrayNode result = mapper().enable(INDENT_OUTPUT).createArrayNode();
-        for (VtnPort port: ports) {
+        for (ServicePort port: ports) {
             ArrayNode addrPairs = mapper().createArrayNode();
             port.addressPairs().forEach(pair -> addrPairs.add(
                     mapper().createObjectNode()
@@ -86,11 +86,11 @@ public class CordVtnPortListCommand extends AbstractShellCommand {
 
             result.add(mapper().createObjectNode()
                                .put("id", port.id().id())
-                               .put("networkId", port.netId().id())
+                               .put("networkId", port.networkId().id())
                                .put("mac", port.mac().toString())
                                .put("ip", port.ip().toString())
-                               .put("vlan", port.vlanId().isPresent() ?
-                                       port.vlanId().get().toString() : null)
+                               .put("vlan", port.vlanId() != null ?
+                                       port.vlanId().toString() : null)
                                .set("addressPairs", addrPairs));
         }
         return result;

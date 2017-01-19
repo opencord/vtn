@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.api.instance;
+package org.opencord.cordvtn.api.core;
 
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.HostId;
@@ -23,6 +23,8 @@ import org.onosproject.net.host.HostDescription;
  * Provides service instance addition or removal.
  */
 public interface InstanceService {
+
+    // TODO add get instance
 
     /**
      * Adds a service instance on a given connect point. Or updates if the
