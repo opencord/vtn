@@ -19,12 +19,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
-import org.opencord.cordvtn.api.net.ProviderNetwork;
+import org.opencord.cordvtn.api.net.NetworkId;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
 
 import java.util.Objects;
 
-import static org.opencord.cordvtn.api.dependency.Dependency.Type.BIDIRECTIONAL;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType.BIDIRECTIONAL;
 
 /**
  * Json matcher for ServiceNetwork.
@@ -61,11 +61,11 @@ public final class ServiceNetworkJsonMatcher extends TypeSafeDiagnosingMatcher<J
             return false;
         }
 
-        if (network.providers().isEmpty()) {
+        if (network.providers() == null || network.providers().isEmpty()) {
             return true;
         }
 
-        JsonNode jsonProviders = jsonNet.get("providerNetworks");
+        JsonNode jsonProviders = jsonNet.get("providers");
         if (jsonProviders == null || jsonProviders == NullNode.getInstance()) {
             description.appendText("provider networks were empty");
             return false;
@@ -76,19 +76,16 @@ public final class ServiceNetworkJsonMatcher extends TypeSafeDiagnosingMatcher<J
         }
 
         for (JsonNode provider : jsonProviders) {
-            String id = provider.get("id").asText();
+            NetworkId id = NetworkId.of(provider.get("id").asText());
             boolean bidirectional = provider.get("bidirectional").asBoolean();
-            ProviderNetwork proNet = network.providers().stream()
-                    .filter(p -> p.id().id().equals(id))
-                    .findAny().orElse(null);
 
-            if (proNet == null) {
+            if (!network.providers().containsKey(id)) {
                 final String msg = String.format("provider id:%s couldn't find", id);
                 description.appendText(msg);
                 return false;
             }
 
-            if (proNet.type().equals(BIDIRECTIONAL) != bidirectional) {
+            if (network.providers().get(id).equals(BIDIRECTIONAL) != bidirectional) {
                 final String msg = String.format(
                         "mismatch provider id:%s, bidirectional: %s",
                         id, bidirectional);

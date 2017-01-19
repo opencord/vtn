@@ -13,8 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.opencord.cordvtn.api.core;
+
+import org.onosproject.event.EventListener;
 
 /**
- * CORD VTN service dependency API definitions.
+ * Listener for service network event.
  */
-package org.opencord.cordvtn.api.dependency;
+public interface ServiceNetworkListener extends EventListener<ServiceNetworkEvent> {
+}

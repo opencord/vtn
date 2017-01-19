@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-present Open Networking Laboratory
+ * Copyright 2017-present Open Networking Laboratory
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,91 +15,137 @@
  */
 package org.opencord.cordvtn.api.net;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableSet;
+import org.onlab.packet.IpAddress;
+import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
 
-import java.util.Objects;
-import java.util.Optional;
+import java.util.Comparator;
 import java.util.Set;
-
-import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Representation of a service port which holds service specific port information,
  * like vlan tag or additional addresses, to the common network port.
  */
-public class ServicePort {
+public interface ServicePort {
 
-    private static final String ERR_ID = "Service port ID cannot be null";
-
-    protected final PortId id;
-    protected final VlanId vlanId;
-    protected final Set<AddressPair> addressPairs;
-
-    public ServicePort(PortId id,
-                       VlanId vlanId,
-                       Set<AddressPair> addressPairs) {
-        this.id = checkNotNull(id, ERR_ID);
-        this.vlanId = vlanId;
-        this.addressPairs = addressPairs == null ? ImmutableSet.of() : addressPairs;
-    }
+    Comparator<ServicePort> SERVICE_PORT_COMPARATOR =
+            (port1, port2) -> port1.networkId().id().compareTo(port2.networkId().id());
 
     /**
-     * Returns the port id of the service port.
+     * Returns the port identifier.
      *
      * @return port id
      */
-    public PortId id() {
-        return id;
-    }
+    PortId id();
 
     /**
-     * Returns the vlan id of the the service port if exists.
+     * Returns the port name.
+     *
+     * @return port name
+     */
+    String name();
+
+    /**
+     * Returns associated network identifier of the service port.
+     *
+     * @return network id
+     */
+    NetworkId networkId();
+
+    /**
+     * Returns the MAC address of the service port.
+     *
+     * @return mac address
+     */
+    MacAddress mac();
+
+    /**
+     * Returns the fixed IP address of the service port.
+     *
+     * @return ip address
+     */
+    IpAddress ip();
+
+    /**
+     * Returns VLAN of service the port.
      *
      * @return vlan id
      */
-    public Optional<VlanId> vlanId() {
-        return Optional.ofNullable(vlanId);
-    }
+    VlanId vlanId();
 
     /**
-     * Returns the additional address pairs used in this port.
+     * Returns additional floating address pairs of the service port.
      *
-     * @return set of ip and mac address pairs
+     * @return set of mac and ip address pair
      */
-    public Set<AddressPair> addressPairs() {
-        return addressPairs;
-    }
+    Set<AddressPair> addressPairs();
 
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
+    /**
+     * Builder of new service port entities.
+     */
+    interface Builder {
 
-        if (obj instanceof ServicePort) {
-            ServicePort that = (ServicePort) obj;
-            if (Objects.equals(id, that.id) &&
-                    Objects.equals(vlanId, that.vlanId) &&
-                    Objects.equals(addressPairs, that.addressPairs)) {
-                return true;
-            }
-        }
-        return false;
-    }
+        /**
+         * Builds an immutable service port instance.
+         *
+         * @return service port
+         */
+        ServicePort build();
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(id, vlanId, addressPairs);
-    }
+        /**
+         * Returns service port builder with the supplied identifier.
+         *
+         * @param id port id
+         * @return service port builder
+         */
+        Builder id(PortId id);
 
-    @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(getClass())
-                .add("portId", id)
-                .add("vlanId", vlanId)
-                .add("addressPairs", addressPairs)
-                .toString();
+        /**
+         * Returns service port builder with the supplied name.
+         *
+         * @param name port name
+         * @return service port builder
+         */
+        Builder name(String name);
+
+        /**
+         * Returns service port builder with the supplied network identifier.
+         *
+         * @param networkId network id
+         * @return service port builder
+         */
+        Builder networkId(NetworkId networkId);
+
+        /**
+         * Returns service port builder with the supplied MAC address.
+         *
+         * @param mac mac address
+         * @return service port builder
+         */
+        Builder mac(MacAddress mac);
+
+        /**
+         * Returns service port builder with the supplied IP address.
+         *
+         * @param ip ip address
+         * @return service port builder
+         */
+        Builder ip(IpAddress ip);
+
+        /**
+         * Returns service port builder with the supplied VLAN.
+         *
+         * @param vlanId vlan id
+         * @return service port builder
+         */
+        Builder vlanId(VlanId vlanId);
+
+        /**
+         * Returns service port builder with the supplied address pairs.
+         *
+         * @param addressPairs set of address pair
+         * @return service port builder
+         */
+        Builder addressPairs(Set<AddressPair> addressPairs);
     }
 }
