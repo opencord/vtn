@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-present Open Networking Laboratory
+ * Copyright 2017-present Open Networking Laboratory
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.impl;
+package org.opencord.cordvtn.impl.handler;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -27,25 +27,11 @@ import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.apache.felix.scr.annotations.Service;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.Ip4Address;
-import org.onlab.packet.Ip4Prefix;
-import org.onlab.util.KryoNamespace;
+import org.onlab.packet.IpAddress;
+import org.onlab.packet.IpPrefix;
 import org.onosproject.cluster.ClusterService;
 import org.onosproject.cluster.LeadershipService;
 import org.onosproject.cluster.NodeId;
-import org.onosproject.store.serializers.KryoNamespaces;
-import org.onosproject.store.service.ConsistentMap;
-import org.onosproject.store.service.MapEvent;
-import org.onosproject.store.service.MapEventListener;
-import org.onosproject.store.service.Serializer;
-import org.onosproject.store.service.StorageService;
-import org.onosproject.store.service.Versioned;
-import org.opencord.cordvtn.api.core.CordVtnAdminService;
-import org.opencord.cordvtn.api.node.CordVtnNode;
-import org.opencord.cordvtn.api.dependency.Dependency;
-import org.opencord.cordvtn.api.dependency.Dependency.Type;
-import org.opencord.cordvtn.api.dependency.DependencyService;
-import org.opencord.cordvtn.api.instance.Instance;
-import org.onosproject.core.DefaultGroupId;
 import org.onosproject.core.GroupId;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
@@ -64,54 +50,42 @@ import org.onosproject.net.group.GroupBuckets;
 import org.onosproject.net.group.GroupDescription;
 import org.onosproject.net.group.GroupKey;
 import org.onosproject.net.group.GroupService;
+import org.opencord.cordvtn.api.core.Instance;
+import org.opencord.cordvtn.api.core.ServiceNetworkAdminService;
+import org.opencord.cordvtn.api.core.ServiceNetworkEvent;
+import org.opencord.cordvtn.api.core.ServiceNetworkListener;
 import org.opencord.cordvtn.api.net.NetworkId;
-import org.opencord.cordvtn.api.net.ProviderNetwork;
-import org.opencord.cordvtn.api.net.SegmentId;
-import org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType;
-import org.opencord.cordvtn.api.net.VtnNetwork;
-import org.opencord.cordvtn.api.net.VtnNetworkEvent;
-import org.opencord.cordvtn.api.net.VtnNetworkListener;
-import org.opencord.cordvtn.impl.handler.AbstractInstanceHandler;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType;
+import org.opencord.cordvtn.api.node.CordVtnNode;
+import org.opencord.cordvtn.impl.CordVtnNodeManager;
+import org.opencord.cordvtn.impl.CordVtnPipeline;
 import org.slf4j.Logger;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opencord.cordvtn.api.dependency.Dependency.Type.BIDIRECTIONAL;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.ACCESS_AGENT;
-import static org.opencord.cordvtn.impl.CordVtnPipeline.*;
 import static org.onosproject.net.group.DefaultGroupBucket.createSelectGroupBucket;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType.BIDIRECTIONAL;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.*;
+import static org.opencord.cordvtn.impl.CordVtnPipeline.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
- * Provisions service dependency capabilities between network services.
+ * Provisions service dependencies between service networks.
  */
 @Component(immediate = true)
 @Service
-public class DependencyManager extends AbstractInstanceHandler implements DependencyService {
+public class DependencyHandler extends AbstractInstanceHandler {
 
     protected final Logger log = getLogger(getClass());
 
     private static final String ERR_NET_FAIL = "Failed to get VTN network ";
-    private static final String MSG_CREATE = "Created dependency %s";
-    private static final String MSG_REMOVE = "Removed dependency %s";
     private static final String ADDED = "Added ";
     private static final String REMOVED = "Removed ";
-
-    private static final KryoNamespace SERIALIZER_DEPENDENCY = KryoNamespace.newBuilder()
-            .register(KryoNamespaces.API)
-            .register(VtnNetwork.class)
-            .register(NetworkId.class)
-            .register(SegmentId.class)
-            .register(ServiceNetworkType.class)
-            .register(ProviderNetwork.class)
-            .register(Dependency.class)
-            .register(Type.class)
-            .build();
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected GroupService groupService;
@@ -123,135 +97,81 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
     protected ClusterService clusterService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected StorageService storageService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnPipeline pipeline;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnNodeManager nodeManager;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnAdminService vtnService;
+    protected ServiceNetworkAdminService snetService;
 
-    private final VtnNetworkListener vtnNetListener = new InternalVtnNetListener();
-    private final MapEventListener<NetworkId, Set<Dependency>> dependencyListener =
-            new DependencyMapListener();
-
-    private ConsistentMap<NetworkId, Set<Dependency>> dependencyStore;
+    private final ServiceNetworkListener snetListener = new InternalServiceNetworkListener();
     private NodeId localNodeId;
 
     @Activate
     protected void activate() {
+        netTypes = ImmutableSet.of(PRIVATE, PUBLIC, VSG);
         super.activate();
-
-        dependencyStore = storageService.<NetworkId, Set<Dependency>>consistentMapBuilder()
-                .withSerializer(Serializer.using(SERIALIZER_DEPENDENCY))
-                .withName("cordvtn-dependencymap")
-                .withApplicationId(appId)
-                .build();
-        dependencyStore.addListener(dependencyListener);
-
         localNodeId = clusterService.getLocalNode().id();
         leadershipService.runForLeadership(appId.name());
-        vtnService.addListener(vtnNetListener);
+        snetService.addListener(snetListener);
     }
 
     @Deactivate
     protected void deactivate() {
         super.deactivate();
-        dependencyStore.removeListener(dependencyListener);
-        vtnService.removeListener(vtnNetListener);
+        snetService.removeListener(snetListener);
         leadershipService.withdraw(appId.name());
     }
 
     @Override
-    public void createDependency(NetworkId subNetId, NetworkId proNetId, Type type) {
-        // FIXME this is not safe
-        VtnNetwork existing = vtnService.vtnNetwork(subNetId);
-        if (existing == null) {
-            log.warn("Failed to create dependency between {} and {}", subNetId, proNetId);
-            return;
-        }
-        vtnService.createServiceNetwork(existing);
-        VtnNetwork updated = VtnNetwork.builder(existing)
-                .addProvider(proNetId, type)
-                .build();
-        vtnService.updateServiceNetwork(updated);
-    }
-
-    @Override
-    public void removeDependency(NetworkId subNetId, NetworkId proNetId) {
-        // FIXME this is not safe
-        VtnNetwork subNet = vtnService.vtnNetwork(subNetId);
-        if (subNet == null) {
-            log.warn("No dependency exists between {} and {}", subNetId, proNetId);
-            return;
-        }
-        VtnNetwork updated = VtnNetwork.builder(subNet)
-                .delProvider(proNetId)
-                .build();
-        vtnService.updateServiceNetwork(updated);
-    }
-
-    @Override
     public void instanceDetected(Instance instance) {
-        // TODO remove this when XOS provides access agent information
-        // and handle it the same way wit the other instances
-        if (instance.netType() == ACCESS_AGENT) {
-            return;
-        }
-
-        VtnNetwork vtnNet = vtnService.vtnNetwork(instance.netId());
-        if (vtnNet == null) {
+        ServiceNetwork snet = snetService.serviceNetwork(instance.netId());
+        if (snet == null) {
             final String error = ERR_NET_FAIL + instance.netId();
             throw new IllegalStateException(error);
         }
-
-        if (!vtnNet.providers().isEmpty()) {
-            updateSubscriberInstances(vtnNet, instance, true);
+        if (!snet.providers().isEmpty()) {
+            updateSubscriberInstances(snet, instance, true);
         }
         // TODO check if subscribers on this network
-        updateProviderInstances(vtnNet);
+        updateProviderInstances(snet);
     }
 
     @Override
     public void instanceRemoved(Instance instance) {
-        // TODO remove this when XOS provides access agent information
-        // and handle it the same way wit the other instances
-        if (instance.netType() == ACCESS_AGENT) {
-            return;
-        }
-
-        VtnNetwork vtnNet = vtnService.vtnNetwork(instance.netId());
-        if (vtnNet == null) {
+        ServiceNetwork snet = snetService.serviceNetwork(instance.netId());
+        if (snet == null) {
             final String error = ERR_NET_FAIL + instance.netId();
             throw new IllegalStateException(error);
         }
-
-        if (!vtnNet.providers().isEmpty()) {
-            updateSubscriberInstances(vtnNet, instance, false);
+        if (!snet.providers().isEmpty()) {
+            updateSubscriberInstances(snet, instance, false);
         }
-        // TODO check if subscribers on this network
-        updateProviderInstances(vtnNet);
+        // TODO check if subscribers on this network and remove group if unused
+        updateProviderInstances(snet);
     }
 
-    private void dependencyCreated(Dependency dependency) {
-        populateDependencyRules(dependency.subscriber(), dependency.provider(),
-                                dependency.type(), true);
-        log.info(String.format(MSG_CREATE, dependency));
+    private void dependencyAdded(ServiceNetwork subscriber, ServiceNetwork provider,
+                                 DependencyType type) {
+        populateDependencyRules(subscriber, provider, type, true);
+        log.info("Dependency is created subscriber:{}, provider:{}, type: {}",
+                 subscriber.name(),
+                 provider.name(), type.name());
     }
 
-    private void dependencyRemoved(Dependency dependency) {
-        populateDependencyRules(dependency.subscriber(), dependency.provider(),
-                                dependency.type(), false);
-        if (getSubscribers(dependency.provider().id()).isEmpty()) {
-            removeProviderGroup(dependency.provider().id());
+    private void dependencyRemoved(ServiceNetwork subscriber, ServiceNetwork provider,
+                                   DependencyType type) {
+        populateDependencyRules(subscriber, provider, type, false);
+        if (!isProviderInUse(provider.id())) {
+            removeGroup(provider.id());
         }
-        log.info(String.format(MSG_REMOVE, dependency));
+        log.info("Dependency is removed subscriber:{}, provider:{}, type: {}",
+                 subscriber.name(),
+                 provider.name(), type.name());
     }
 
-    private void updateProviderInstances(VtnNetwork provider) {
+    private void updateProviderInstances(ServiceNetwork provider) {
         Set<DeviceId> devices = nodeManager.completeNodes().stream()
                 .map(CordVtnNode::integrationBridgeId)
                 .collect(Collectors.toSet());
@@ -262,13 +182,11 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
             if (group == null) {
                 continue;
             }
-
             List<GroupBucket> oldBuckets = group.buckets().buckets();
             List<GroupBucket> newBuckets = getProviderGroupBuckets(
                     deviceId,
                     provider.segmentId().id(),
                     getInstances(provider.id())).buckets();
-
             if (oldBuckets.equals(newBuckets)) {
                 continue;
             }
@@ -299,24 +217,73 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         }
     }
 
-    private void updateSubscriberInstances(VtnNetwork subscriber, Instance instance,
+    private void updateSubscriberInstances(ServiceNetwork subscriber, Instance instance,
                                            boolean isDetected) {
         DeviceId deviceId = instance.deviceId();
         final String isAdded = isDetected ? ADDED : REMOVED;
-        subscriber.providers().stream().forEach(provider -> {
+        subscriber.providers().keySet().forEach(providerId -> {
             populateInPortRule(
                     ImmutableMap.of(deviceId, ImmutableSet.of(instance.portNumber())),
-                    ImmutableMap.of(deviceId, getGroupId(provider.id(), deviceId)),
+                    ImmutableMap.of(deviceId, getGroupId(providerId, deviceId)),
                     isDetected);
-
             log.info(isAdded + "subscriber instance({}) for provider({})",
-                     instance.host().id(), provider.id());
+                     instance.host().id(), providerId.id());
         });
     }
 
-    private void populateDependencyRules(VtnNetwork subscriber,
-                                         VtnNetwork provider,
-                                         Type type, boolean install) {
+    private boolean isProviderInUse(NetworkId providerId) {
+        return snetService.serviceNetworks().stream()
+                .flatMap(net -> net.providers().keySet().stream())
+                .filter(provider -> Objects.equals(provider, providerId))
+                .findAny().isPresent();
+    }
+
+    private void removeGroup(NetworkId netId) {
+        GroupKey groupKey = getGroupKey(netId);
+        nodeManager.completeNodes().stream()
+                .forEach(node -> {
+                    DeviceId deviceId = node.integrationBridgeId();
+                    Group group = groupService.getGroup(deviceId, groupKey);
+                    if (group != null) {
+                        groupService.removeGroup(deviceId, groupKey, appId);
+                    }
+                });
+        log.debug("Removed group for network {}", netId);
+    }
+
+    private GroupId getGroupId(NetworkId netId, DeviceId deviceId) {
+        return new GroupId(Objects.hash(netId, deviceId));
+    }
+
+    private GroupKey getGroupKey(NetworkId netId) {
+        return new DefaultGroupKey(netId.id().getBytes());
+    }
+
+    private GroupId getProviderGroup(ServiceNetwork provider, DeviceId deviceId) {
+        GroupKey groupKey = getGroupKey(provider.id());
+        Group group = groupService.getGroup(deviceId, groupKey);
+        GroupId groupId = getGroupId(provider.id(), deviceId);
+
+        if (group != null) {
+            return groupId;
+        }
+
+        GroupBuckets buckets = getProviderGroupBuckets(
+                deviceId, provider.segmentId().id(), getInstances(provider.id()));
+        GroupDescription groupDescription = new DefaultGroupDescription(
+                deviceId,
+                GroupDescription.Type.SELECT,
+                buckets,
+                groupKey,
+                groupId.id(),
+                appId);
+
+        groupService.addGroup(groupDescription);
+        return groupId;
+    }
+
+    private void populateDependencyRules(ServiceNetwork subscriber, ServiceNetwork provider,
+                                         DependencyType type, boolean install) {
         Map<DeviceId, GroupId> providerGroups = Maps.newHashMap();
         Map<DeviceId, Set<PortNumber>> subscriberPorts = Maps.newHashMap();
 
@@ -333,27 +300,29 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
             subscriberPorts.put(deviceId, ports);
         });
 
-        Ip4Prefix subscriberIp = subscriber.subnet().getIp4Prefix();
-        Ip4Prefix providerIp = provider.subnet().getIp4Prefix();
+        // TODO support IPv6
+        IpPrefix sSubnet = subscriber.subnet().getIp4Prefix();
+        IpPrefix pSubnet = provider.subnet().getIp4Prefix();
 
         populateInPortRule(subscriberPorts, providerGroups, install);
         populateIndirectAccessRule(
-                subscriberIp,
+                sSubnet,
                 provider.serviceIp().getIp4Address(),
                 providerGroups,
                 install);
-        populateDirectAccessRule(subscriberIp, providerIp, install);
+        populateDirectAccessRule(sSubnet, pSubnet, install);
         if (type == BIDIRECTIONAL) {
-            populateDirectAccessRule(providerIp, subscriberIp, install);
+            populateDirectAccessRule(pSubnet, sSubnet, install);
         }
     }
 
-    private void populateIndirectAccessRule(Ip4Prefix srcIp, Ip4Address serviceIp,
+    private void populateIndirectAccessRule(IpPrefix srcSubnet, IpAddress serviceIp,
                                             Map<DeviceId, GroupId> outGroups,
                                             boolean install) {
+        // TODO support IPv6
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(Ethernet.TYPE_IPV4)
-                .matchIPSrc(srcIp)
+                .matchIPSrc(srcSubnet)
                 .matchIPDst(serviceIp.toIpPrefix())
                 .build();
 
@@ -376,7 +345,8 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         }
     }
 
-    private void populateDirectAccessRule(Ip4Prefix srcIp, Ip4Prefix dstIp, boolean install) {
+    private void populateDirectAccessRule(IpPrefix srcIp, IpPrefix dstIp, boolean install) {
+        // TODO support IPv6
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(Ethernet.TYPE_IPV4)
                 .matchIPSrc(srcIp)
@@ -409,12 +379,10 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         for (Map.Entry<DeviceId, Set<PortNumber>> entry : subscriberPorts.entrySet()) {
             Set<PortNumber> ports = entry.getValue();
             DeviceId deviceId = entry.getKey();
-
             GroupId groupId = providerGroups.get(deviceId);
             if (groupId == null) {
                 continue;
             }
-
             ports.stream().forEach(port -> {
                 TrafficSelector selector = DefaultTrafficSelector.builder()
                         .matchInPort(port)
@@ -439,59 +407,7 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         }
     }
 
-    private GroupId getGroupId(NetworkId netId, DeviceId deviceId) {
-        return new DefaultGroupId(Objects.hash(netId, deviceId));
-    }
-
-    private GroupKey getGroupKey(NetworkId netId) {
-        return new DefaultGroupKey(netId.id().getBytes());
-    }
-
-    private GroupId getProviderGroup(VtnNetwork provider, DeviceId deviceId) {
-        GroupKey groupKey = getGroupKey(provider.id());
-        Group group = groupService.getGroup(deviceId, groupKey);
-        GroupId groupId = getGroupId(provider.id(), deviceId);
-
-        if (group != null) {
-            return groupId;
-        }
-
-        GroupBuckets buckets = getProviderGroupBuckets(
-                deviceId, provider.segmentId().id(), getInstances(provider.id()));
-        GroupDescription groupDescription = new DefaultGroupDescription(
-                deviceId,
-                GroupDescription.Type.SELECT,
-                buckets,
-                groupKey,
-                groupId.id(),
-                appId);
-
-        groupService.addGroup(groupDescription);
-        return groupId;
-    }
-
-    private Set<Dependency> getSubscribers(NetworkId netId) {
-        return dependencyStore.values().stream().map(Versioned::value)
-                .flatMap(Collection::stream)
-                .filter(dependency -> dependency.provider().id().equals(netId))
-                .collect(Collectors.toSet());
-    }
-
-    private void removeProviderGroup(NetworkId netId) {
-        GroupKey groupKey = getGroupKey(netId);
-        nodeManager.completeNodes().stream()
-                .forEach(node -> {
-                    DeviceId deviceId = node.integrationBridgeId();
-                    Group group = groupService.getGroup(deviceId, groupKey);
-                    if (group != null) {
-                        groupService.removeGroup(deviceId, groupKey, appId);
-                    }
-        });
-        log.debug("Removed group for network {}", netId);
-    }
-
-    private GroupBuckets getProviderGroupBuckets(DeviceId deviceId,
-                                                 long tunnelId,
+    private GroupBuckets getProviderGroupBuckets(DeviceId deviceId, long tunnelId,
                                                  Set<Instance> instances) {
         List<GroupBucket> buckets = Lists.newArrayList();
         instances.stream().forEach(instance -> {
@@ -518,92 +434,48 @@ public class DependencyManager extends AbstractInstanceHandler implements Depend
         return new GroupBuckets(buckets);
     }
 
-    private class InternalVtnNetListener implements VtnNetworkListener {
+    private class InternalServiceNetworkListener implements ServiceNetworkListener {
 
         @Override
-        public void event(VtnNetworkEvent event) {
+        public boolean isRelevant(ServiceNetworkEvent event) {
+            // do not allow to proceed without leadership
             NodeId leader = leadershipService.getLeader(appId.name());
-            if (!Objects.equals(localNodeId, leader)) {
-                // do not allow to proceed without leadership
-                return;
-            }
+            return Objects.equals(localNodeId, leader);
+        }
+
+        @Override
+        public void event(ServiceNetworkEvent event) {
 
             switch (event.type()) {
-                case VTN_NETWORK_CREATED:
-                case VTN_NETWORK_UPDATED:
-                    log.debug("Processing dependency for {}", event.subject());
-                    eventExecutor.execute(() -> updateDependency(event.subject()));
+                case SERVICE_NETWORK_PROVIDER_ADDED:
+                    log.debug("Dependency added: {}", event);
+                    eventExecutor.execute(() -> {
+                        dependencyAdded(
+                                event.subject(),
+                                event.provider().provider(),
+                                event.provider().type());
+                    });
                     break;
-                case VTN_NETWORK_REMOVED:
-                    log.debug("Removing dependency for {}", event.subject());
-                    NetworkId netId = event.subject().id();
-                    eventExecutor.execute(() -> dependencyStore.remove(netId));
+                case SERVICE_NETWORK_PROVIDER_REMOVED:
+                    log.debug("Dependency removed: {}", event);
+                    eventExecutor.execute(() -> {
+                        dependencyRemoved(
+                                event.subject(),
+                                event.provider().provider(),
+                                event.provider().type());
+                    });
                     break;
-                case VTN_PORT_CREATED:
-                case VTN_PORT_UPDATED:
-                case VTN_PORT_REMOVED:
+                case SERVICE_NETWORK_CREATED:
+                case SERVICE_NETWORK_UPDATED:
+                    // TODO handle dependency rule related element updates
+                case SERVICE_NETWORK_REMOVED:
+                case SERVICE_PORT_CREATED:
+                case SERVICE_PORT_UPDATED:
+                case SERVICE_PORT_REMOVED:
                 default:
                     // do nothing for the other events
                     break;
             }
-        }
-
-        private void updateDependency(VtnNetwork subscriber) {
-            Set<Dependency> dependencies = subscriber.providers().stream()
-                    .map(provider -> Dependency.builder()
-                            .subscriber(subscriber)
-                            .provider(vtnService.vtnNetwork(provider.id()))
-                            .type(provider.type())
-                            .build())
-                    .collect(Collectors.toSet());
-            dependencyStore.put(subscriber.id(), dependencies);
-        }
-    }
-
-    private class DependencyMapListener implements MapEventListener<NetworkId, Set<Dependency>> {
-
-        @Override
-        public void event(MapEvent<NetworkId, Set<Dependency>> event) {
-            NodeId leader = leadershipService.getLeader(appId.name());
-            if (!Objects.equals(localNodeId, leader)) {
-                // do not allow to proceed without leadership
-                return;
-            }
-
-            switch (event.type()) {
-                case UPDATE:
-                    log.debug("Subscriber {} updated", event.key());
-                    eventExecutor.execute(() -> dependencyUpdated(
-                            event.oldValue().value(),
-                            event.newValue().value()
-                    ));
-                    break;
-                case INSERT:
-                    log.debug("Subscriber {} inserted", event.key());
-                    eventExecutor.execute(() -> dependencyUpdated(
-                            ImmutableSet.of(),
-                            event.newValue().value()
-                    ));
-                    break;
-                case REMOVE:
-                    log.debug("Subscriber {} removed", event.key());
-                    eventExecutor.execute(() -> dependencyUpdated(
-                            event.oldValue().value(),
-                            ImmutableSet.of()
-                    ));
-                    break;
-                default:
-                    log.error("Unsupported event type");
-                    break;
-            }
-        }
-
-        private void dependencyUpdated(Set<Dependency> oldDeps, Set<Dependency> newDeps) {
-            oldDeps.stream().filter(oldDep -> !newDeps.contains(oldDep))
-                    .forEach(DependencyManager.this::dependencyRemoved);
-
-            newDeps.stream().filter(newDep -> !oldDeps.contains(newDep))
-                    .forEach(DependencyManager.this::dependencyCreated);
         }
     }
 }

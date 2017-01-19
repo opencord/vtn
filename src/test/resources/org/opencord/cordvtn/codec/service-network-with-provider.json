@@ -1,8 +1,9 @@
 {
   "serviceNetwork": {
     "id": "B",
+    "name": "B",
     "type": "private",
-    "providerNetworks": [
+    "providers": [
       {
         "id": "A",
         "bidirectional": true

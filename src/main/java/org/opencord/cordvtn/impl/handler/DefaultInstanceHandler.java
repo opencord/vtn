@@ -18,7 +18,6 @@ package org.opencord.cordvtn.impl.handler;
 import com.google.common.collect.ImmutableSet;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
-
 import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
@@ -32,16 +31,14 @@ import org.onosproject.net.flow.FlowRule;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
 import org.onosproject.net.flow.instructions.ExtensionTreatment;
-import org.opencord.cordvtn.api.net.VtnNetwork;
+import org.opencord.cordvtn.api.core.Instance;
+import org.opencord.cordvtn.api.core.InstanceHandler;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
 import org.opencord.cordvtn.api.node.CordVtnNode;
-import org.opencord.cordvtn.api.instance.Instance;
-import org.opencord.cordvtn.api.instance.InstanceHandler;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.PRIVATE;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.PUBLIC;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.VSG;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.*;
 
 /**
  * Provides network connectivity for default service instances.
@@ -73,8 +70,8 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         }
         log.info("Instance is detected {}", instance);
 
-        VtnNetwork vtnNet = getVtnNetwork(instance);
-        populateDefaultRules(instance, vtnNet, true);
+        ServiceNetwork snet = getServiceNetwork(instance);
+        populateDefaultRules(instance, snet, true);
     }
 
     @Override
@@ -84,13 +81,13 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         }
         log.info("Instance is removed {}", instance);
 
-        VtnNetwork vtnNet = getVtnNetwork(instance);
-        populateDefaultRules(instance, vtnNet, false);
+        ServiceNetwork snet = getServiceNetwork(instance);
+        populateDefaultRules(instance, snet, false);
     }
 
-    private void populateDefaultRules(Instance instance, VtnNetwork vtnNet, boolean install) {
-        long vni = vtnNet.segmentId().id();
-        Ip4Prefix serviceIpRange = vtnNet.subnet().getIp4Prefix();
+    private void populateDefaultRules(Instance instance, ServiceNetwork snet, boolean install) {
+        long vni = snet.segmentId().id();
+        Ip4Prefix serviceIpRange = snet.subnet().getIp4Prefix();
 
         populateInPortRule(instance, install);
         populateDstIpRule(instance, vni, install);
@@ -99,7 +96,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         if (install) {
             populateDirectAccessRule(serviceIpRange, serviceIpRange, true);
             populateServiceIsolationRule(serviceIpRange, true);
-        } else if (getInstances(vtnNet.id()).isEmpty()) {
+        } else if (getInstances(snet.id()).isEmpty()) {
             populateDirectAccessRule(serviceIpRange, serviceIpRange, false);
             populateServiceIsolationRule(serviceIpRange, false);
         }

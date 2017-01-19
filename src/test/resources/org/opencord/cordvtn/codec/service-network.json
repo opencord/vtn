@@ -1,6 +1,7 @@
 {
   "serviceNetwork": {
     "id": "A",
+    "name": "A",
     "type": "management_local",
     "providerNetworks": []
   }

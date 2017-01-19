@@ -21,8 +21,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.google.common.collect.Lists;
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
-import org.opencord.cordvtn.api.core.CordVtnService;
-import org.opencord.cordvtn.api.net.VtnNetwork;
+import org.opencord.cordvtn.api.core.ServiceNetworkService;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
 
 import java.util.Collections;
 import java.util.List;
@@ -36,13 +36,13 @@ import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
         description = "Lists all VTN networks")
 public class CordVtnNetworkListCommand extends AbstractShellCommand {
 
-    private static final String FORMAT = "%-40s%-20s%-8s%-20s%s";
+    private static final String FORMAT = "%-40s%-20s%-20s%-8s%-20s%s";
 
     @Override
     protected void execute() {
-        CordVtnService service = AbstractShellCommand.get(CordVtnService.class);
-        List<VtnNetwork> networks = Lists.newArrayList(service.vtnNetworks());
-        Collections.sort(networks, VtnNetwork.VTN_NETWORK_COMPARATOR);
+        ServiceNetworkService service = AbstractShellCommand.get(ServiceNetworkService.class);
+        List<ServiceNetwork> networks = Lists.newArrayList(service.serviceNetworks());
+        Collections.sort(networks, ServiceNetwork.SERVICE_NETWORK_COMPARATOR);
 
         if (outputJson()) {
             try {
@@ -51,9 +51,10 @@ public class CordVtnNetworkListCommand extends AbstractShellCommand {
                 print("Failed to list networks in JSON format");
             }
         } else {
-            print(FORMAT, "ID", "Type", "VNI", "Subnet", "Service IP");
-            for (VtnNetwork net: networks) {
+            print(FORMAT, "ID", "Name", "Type", "VNI", "Subnet", "Service IP");
+            for (ServiceNetwork net: networks) {
                 print(FORMAT, net.id(),
+                      net.name(),
                       net.type(),
                       net.segmentId(),
                       net.subnet(),
@@ -62,17 +63,18 @@ public class CordVtnNetworkListCommand extends AbstractShellCommand {
         }
     }
 
-    private JsonNode json(List<VtnNetwork> networks) {
+    private JsonNode json(List<ServiceNetwork> networks) {
         ArrayNode result = mapper().enable(INDENT_OUTPUT).createArrayNode();
-        for (VtnNetwork net: networks) {
+        for (ServiceNetwork net: networks) {
             ArrayNode providers = mapper().createArrayNode();
-            net.providers().forEach(provider -> providers.add(
+            net.providers().entrySet().forEach(provider -> providers.add(
                     mapper().createObjectNode()
-                            .put("networkId", provider.id().id())
-                            .put("type", provider.type().name())));
+                            .put("networkId", provider.getKey().id())
+                            .put("type", provider.getValue().name())));
 
             result.add(mapper().createObjectNode()
                                .put("id", net.id().id())
+                               .put("name", net.name())
                                .put("type", net.type().name())
                                .put("vni", net.segmentId().id())
                                .put("subnet", net.subnet().toString())

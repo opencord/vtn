@@ -18,6 +18,7 @@ package org.opencord.cordvtn.impl.handler;
 import com.google.common.collect.ImmutableSet;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onlab.osgi.ServiceDirectory;
+import org.onlab.util.Tools;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.mastership.MastershipService;
@@ -26,20 +27,18 @@ import org.onosproject.net.host.HostEvent;
 import org.onosproject.net.host.HostListener;
 import org.onosproject.net.host.HostService;
 import org.opencord.cordvtn.api.Constants;
-import org.opencord.cordvtn.api.core.CordVtnService;
-import org.opencord.cordvtn.api.instance.Instance;
-import org.opencord.cordvtn.api.instance.InstanceHandler;
+import org.opencord.cordvtn.api.core.Instance;
+import org.opencord.cordvtn.api.core.InstanceHandler;
+import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.NetworkId;
-import org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType;
-import org.opencord.cordvtn.api.net.VtnNetwork;
-import org.opencord.cordvtn.api.net.VtnPort;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.api.net.ServicePort;
 import org.slf4j.Logger;
 
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
@@ -58,9 +57,9 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
     protected CoreService coreService;
     protected MastershipService mastershipService;
     protected HostService hostService;
-    protected CordVtnService vtnService;
+    protected ServiceNetworkService snetService;
     protected ApplicationId appId;
-    protected Set<ServiceNetworkType> netTypes = ImmutableSet.of();
+    protected Set<ServiceNetwork.NetworkType> netTypes = ImmutableSet.of();
 
     protected HostListener hostListener = new InternalHostListener();
 
@@ -72,7 +71,7 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
         coreService = services.get(CoreService.class);
         mastershipService = services.get(MastershipService.class);
         hostService = services.get(HostService.class);
-        vtnService = services.get(CordVtnService.class);
+        snetService = services.get(ServiceNetworkService.class);
 
         appId = coreService.registerApplication(Constants.CORDVTN_APP_ID);
         hostService.addListener(hostListener);
@@ -93,7 +92,7 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
     }
 
     protected Set<Instance> getInstances(NetworkId netId) {
-        return StreamSupport.stream(hostService.getHosts().spliterator(), false)
+        return Tools.stream(hostService.getHosts())
                 .filter(host -> Objects.equals(
                         netId.id(),
                         host.annotations().value(Instance.NETWORK_ID)))
@@ -101,8 +100,8 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
                 .collect(Collectors.toSet());
     }
 
-    protected VtnNetwork getVtnNetwork(Instance instance) {
-        VtnNetwork vtnNet = vtnService.vtnNetwork(instance.netId());
+    protected ServiceNetwork getServiceNetwork(Instance instance) {
+        ServiceNetwork vtnNet = snetService.serviceNetwork(instance.netId());
         if (vtnNet == null) {
             final String error = String.format(ERR_VTN_NETWORK, instance);
             throw new IllegalStateException(error);
@@ -110,8 +109,8 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
         return vtnNet;
     }
 
-    protected VtnPort getVtnPort(Instance instance) {
-        VtnPort vtnPort = vtnService.vtnPort(instance.portId());
+    protected ServicePort getServicePort(Instance instance) {
+        ServicePort vtnPort = snetService.servicePort(instance.portId());
         if (vtnPort == null) {
             final String error = String.format(ERR_VTN_PORT, instance);
             throw new IllegalStateException(error);

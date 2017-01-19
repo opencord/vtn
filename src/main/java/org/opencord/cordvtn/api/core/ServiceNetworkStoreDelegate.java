@@ -13,31 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.api.instance;
+package org.opencord.cordvtn.api.core;
+
+import org.onosproject.store.StoreDelegate;
 
 /**
- * Handles service instance detection and removal.
+ * VTN store delegate abstraction.
  */
-public interface InstanceHandler {
-
-    /**
-     * Handles newly detected instance.
-     *
-     * @param instance instance
-     */
-    void instanceDetected(Instance instance);
-
-    /**
-     * Handles updated instance.
-     *
-     * @param instance instance
-     */
-    void instanceUpdated(Instance instance);
-
-    /**
-     * Handles removed instance.
-     *
-     * @param instance instance
-     */
-    void instanceRemoved(Instance instance);
+public interface ServiceNetworkStoreDelegate extends StoreDelegate<ServiceNetworkEvent> {
 }

@@ -20,6 +20,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
 import org.onlab.packet.TpPort;
 import org.onosproject.net.DeviceId;
+import org.opencord.cordvtn.api.net.CidrAddr;
 
 import java.util.Comparator;
 import java.util.Objects;
@@ -37,9 +38,9 @@ import static org.opencord.cordvtn.api.Constants.DEFAULT_TUNNEL;
 public final class CordVtnNode {
 
     private final String hostname;
-    private final NetworkAddress hostMgmtIp;
-    private final NetworkAddress localMgmtIp;
-    private final NetworkAddress dataIp;
+    private final CidrAddr hostMgmtIp;
+    private final CidrAddr localMgmtIp;
+    private final CidrAddr dataIp;
     private final Optional<TpPort> ovsdbPort;
     private final SshAccessInfo sshInfo;
     private final DeviceId integrationBridgeId;
@@ -65,9 +66,9 @@ public final class CordVtnNode {
      * @param state cordvtn node state
      */
     private CordVtnNode(String hostname,
-                        NetworkAddress hostMgmtIp,
-                        NetworkAddress localMgmtIp,
-                        NetworkAddress dataIp,
+                        CidrAddr hostMgmtIp,
+                        CidrAddr localMgmtIp,
+                        CidrAddr dataIp,
                         Optional<TpPort> ovsdbPort,
                         SshAccessInfo sshInfo,
                         DeviceId integrationBridgeId,
@@ -117,7 +118,7 @@ public final class CordVtnNode {
      *
      * @return network address
      */
-    public NetworkAddress hostMgmtIp() {
+    public CidrAddr hostMgmtIp() {
         return this.hostMgmtIp;
     }
 
@@ -126,7 +127,7 @@ public final class CordVtnNode {
      *
      * @return network address
      */
-    public NetworkAddress localMgmtIp() {
+    public CidrAddr localMgmtIp() {
         return this.localMgmtIp;
     }
 
@@ -135,7 +136,7 @@ public final class CordVtnNode {
      *
      * @return network address
      */
-    public NetworkAddress dataIp() {
+    public CidrAddr dataIp() {
         return this.dataIp;
     }
 
@@ -286,9 +287,9 @@ public final class CordVtnNode {
      */
     public static final class Builder {
         private String hostname;
-        private NetworkAddress hostMgmtIp;
-        private NetworkAddress localMgmtIp;
-        private NetworkAddress dataIp;
+        private CidrAddr hostMgmtIp;
+        private CidrAddr localMgmtIp;
+        private CidrAddr dataIp;
         private Optional<TpPort> ovsdbPort =
                 Optional.of(TpPort.tpPort(DEFAULT_OVSDB_PORT));
         private SshAccessInfo sshInfo;
@@ -344,7 +345,7 @@ public final class CordVtnNode {
          * @param hostMgmtIp host management netework ip address
          * @return cordvtn node builder
          */
-        public Builder hostMgmtIp(NetworkAddress hostMgmtIp) {
+        public Builder hostMgmtIp(CidrAddr hostMgmtIp) {
             checkNotNull(hostMgmtIp);
             this.hostMgmtIp = hostMgmtIp;
             return this;
@@ -357,7 +358,7 @@ public final class CordVtnNode {
          * @return cordvtn node builder
          */
         public Builder hostMgmtIp(String cidr) {
-            this.hostMgmtIp = NetworkAddress.valueOf(cidr);
+            this.hostMgmtIp = CidrAddr.valueOf(cidr);
             return this;
         }
 
@@ -367,7 +368,7 @@ public final class CordVtnNode {
          * @param localMgmtIp local management network ip address
          * @return cordvtn node builder
          */
-        public Builder localMgmtIp(NetworkAddress localMgmtIp) {
+        public Builder localMgmtIp(CidrAddr localMgmtIp) {
             checkNotNull(localMgmtIp);
             this.localMgmtIp = localMgmtIp;
             return this;
@@ -380,7 +381,7 @@ public final class CordVtnNode {
          * @return cordvtn node builder
          */
         public Builder localMgmtIp(String cidr) {
-            this.localMgmtIp = NetworkAddress.valueOf(cidr);
+            this.localMgmtIp = CidrAddr.valueOf(cidr);
             return this;
         }
 
@@ -390,7 +391,7 @@ public final class CordVtnNode {
          * @param dataIp data network ip address
          * @return cordvtn node builder
          */
-        public Builder dataIp(NetworkAddress dataIp) {
+        public Builder dataIp(CidrAddr dataIp) {
             checkNotNull(dataIp);
             this.dataIp = dataIp;
             return this;
@@ -403,7 +404,7 @@ public final class CordVtnNode {
          * @return cordvtn node builder
          */
         public Builder dataIp(String cidr) {
-            this.dataIp = NetworkAddress.valueOf(cidr);
+            this.dataIp = CidrAddr.valueOf(cidr);
             return this;
         }
 

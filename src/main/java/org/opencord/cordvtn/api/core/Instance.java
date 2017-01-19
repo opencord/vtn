@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opencord.cordvtn.api.instance;
+package org.opencord.cordvtn.api.core;
 
 import com.google.common.base.Strings;
 import org.onlab.packet.Ip4Address;
@@ -23,7 +23,7 @@ import org.onosproject.net.Host;
 import org.onosproject.net.PortNumber;
 import org.opencord.cordvtn.api.net.NetworkId;
 import org.opencord.cordvtn.api.net.PortId;
-import org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType;
+import org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -91,9 +91,9 @@ public final class Instance {
      *
      * @return network type
      */
-    public ServiceNetworkType netType() {
+    public NetworkType netType() {
         String netType = host.annotations().value(NETWORK_TYPE);
-        return ServiceNetworkType.valueOf(netType);
+        return NetworkType.valueOf(netType);
     }
 
     /**

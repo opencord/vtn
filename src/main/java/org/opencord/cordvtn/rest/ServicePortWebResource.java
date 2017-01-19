@@ -19,7 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onosproject.rest.AbstractWebResource;
-import org.opencord.cordvtn.api.core.CordVtnAdminService;
+import org.opencord.cordvtn.api.core.ServiceNetworkAdminService;
 import org.opencord.cordvtn.api.net.PortId;
 import org.opencord.cordvtn.api.net.ServicePort;
 import org.slf4j.Logger;
@@ -44,9 +44,7 @@ import java.util.Set;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 import static javax.ws.rs.core.Response.Status.NOT_FOUND;
-import static javax.ws.rs.core.Response.created;
-import static javax.ws.rs.core.Response.noContent;
-import static javax.ws.rs.core.Response.status;
+import static javax.ws.rs.core.Response.*;
 
 /**
  * Query and manage service ports.
@@ -59,8 +57,8 @@ public class ServicePortWebResource extends AbstractWebResource {
     private static final String SERVICE_PORT  = "ServicePort";
     private static final String SERVICE_PORTS = "ServicePorts";
 
-    private final CordVtnAdminService adminService =
-            DefaultServiceDirectory.getService(CordVtnAdminService.class);
+    private final ServiceNetworkAdminService adminService =
+            DefaultServiceDirectory.getService(ServiceNetworkAdminService.class);
 
     @Context
     private UriInfo uriInfo;

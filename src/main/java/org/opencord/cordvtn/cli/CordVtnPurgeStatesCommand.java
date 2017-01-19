@@ -17,7 +17,7 @@ package org.opencord.cordvtn.cli;
 
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
-import org.opencord.cordvtn.api.core.CordVtnAdminService;
+import org.opencord.cordvtn.api.core.ServiceNetworkAdminService;
 
 /**
  * Purges internal network states.
@@ -28,8 +28,8 @@ public class CordVtnPurgeStatesCommand extends AbstractShellCommand {
 
     @Override
     protected void execute() {
-        CordVtnAdminService adminService =
-                AbstractShellCommand.get(CordVtnAdminService.class);
+        ServiceNetworkAdminService adminService =
+                AbstractShellCommand.get(ServiceNetworkAdminService.class);
         adminService.purgeStates();
     }
 }

@@ -45,14 +45,14 @@ import org.onosproject.net.provider.AbstractProvider;
 import org.onosproject.net.provider.ProviderId;
 import org.opencord.cordconfig.CordConfigService;
 import org.opencord.cordconfig.access.AccessAgentData;
-import org.opencord.cordvtn.api.core.CordVtnService;
-import org.opencord.cordvtn.api.instance.Instance;
-import org.opencord.cordvtn.api.instance.InstanceService;
+import org.opencord.cordvtn.api.core.Instance;
+import org.opencord.cordvtn.api.core.InstanceService;
+import org.opencord.cordvtn.api.core.ServiceNetworkEvent;
+import org.opencord.cordvtn.api.core.ServiceNetworkListener;
+import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.PortId;
-import org.opencord.cordvtn.api.net.VtnNetwork;
-import org.opencord.cordvtn.api.net.VtnNetworkEvent;
-import org.opencord.cordvtn.api.net.VtnNetworkListener;
-import org.opencord.cordvtn.api.net.VtnPort;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.api.net.ServicePort;
 import org.slf4j.Logger;
 
 import java.util.Objects;
@@ -64,7 +64,7 @@ import static org.onlab.util.Tools.groupedThreads;
 import static org.onosproject.net.AnnotationKeys.PORT_NAME;
 import static org.opencord.cordvtn.api.Constants.CORDVTN_APP_ID;
 import static org.opencord.cordvtn.api.Constants.NOT_APPLICABLE;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.ACCESS_AGENT;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.ACCESS_AGENT;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -76,8 +76,8 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
         InstanceService {
 
     protected final Logger log = getLogger(getClass());
-    private static final String ERR_VTN_NETWORK = "Faild to get VTN network for %s";
-    private static final String ERR_VTN_PORT = "Faild to get VTN port for %s";
+    private static final String ERR_SERVICE_NETWORK = "Failed to get service network for %s";
+    private static final String ERR_SERVICE_PORT = "Failed to get service port for %s";
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CoreService coreService;
@@ -102,11 +102,11 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     protected CordConfigService cordConfig;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnService vtnService;
+    protected ServiceNetworkService snetService;
 
     private final ExecutorService eventExecutor =
             newSingleThreadExecutor(groupedThreads(this.getClass().getSimpleName(), "event-handler"));
-    private final VtnNetworkListener vtnNetListener = new InternalVtnNetworkListener();
+    private final ServiceNetworkListener snetListener = new InternalServiceNetworkListener();
 
     private ApplicationId appId;
     private NodeId localNodeId;
@@ -126,14 +126,14 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
         leadershipService.runForLeadership(appId.name());
 
         hostProvider = hostProviderRegistry.register(this);
-        vtnService.addListener(vtnNetListener);
+        snetService.addListener(snetListener);
 
         log.info("Started");
     }
 
     @Deactivate
     protected void deactivate() {
-        vtnService.removeListener(vtnNetListener);
+        snetService.removeListener(snetListener);
         hostProviderRegistry.unregister(this);
         eventExecutor.shutdown();
         leadershipService.withdraw(appId.name());
@@ -164,34 +164,35 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
             return;
         }
 
-        VtnPort vtnPort = vtnService.vtnPort(port.annotations().value(PORT_NAME));
-        if (vtnPort == null) {
-            log.warn(String.format(ERR_VTN_PORT, port));
+        ServicePort sport = getServicePortByPortName(port.annotations().value(PORT_NAME));
+        if (sport == null) {
+            log.warn(String.format(ERR_SERVICE_PORT, port));
             return;
         }
 
-        VtnNetwork vtnNet = vtnService.vtnNetwork(vtnPort.netId());
-        if (vtnNet == null) {
-            log.warn(String.format(ERR_VTN_NETWORK, vtnPort));
-            return;
+        ServiceNetwork snet = snetService.serviceNetwork(sport.networkId());
+        if (snet == null) {
+            final String error = String.format(ERR_SERVICE_NETWORK, sport);
+            throw new IllegalStateException(error);
         }
 
         // Added CREATE_TIME intentionally to trigger HOST_UPDATED event for the
-        // existing instances.
+        // existing instances. Fix this after adding a method to update/reinstall
+        // flow rules for the existing service instances.
         DefaultAnnotations.Builder annotations = DefaultAnnotations.builder()
-                .set(Instance.NETWORK_TYPE, vtnNet.type().name())
-                .set(Instance.NETWORK_ID, vtnNet.id().id())
-                .set(Instance.PORT_ID, vtnPort.id().id())
+                .set(Instance.NETWORK_TYPE, snet.type().name())
+                .set(Instance.NETWORK_ID, snet.id().id())
+                .set(Instance.PORT_ID, sport.id().id())
                 .set(Instance.CREATE_TIME, String.valueOf(System.currentTimeMillis()));
 
         HostDescription hostDesc = new DefaultHostDescription(
-                vtnPort.mac(),
+                sport.mac(),
                 VlanId.NONE,
                 new HostLocation(connectPoint, System.currentTimeMillis()),
-                Sets.newHashSet(vtnPort.ip()),
+                Sets.newHashSet(sport.ip()),
                 annotations.build());
 
-        HostId hostId = HostId.hostId(vtnPort.mac());
+        HostId hostId = HostId.hostId(sport.mac());
         hostProvider.hostDetected(hostId, hostDesc, false);
     }
 
@@ -225,6 +226,14 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
         hostProvider.hostVanished(hostId);
     }
 
+    private ServicePort getServicePortByPortName(String portName) {
+        Optional<ServicePort> sport = snetService.servicePorts()
+                .stream()
+                .filter(p -> p.id().id().contains(portName.substring(3)))
+                .findFirst();
+        return sport.isPresent() ? sport.get() : null;
+    }
+
     // TODO remove this when XOS provides access agent information
     private boolean isAccessAgent(ConnectPoint connectPoint) {
         Optional<AccessAgentData> agent = cordConfig.getAccessAgent(connectPoint.deviceId());
@@ -255,22 +264,23 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     }
 
     private Instance getInstance(PortId portId) {
-        VtnPort vtnPort = vtnService.vtnPort(portId);
-        if (vtnPort == null) {
-            final String error = "Failed to build VTN port for " + portId.id();
+        // TODO use instance service instead
+        ServicePort sport = snetService.servicePort(portId);
+        if (sport == null) {
+            final String error = String.format(ERR_SERVICE_PORT, portId);
             throw new IllegalStateException(error);
         }
-        Host host = hostService.getHost(HostId.hostId(vtnPort.mac()));
+        Host host = hostService.getHost(HostId.hostId(sport.mac()));
         if (host == null) {
             return null;
         }
         return Instance.of(host);
     }
 
-    private class InternalVtnNetworkListener implements VtnNetworkListener {
+    private class InternalServiceNetworkListener implements ServiceNetworkListener {
 
         @Override
-        public void event(VtnNetworkEvent event) {
+        public void event(ServiceNetworkEvent event) {
             NodeId leader = leadershipService.getLeader(appId.name());
             if (!Objects.equals(localNodeId, leader)) {
                 // do not allow to proceed without leadership
@@ -278,10 +288,10 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
             }
 
             switch (event.type()) {
-                case VTN_PORT_CREATED:
-                case VTN_PORT_UPDATED:
-                    log.debug("Processing service port {}", event.vtnPort());
-                    PortId portId = event.vtnPort().id();
+                case SERVICE_PORT_CREATED:
+                case SERVICE_PORT_UPDATED:
+                    log.debug("Processing service port {}", event.servicePort());
+                    PortId portId = event.servicePort().id();
                     eventExecutor.execute(() -> {
                         Instance instance = getInstance(portId);
                         if (instance != null) {
@@ -289,10 +299,10 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
                         }
                     });
                     break;
-                case VTN_PORT_REMOVED:
-                case VTN_NETWORK_CREATED:
-                case VTN_NETWORK_UPDATED:
-                case VTN_NETWORK_REMOVED:
+                case SERVICE_PORT_REMOVED:
+                case SERVICE_NETWORK_CREATED:
+                case SERVICE_NETWORK_UPDATED:
+                case SERVICE_NETWORK_REMOVED:
                 default:
                     // do nothing for the other events
                     break;

@@ -39,7 +39,7 @@ import org.onosproject.net.Host;
 import org.onosproject.net.HostId;
 import org.onosproject.net.config.NetworkConfigEvent;
 import org.onosproject.net.config.NetworkConfigListener;
-import org.onosproject.net.config.NetworkConfigRegistry;
+import org.onosproject.net.config.NetworkConfigService;
 import org.onosproject.net.flow.DefaultTrafficSelector;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficSelector;
@@ -51,10 +51,11 @@ import org.onosproject.net.packet.PacketPriority;
 import org.onosproject.net.packet.PacketProcessor;
 import org.onosproject.net.packet.PacketService;
 import org.opencord.cordvtn.api.Constants;
-import org.opencord.cordvtn.api.config.CordVtnConfig;
-import org.opencord.cordvtn.api.core.CordVtnService;
-import org.opencord.cordvtn.api.instance.Instance;
-import org.opencord.cordvtn.api.net.VtnNetwork;
+import org.opencord.cordvtn.api.CordVtnConfig;
+import org.opencord.cordvtn.api.core.Instance;
+import org.opencord.cordvtn.api.core.ServiceNetworkService;
+import org.opencord.cordvtn.api.net.NetworkId;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
 import org.slf4j.Logger;
 
 import java.nio.ByteBuffer;
@@ -68,8 +69,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static org.onlab.packet.DHCP.DHCPOptionCode.*;
 import static org.onlab.packet.DHCPPacketType.DHCPACK;
 import static org.onlab.packet.DHCPPacketType.DHCPOFFER;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.MANAGEMENT_HOST;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.MANAGEMENT_LOCAL;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType.BIDIRECTIONAL;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.MANAGEMENT_HOST;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.MANAGEMENT_LOCAL;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -94,7 +96,7 @@ public class CordVtnDhcpProxy {
     protected CoreService coreService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected NetworkConfigRegistry configRegistry;
+    protected NetworkConfigService configService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected PacketService packetService;
@@ -103,7 +105,7 @@ public class CordVtnDhcpProxy {
     protected HostService hostService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnService cordVtnService;
+    protected ServiceNetworkService snetService;
 
     private final PacketProcessor packetProcessor = new InternalPacketProcessor();
     private final NetworkConfigListener configListener = new InternalConfigListener();
@@ -114,7 +116,7 @@ public class CordVtnDhcpProxy {
     @Activate
     protected void activate() {
         appId = coreService.registerApplication(Constants.CORDVTN_APP_ID);
-        configRegistry.addListener(configListener);
+        configService.addListener(configListener);
         readConfiguration();
 
         packetService.addProcessor(packetProcessor, PacketProcessor.director(0));
@@ -124,7 +126,7 @@ public class CordVtnDhcpProxy {
 
     @Deactivate
     protected void deactivate() {
-        configRegistry.removeListener(configListener);
+        configService.removeListener(configListener);
         packetService.removeProcessor(packetProcessor);
         cancelPackets();
         log.info("Stopped");
@@ -246,8 +248,8 @@ public class CordVtnDhcpProxy {
             checkArgument(!dhcpServerMac.equals(MacAddress.NONE),
                           "DHCP server MAC is not set");
 
-            VtnNetwork vtnNet = cordVtnService.vtnNetwork(reqInstance.netId());
-            Ip4Address serverIp = vtnNet.serviceIp().getIp4Address();
+            ServiceNetwork snet = snetService.serviceNetwork(reqInstance.netId());
+            Ip4Address serverIp = snet.serviceIp().getIp4Address();
 
             Ethernet ethReply = new Ethernet();
             ethReply.setSourceMACAddress(dhcpServerMac);
@@ -267,7 +269,7 @@ public class CordVtnDhcpProxy {
 
             DHCP dhcpRequest = (DHCP) udpRequest.getPayload();
             DHCP dhcpReply = buildDhcpReply(
-                    dhcpRequest, packetType, reqInstance.ipAddress(), vtnNet);
+                    dhcpRequest, packetType, reqInstance.ipAddress(), snet);
 
             udpReply.setPayload(dhcpReply);
             ipv4Reply.setPayload(udpReply);
@@ -294,9 +296,9 @@ public class CordVtnDhcpProxy {
         }
 
         private DHCP buildDhcpReply(DHCP request, byte msgType, Ip4Address yourIp,
-                                    VtnNetwork vtnNet) {
-            Ip4Address serverIp = vtnNet.serviceIp().getIp4Address();
-            int subnetPrefixLen = vtnNet.subnet().prefixLength();
+                                    ServiceNetwork snet) {
+            Ip4Address serverIp = snet.serviceIp().getIp4Address();
+            int subnetPrefixLen = snet.subnet().prefixLength();
 
             DHCP dhcpReply = new DHCP();
             dhcpReply.setOpCode(DHCP.OPCODE_REPLY);
@@ -362,7 +364,7 @@ public class CordVtnDhcpProxy {
             options.add(option);
 
             // router address
-            if (vtnNet.type() != MANAGEMENT_LOCAL && vtnNet.type() != MANAGEMENT_HOST) {
+            if (snet.type() != MANAGEMENT_LOCAL && snet.type() != MANAGEMENT_HOST) {
                 option = new DHCPOption();
                 option.setCode(OptionCode_RouterAddress.getValue());
                 option.setLength((byte) 4);
@@ -371,7 +373,7 @@ public class CordVtnDhcpProxy {
             }
 
             // classless static routes
-            byte[] data = getClasslessStaticRoutesData(vtnNet);
+            byte[] data = getClasslessStaticRoutesData(snet);
             if (data.length >= 5) {
                 option = new DHCPOption();
                 option.setCode(DHCP_OPTION_CLASSLESS_STATIC_ROUTE);
@@ -390,13 +392,13 @@ public class CordVtnDhcpProxy {
             return dhcpReply;
         }
 
-        private byte[] getClasslessStaticRoutesData(VtnNetwork vtnNet) {
+        private byte[] getClasslessStaticRoutesData(ServiceNetwork snet) {
             List<Byte> result = Lists.newArrayList();
-            List<Byte> router = Bytes.asList(vtnNet.serviceIp().toOctets());
+            List<Byte> router = Bytes.asList(snet.serviceIp().toOctets());
 
             // static routes for the providers
-            Set<VtnNetwork> providers = vtnNet.providers().stream()
-                    .map(provider -> cordVtnService.vtnNetwork(provider.id()))
+            Set<ServiceNetwork> providers = snet.providers().keySet().stream()
+                    .map(provider -> snetService.serviceNetwork(provider))
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
 
@@ -407,8 +409,8 @@ public class CordVtnDhcpProxy {
             });
 
             // static routes for the bidirectional subscribers
-            Set<VtnNetwork> subscribers = cordVtnService.vtnNetworks().stream()
-                    .filter(net -> net.isBidirectionalProvider(vtnNet.id()))
+            Set<ServiceNetwork> subscribers = snetService.serviceNetworks().stream()
+                    .filter(net -> isBidirectionalProvider(net, snet.id()))
                     .collect(Collectors.toSet());
 
             subscribers.stream().forEach(subscriber -> {
@@ -418,6 +420,13 @@ public class CordVtnDhcpProxy {
             });
 
             return Bytes.toArray(result);
+        }
+
+        private boolean isBidirectionalProvider(ServiceNetwork snet, NetworkId targetNetId) {
+            return snet.providers().entrySet().stream()
+                    .filter(p -> Objects.equals(p.getKey(), targetNetId))
+                    .filter(p -> p.getValue() == BIDIRECTIONAL)
+                    .findAny().isPresent();
         }
 
         private List<Byte> getSignificantOctets(IpPrefix ipPrefix) {
@@ -431,7 +440,7 @@ public class CordVtnDhcpProxy {
     }
 
     private void readConfiguration() {
-        CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
+        CordVtnConfig config = configService.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
             log.debug("No configuration found");
             return;

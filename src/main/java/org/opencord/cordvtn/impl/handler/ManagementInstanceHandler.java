@@ -29,14 +29,14 @@ import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.FlowRule;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
-import org.opencord.cordvtn.api.instance.Instance;
-import org.opencord.cordvtn.api.instance.InstanceHandler;
-import org.opencord.cordvtn.api.net.VtnNetwork;
+import org.opencord.cordvtn.api.core.Instance;
+import org.opencord.cordvtn.api.core.InstanceHandler;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.MANAGEMENT_HOST;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.MANAGEMENT_LOCAL;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.MANAGEMENT_HOST;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.MANAGEMENT_LOCAL;
 
 /**
  * Provides local management network connectivity to the instance. The instance
@@ -64,7 +64,7 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
 
     @Override
     public void instanceDetected(Instance instance) {
-        VtnNetwork vtnNet = getVtnNetwork(instance);
+        ServiceNetwork vtnNet = getServiceNetwork(instance);
 
         switch (vtnNet.type()) {
             case MANAGEMENT_LOCAL:
@@ -82,7 +82,7 @@ public class ManagementInstanceHandler extends AbstractInstanceHandler implement
 
     @Override
     public void instanceRemoved(Instance instance) {
-        VtnNetwork vtnNet = getVtnNetwork(instance);
+        ServiceNetwork vtnNet = getServiceNetwork(instance);
 
         switch (vtnNet.type()) {
             case MANAGEMENT_LOCAL:

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-present Open Networking Laboratory
+ * Copyright 2017-present Open Networking Laboratory
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onosproject.rest.AbstractWebResource;
-import org.opencord.cordvtn.api.core.CordVtnAdminService;
+import org.opencord.cordvtn.api.core.ServiceNetworkAdminService;
 import org.opencord.cordvtn.api.net.NetworkId;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
 import org.slf4j.Logger;
@@ -44,9 +44,7 @@ import java.util.Set;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 import static javax.ws.rs.core.Response.Status.NOT_FOUND;
-import static javax.ws.rs.core.Response.created;
-import static javax.ws.rs.core.Response.noContent;
-import static javax.ws.rs.core.Response.status;
+import static javax.ws.rs.core.Response.*;
 
 /**
  * Query and manage service networks.
@@ -59,8 +57,8 @@ public class ServiceNetworkWebResource extends AbstractWebResource {
     private static final String SERVICE_NETWORK  = "ServiceNetwork";
     private static final String SERVICE_NETWORKS = "ServiceNetworks";
 
-    private final CordVtnAdminService adminService =
-            DefaultServiceDirectory.getService(CordVtnAdminService.class);
+    private final ServiceNetworkAdminService adminService =
+            DefaultServiceDirectory.getService(ServiceNetworkAdminService.class);
 
     @Context
     private UriInfo uriInfo;

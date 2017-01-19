@@ -29,14 +29,11 @@ import org.onlab.packet.Ip4Address;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onosproject.net.DeviceId;
+import org.onosproject.net.Host;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.config.NetworkConfigEvent;
 import org.onosproject.net.config.NetworkConfigListener;
-import org.onosproject.net.config.NetworkConfigRegistry;
-import org.onosproject.net.packet.PacketProcessor;
-import org.opencord.cordvtn.api.config.CordVtnConfig;
-import org.opencord.cordvtn.api.instance.Instance;
-import org.onosproject.net.Host;
+import org.onosproject.net.config.NetworkConfigService;
 import org.onosproject.net.flow.DefaultTrafficSelector;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficSelector;
@@ -44,8 +41,11 @@ import org.onosproject.net.flow.TrafficTreatment;
 import org.onosproject.net.packet.DefaultOutboundPacket;
 import org.onosproject.net.packet.PacketContext;
 import org.onosproject.net.packet.PacketPriority;
+import org.onosproject.net.packet.PacketProcessor;
 import org.onosproject.net.packet.PacketService;
-import org.opencord.cordvtn.api.net.VtnNetwork;
+import org.opencord.cordvtn.api.CordVtnConfig;
+import org.opencord.cordvtn.api.core.Instance;
+import org.opencord.cordvtn.api.net.ServiceNetwork;
 import org.opencord.cordvtn.impl.handler.AbstractInstanceHandler;
 import org.slf4j.Logger;
 
@@ -55,7 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.ServiceNetworkType.*;
+import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -72,7 +72,7 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
     protected CordVtnNodeManager nodeManager;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected NetworkConfigRegistry configRegistry;
+    protected NetworkConfigService configService;
 
     private final PacketProcessor packetProcessor = new InternalPacketProcessor();
     private final Map<Ip4Address, MacAddress> gateways = Maps.newConcurrentMap();
@@ -83,7 +83,7 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
     @Activate
     protected void activate() {
         super.activate();
-        configRegistry.addListener(configListener);
+        configService.addListener(configListener);
         readConfiguration();
 
         packetService.addProcessor(packetProcessor, PacketProcessor.director(0));
@@ -93,7 +93,7 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
     @Deactivate
     protected void deactivate() {
         packetService.removeProcessor(packetProcessor);
-        configRegistry.removeListener(configListener);
+        configService.removeListener(configListener);
         super.deactivate();
     }
 
@@ -354,13 +354,13 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
             return;
         }
 
-        VtnNetwork vtnNet = getVtnNetwork(instance);
-        if (vtnNet.type() != PUBLIC && vtnNet.type() != MANAGEMENT_HOST &&
-                vtnNet.type() != MANAGEMENT_LOCAL) {
-            log.trace("Added IP:{} MAC:{}", vtnNet.serviceIp(), privateGatewayMac);
-            addGateway(vtnNet.serviceIp(), privateGatewayMac);
+        ServiceNetwork snet = getServiceNetwork(instance);
+        if (snet.type() != PUBLIC && snet.type() != MANAGEMENT_HOST &&
+                snet.type() != MANAGEMENT_LOCAL) {
+            log.trace("Added IP:{} MAC:{}", snet.serviceIp(), privateGatewayMac);
+            addGateway(snet.serviceIp(), privateGatewayMac);
             // send gratuitous ARP for the existing VMs when ONOS is restarted
-            sendGratuitousArp(vtnNet.serviceIp(), ImmutableSet.of(instance));
+            sendGratuitousArp(snet.serviceIp(), ImmutableSet.of(instance));
         }
     }
 
@@ -372,7 +372,7 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
             return;
         }
 
-        VtnNetwork vtnNet = getVtnNetwork(instance);
+        ServiceNetwork vtnNet = getServiceNetwork(instance);
         // remove this network gateway from proxy ARP if no instance presents
         if (vtnNet.type() == PRIVATE &&
                 getInstances(vtnNet.id()).isEmpty()) {
@@ -381,7 +381,7 @@ public class CordVtnArpProxy extends AbstractInstanceHandler {
     }
 
     private void readConfiguration() {
-        CordVtnConfig config = configRegistry.getConfig(appId, CordVtnConfig.class);
+        CordVtnConfig config = configService.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
             log.debug("No configuration found");
             return;

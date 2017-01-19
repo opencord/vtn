@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-present Open Networking Laboratory
+ * Copyright 2017-present Open Networking Laboratory
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,25 +15,19 @@
  */
 package org.opencord.cordvtn.api.net;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableSet;
+import org.onlab.packet.IpAddress;
+import org.onlab.packet.IpPrefix;
 
-import java.util.Objects;
-import java.util.Set;
-
-import static com.google.common.base.Preconditions.checkNotNull;
-import static org.opencord.cordvtn.api.dependency.Dependency.Type.BIDIRECTIONAL;
+import java.util.Comparator;
+import java.util.Map;
 
 /**
  * Representation of a service network which holds service specific information,
  * like service type or dependency, in addition to the common network.
  */
-public class ServiceNetwork {
+public interface ServiceNetwork {
 
-    private static final String ERR_ID = "Service network ID cannot be null";
-    private static final String ERR_TYPE = "Service network type cannot be null";
-
-    public enum ServiceNetworkType {
+    enum NetworkType {
         PRIVATE,
         PUBLIC,
         MANAGEMENT_HOST,
@@ -42,97 +36,129 @@ public class ServiceNetwork {
         ACCESS_AGENT
     }
 
-    protected final NetworkId id;
-    protected final ServiceNetworkType type;
-    protected final Set<ProviderNetwork> providers;
-
-    public ServiceNetwork(NetworkId id,
-                          ServiceNetworkType type,
-                          Set<ProviderNetwork> providers) {
-        this.id = checkNotNull(id, ERR_ID);
-        this.type = checkNotNull(type, ERR_TYPE);
-        this.providers = providers == null ? ImmutableSet.of() : providers;
+    enum DependencyType {
+        BIDIRECTIONAL,
+        UNIDIRECTIONAL
     }
+
+    Comparator<ServiceNetwork> SERVICE_NETWORK_COMPARATOR =
+            (net1, net2) -> net1.id().id().compareTo(net2.id().id());
 
     /**
-     * Returns the network id of the service network.
+     * Returns the service network identifier.
      *
-     * @return network id
+     * @return service network identifier
      */
-    public NetworkId id() {
-        return id;
-    }
+    NetworkId id();
+
+    /**
+     * Returns the service network name.
+     *
+     * @return service network name.
+     */
+    String name();
 
     /**
      * Returns the type of the service network.
      *
-     * @return service network type
+     * @return service network type; empty value if type is not set
      */
-    public ServiceNetworkType type() {
-        return type;
-    }
+    NetworkType type();
 
     /**
-     * Returns the provider networks of this service network if exists.
+     * Returns the service network segmentation identifier.
      *
-     * @return provider networks
+     * @return segmentation id; empty value if segment id is not set
      */
-    public Set<ProviderNetwork> providers() {
-        return providers;
-    }
+    SegmentId segmentId();
 
     /**
-     * Returns if the given network is the provider of this network or not.
+     * Returns the subnet of the service network.
      *
-     * @param netId network id
-     * @return true if the given network is the provider of this network
+     * @return subnet ip prefix; empty value if subnet is not set
      */
-    public boolean isProvider(NetworkId netId) {
-        return providers.stream().filter(p -> Objects.equals(p.id(), netId))
-                .findAny().isPresent();
-    }
+    IpPrefix subnet();
 
     /**
-     * Returns if the given network is the provider of this network with
-     * bidirectional access type.
+     * Returns the service IP address of the service network.
      *
-     * @param netId network id
-     * @return true if the given network is a bidrectional provider
+     * @return service ip; empty value if service ip is not set
      */
-    public boolean isBidirectionalProvider(NetworkId netId) {
-        return providers.stream().filter(p -> Objects.equals(p.id(), netId))
-                .filter(p -> p.type() == BIDIRECTIONAL)
-                .findAny().isPresent();
-    }
+    IpAddress serviceIp();
 
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
+    /**
+     * Returns the providers of the service network.
+     *
+     * @return set of provider networks; empty map if no providers exist
+     */
+    Map<NetworkId, DependencyType> providers();
 
-        if (obj instanceof ServiceNetwork) {
-            ServiceNetwork that = (ServiceNetwork) obj;
-            if (Objects.equals(id, that.id) &&
-                    Objects.equals(type, that.type) &&
-                    Objects.equals(providers, that.providers)) {
-                return true;
-            }
-        }
-        return false;
-    }
+    /**
+     * Builder of new service network entities.
+     */
+    interface Builder {
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(id, type, providers);
-    }
+        /**
+         * Builds an immutable service network instance.
+         *
+         * @return service network instance
+         */
+        ServiceNetwork build();
 
-    @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(getClass())
-                .add("networkId", id)
-                .add("type", type)
-                .add("providers", providers)
-                .toString();
+        /**
+         * Returns service network builder with the supplied identifier.
+         *
+         * @param networkId network id
+         * @return service network builder
+         */
+        Builder id(NetworkId networkId);
+
+        /**
+         * Returns service network builder with the supplied name.
+         *
+         * @param name network name
+         * @return service network builder
+         */
+        Builder name(String name);
+
+        /**
+         * Returns service network builder with the supplied type.
+         *
+         * @param type service network type
+         * @return service network builder
+         */
+        Builder type(NetworkType type);
+
+        /**
+         * Returns service network builder with the supplied segmentation id.
+         *
+         * @param segmentId segmentation id
+         * @return service network builder
+         */
+        Builder segmentId(SegmentId segmentId);
+
+        /**
+         * Returns service network builder with the supplied subnet.
+         *
+         * @param subnet subnet
+         * @return service network builder
+         */
+        Builder subnet(IpPrefix subnet);
+
+        /**
+         * Returns service network builder with the supplied service IP address.
+         *
+         * @param serviceIp service ip address
+         * @return service network builder
+         */
+        Builder serviceIp(IpAddress serviceIp);
+
+        /**
+         * Returns service network builder with the supplied providers.
+         *
+         * @param providers set of provider network
+         * @return service network builder
+         */
+        Builder providers(Map<NetworkId, DependencyType> providers);
     }
 }

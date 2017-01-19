@@ -28,7 +28,6 @@ public class CordVtnWebApplication extends AbstractWebApplication {
     public Set<Class<?>> getClasses() {
         return getClasses(ServiceNetworkWebResource.class,
                           ServicePortWebResource.class,
-                          ServiceDependencyWebResource.class,
                           NeutronMl2NetworksWebResource.class,
                           NeutronMl2SubnetsWebResource.class,
                           NeutronMl2PortsWebResource.class,

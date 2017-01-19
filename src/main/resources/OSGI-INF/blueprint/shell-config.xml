@@ -35,7 +35,10 @@
             <action class="org.opencord.cordvtn.cli.CordVtnPurgeStatesCommand"/>
         </command>
         <command>
-            <action class="org.opencord.cordvtn.cli.CordVtnSyncStatesCommand"/>
+            <action class="org.opencord.cordvtn.cli.CordVtnSyncNeutronStatesCommand"/>
+        </command>
+        <command>
+            <action class="org.opencord.cordvtn.cli.CordVtnSyncXosStatesCommand"/>
         </command>
         <command>
             <action class="org.opencord.cordvtn.cli.CordVtnNetworkListCommand"/>
