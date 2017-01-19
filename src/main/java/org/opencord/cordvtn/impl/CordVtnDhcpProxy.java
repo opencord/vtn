@@ -446,16 +446,18 @@ public class CordVtnDhcpProxy {
             return;
         }
         dhcpServerMac = config.privateGatewayMac();
-        log.debug("Added DHCP server MAC {}", dhcpServerMac);
+        log.debug("Set default DHCP server MAC address {}", dhcpServerMac);
     }
 
     private class InternalConfigListener implements NetworkConfigListener {
 
         @Override
+        public boolean isRelevant(NetworkConfigEvent event) {
+            return event.configClass().equals(CordVtnConfig.class);
+        }
+
+        @Override
         public void event(NetworkConfigEvent event) {
-            if (!event.configClass().equals(CordVtnConfig.class)) {
-                return;
-            }
 
             switch (event.type()) {
                 case CONFIG_ADDED:
