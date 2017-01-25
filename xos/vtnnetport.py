@@ -130,12 +130,13 @@ class VTNPort(object):
             return cn
         return None
 
-    def get_vsg_tenant(self):
+    def get_vsg_tenants(self):
         from services.vsg.models import VSGTenant
+        vsg_tenants=[]
         for tenant in VSGTenant.get_tenant_objects().all():
             if tenant.instance == self.xos_port.instance:
-                return tenant
-        return None
+                vsg_tenants.append(tenant)
+        return vsg_tenants
 
     @property
     def vlan_id(self):
@@ -159,8 +160,7 @@ class VTNPort(object):
 
         # only look apply the VSG addresses if the Network is of the VSG vtn_kind
         if self.xos_port.network.template.vtn_kind in ["VSG", ]:
-            vsg = self.get_vsg_tenant()
-            if vsg:
+            for vsg in self.get_vsg_tenants():
                 if vsg.wan_container_ip and vsg.wan_container_mac:
                     address_pairs.append({"ip_address": vsg.wan_container_ip,
                                           "mac_address": vsg.wan_container_mac})
