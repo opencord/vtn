@@ -90,7 +90,7 @@ public class CordVtnArpProxy {
     protected ServiceNetworkService snetService;
 
     private final PacketProcessor packetProcessor = new InternalPacketProcessor();
-    private final Map<Ip4Address, MacAddress> gateways = Maps.newConcurrentMap();
+    private final Map<IpAddress, MacAddress> gateways = Maps.newConcurrentMap();
 
     private MacAddress privateGatewayMac = MacAddress.NONE;
     private NetworkConfigListener configListener = new InternalConfigListener();
@@ -107,11 +107,10 @@ public class CordVtnArpProxy {
         requestPacket();
 
         snetService.addListener(snetListener);
-        snetService.serviceNetworks().forEach(net -> {
-            if (net.serviceIp() != null) {
-                addGateway(net.serviceIp(), privateGatewayMac);
-            }
-        });
+        snetService.serviceNetworks().stream()
+                .filter(net -> net.type() == PRIVATE || net.type() == VSG)
+                .filter(net -> net.serviceIp() != null)
+                .forEach(net -> addGateway(net.serviceIp(), privateGatewayMac));
     }
 
     @Deactivate
@@ -161,10 +160,16 @@ public class CordVtnArpProxy {
         checkNotNull(gatewayIp);
         checkArgument(gatewayMac != null && gatewayMac != MacAddress.NONE,
                       "privateGatewayMac is not configured");
-        log.debug("Added ARP proxy entry IP:{} MAC:{}",
-                  gatewayIp,
-                  privateGatewayMac);
-        gateways.put(gatewayIp.getIp4Address(), gatewayMac);
+
+        MacAddress existing = gateways.get(gatewayIp);
+        if (existing != null && !existing.equals(privateGatewayMac) &&
+                gatewayMac.equals(privateGatewayMac)) {
+            // this is public gateway IP and MAC configured via netcfg
+            // don't update with private gateway MAC
+            return;
+        }
+        gateways.put(gatewayIp, gatewayMac);
+        log.debug("Added ARP proxy entry IP:{} MAC:{}", gatewayIp, gatewayMac);
     }
 
     /**
@@ -174,10 +179,17 @@ public class CordVtnArpProxy {
      */
     private void removeGateway(IpAddress gatewayIp) {
         checkNotNull(gatewayIp);
-        log.debug("Removed ARP proxy entry IP:{} MAC:{}",
-                  gatewayIp,
-                  privateGatewayMac);
-        gateways.remove(gatewayIp.getIp4Address());
+        MacAddress existing = gateways.get(gatewayIp);
+        if (existing == null) {
+            return;
+        }
+        if (!existing.equals(privateGatewayMac)) {
+            // this is public gateway IP and MAC configured via netcfg
+            // do nothing
+            return;
+        }
+        gateways.remove(gatewayIp);
+        log.debug("Removed ARP proxy entry for IP:{} MAC: {}", gatewayIp, existing);
     }
 
     /**
@@ -281,7 +293,7 @@ public class CordVtnArpProxy {
      * @param instances set of instances to send gratuitous ARP packet
      */
     private void sendGratuitousArp(IpAddress gatewayIp, Set<Instance> instances) {
-        MacAddress gatewayMac = gateways.get(gatewayIp.getIp4Address());
+        MacAddress gatewayMac = gateways.get(gatewayIp);
         if (gatewayMac == null) {
             log.debug("Gateway {} is not registered to ARP proxy", gatewayIp);
             return;
@@ -384,13 +396,7 @@ public class CordVtnArpProxy {
         @Override
         public boolean isRelevant(ServiceNetworkEvent event) {
             ServiceNetwork snet = event.subject();
-            if (snet.type() == PUBLIC ||
-                    snet.type() == MANAGEMENT_HOST ||
-                    snet.type() == MANAGEMENT_LOCAL ||
-                    snet.type() == ACCESS_AGENT) {
-                return false;
-            }
-            return true;
+            return snet.serviceIp() != null;
         }
 
         @Override
@@ -399,9 +405,7 @@ public class CordVtnArpProxy {
             switch (event.type()) {
                 case SERVICE_NETWORK_CREATED:
                 case SERVICE_NETWORK_UPDATED:
-                    if (snet.serviceIp() != null) {
-                        addGateway(snet.serviceIp(), privateGatewayMac);
-                    }
+                    addGateway(snet.serviceIp(), privateGatewayMac);
                     break;
                 case SERVICE_NETWORK_REMOVED:
                     removeGateway(snet.serviceIp());
@@ -422,7 +426,7 @@ public class CordVtnArpProxy {
             log.debug("No configuration found");
             return;
         }
-
+        // TODO handle the case that private gateway MAC is changed
         privateGatewayMac = config.privateGatewayMac();
         log.debug("Set default service IP MAC address {}", privateGatewayMac);
 

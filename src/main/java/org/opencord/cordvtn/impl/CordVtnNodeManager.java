@@ -31,7 +31,6 @@ import org.onosproject.cluster.LeadershipService;
 import org.onosproject.cluster.NodeId;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
-import org.onosproject.net.AnnotationKeys;
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
@@ -371,7 +370,7 @@ public class CordVtnNodeManager {
 
     private Optional<PortNumber> getPortNumber(DeviceId deviceId, String portName) {
         PortNumber port = deviceService.getPorts(deviceId).stream()
-                .filter(p -> p.annotations().value(AnnotationKeys.PORT_NAME).equals(portName) &&
+                .filter(p -> p.annotations().value(PORT_NAME).equals(portName) &&
                         p.isEnabled())
                 .map(Port::number)
                 .findAny()
@@ -698,7 +697,7 @@ public class CordVtnNodeManager {
             if (node != null) {
                 setNodeState(node, getNodeState(node));
             } else {
-                log.debug("{} is detected on unregistered node, ignore it.", device.id());
+                log.info("{} is detected on unregistered node, ignore it.", device.id());
             }
         }
 
@@ -717,7 +716,7 @@ public class CordVtnNodeManager {
             if (node != null) {
                 setNodeState(node, getNodeState(node));
             } else {
-                log.debug("{} is detected on unregistered node, ignore it.", device.id());
+                log.info("{} is detected on unregistered node, ignore it.", device.id());
             }
         }
 
@@ -740,13 +739,10 @@ public class CordVtnNodeManager {
         public void portAdded(Port port) {
             CordVtnNode node = nodeByBridgeId((DeviceId) port.element().id());
             String portName = portName(port);
-
             if (node == null) {
-                log.debug("{} is added to unregistered node, ignore it.", portName);
+                log.info("{} is added to unregistered node, ignore it.", portName);
                 return;
             }
-
-            log.info("Port {} is added to {}", portName, node.hostname());
 
             if (node.systemIfaces().contains(portName)) {
                 setNodeState(node, getNodeState(node));
@@ -768,12 +764,10 @@ public class CordVtnNodeManager {
         public void portRemoved(Port port) {
             CordVtnNode node = nodeByBridgeId((DeviceId) port.element().id());
             String portName = portName(port);
-
             if (node == null) {
+                log.info("{} is removed from unregistered node, ignore it.", portName);
                 return;
             }
-
-            log.info("Port {} is removed from {}", portName, node.hostname());
 
             if (node.systemIfaces().contains(portName)) {
                 setNodeState(node, NodeState.INCOMPLETE);
@@ -789,33 +783,51 @@ public class CordVtnNodeManager {
     private class InternalDeviceListener implements DeviceListener {
 
         @Override
+        public boolean isRelevant(DeviceEvent event) {
+            NodeId leaderNodeId = leadershipService.getLeader(appId.name());
+            return Objects.equals(localNodeId, leaderNodeId);
+        }
+
+        @Override
         public void event(DeviceEvent event) {
 
-            NodeId leaderNodeId = leadershipService.getLeader(appId.name());
-            if (!Objects.equals(localNodeId, leaderNodeId)) {
-                // do not allow to proceed without leadership
-                return;
-            }
-
             Device device = event.subject();
-            ConnectionHandler<Device> handler =
-                    (device.type().equals(SWITCH) ? bridgeHandler : ovsdbHandler);
+            ConnectionHandler<Device> handler = device.type().equals(SWITCH) ?
+                    bridgeHandler : ovsdbHandler;
 
             switch (event.type()) {
                 case PORT_ADDED:
-                    eventExecutor.execute(() -> bridgeHandler.portAdded(event.port()));
+                    eventExecutor.execute(() -> {
+                        log.info("Port {} is added to {}",
+                                 event.port().annotations().value(PORT_NAME),
+                                 event.subject().id());
+                        bridgeHandler.portAdded(event.port());
+                    });
                     break;
                 case PORT_UPDATED:
                     if (!event.port().isEnabled()) {
-                        eventExecutor.execute(() -> bridgeHandler.portRemoved(event.port()));
+                        eventExecutor.execute(() -> {
+                            log.info("Port {} is removed from {}",
+                                     event.port().annotations().value(PORT_NAME),
+                                     event.subject().id());
+                            bridgeHandler.portRemoved(event.port());
+                        });
                     }
                     break;
                 case DEVICE_ADDED:
                 case DEVICE_AVAILABILITY_CHANGED:
                     if (deviceService.isAvailable(device.id())) {
-                        eventExecutor.execute(() -> handler.connected(device));
+                        eventExecutor.execute(() -> {
+                            log.info("Device {} is connected",
+                                     event.subject().id());
+                            handler.connected(device);
+                        });
                     } else {
-                        eventExecutor.execute(() -> handler.disconnected(device));
+                        eventExecutor.execute(() -> {
+                            log.info("Device {} is disconnected",
+                                     event.subject().id());
+                            handler.disconnected(device);
+                        });
                     }
                     break;
                 default:
