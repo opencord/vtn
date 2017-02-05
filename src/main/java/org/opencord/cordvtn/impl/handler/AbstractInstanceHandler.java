@@ -101,21 +101,21 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
     }
 
     protected ServiceNetwork getServiceNetwork(Instance instance) {
-        ServiceNetwork vtnNet = snetService.serviceNetwork(instance.netId());
-        if (vtnNet == null) {
+        ServiceNetwork snet = snetService.serviceNetwork(instance.netId());
+        if (snet == null) {
             final String error = String.format(ERR_VTN_NETWORK, instance);
             throw new IllegalStateException(error);
         }
-        return vtnNet;
+        return snet;
     }
 
     protected ServicePort getServicePort(Instance instance) {
-        ServicePort vtnPort = snetService.servicePort(instance.portId());
-        if (vtnPort == null) {
+        ServicePort sport = snetService.servicePort(instance.portId());
+        if (sport == null) {
             final String error = String.format(ERR_VTN_PORT, instance);
             throw new IllegalStateException(error);
         }
-        return vtnPort;
+        return sport;
     }
 
     private class InternalHostListener implements HostListener {
