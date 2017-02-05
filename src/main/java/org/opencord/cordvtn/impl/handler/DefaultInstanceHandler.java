@@ -16,6 +16,7 @@
 package org.opencord.cordvtn.impl.handler;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
@@ -24,20 +25,43 @@ import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.Ip4Prefix;
+import org.onlab.packet.IpAddress;
+import org.onlab.packet.IpPrefix;
+import org.onlab.packet.MacAddress;
+import org.onlab.packet.VlanId;
+import org.onosproject.net.DefaultAnnotations;
+import org.onosproject.net.HostId;
+import org.onosproject.net.PortNumber;
 import org.onosproject.net.flow.DefaultFlowRule;
 import org.onosproject.net.flow.DefaultTrafficSelector;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.FlowRule;
+import org.onosproject.net.flow.FlowRuleService;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
+import org.onosproject.net.flow.criteria.Criterion;
+import org.onosproject.net.flow.criteria.IPCriterion;
 import org.onosproject.net.flow.instructions.ExtensionTreatment;
+import org.onosproject.net.flow.instructions.Instruction;
+import org.onosproject.net.flow.instructions.Instructions;
+import org.onosproject.net.flow.instructions.L2ModificationInstruction;
+import org.onosproject.net.host.DefaultHostDescription;
+import org.onosproject.net.host.HostDescription;
 import org.opencord.cordvtn.api.core.Instance;
 import org.opencord.cordvtn.api.core.InstanceHandler;
+import org.opencord.cordvtn.api.core.InstanceService;
+import org.opencord.cordvtn.api.net.AddressPair;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.api.net.ServicePort;
 import org.opencord.cordvtn.api.node.CordVtnNode;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.impl.CordVtnPipeline;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.onosproject.net.flow.criteria.Criterion.Type.IPV4_DST;
+import static org.onosproject.net.flow.instructions.L2ModificationInstruction.L2SubType.VLAN_PUSH;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.*;
 
 /**
@@ -47,10 +71,16 @@ import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.*;
 public class DefaultInstanceHandler extends AbstractInstanceHandler implements InstanceHandler {
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected FlowRuleService flowRuleService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnPipeline pipeline;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnNodeManager nodeManager;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected InstanceService instanceService;
 
     @Activate
     protected void activate() {
@@ -65,24 +95,93 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
 
     @Override
     public void instanceDetected(Instance instance) {
-        if (instance.isNestedInstance()) {
+        if (instance.isAdditionalInstance()) {
             return;
         }
-        log.info("Instance is detected {}", instance);
+        log.info("Instance is detected or updated {}", instance);
 
         ServiceNetwork snet = getServiceNetwork(instance);
         populateDefaultRules(instance, snet, true);
+
+        // TODO handle the case that vlan id is added and then removed
+        ServicePort sport = getServicePort(instance);
+        if (sport.vlanId() != null) {
+            populateVlanRule(
+                    instance,
+                    sport.vlanId(),
+                    nodeManager.dataPort(instance.deviceId()),
+                    true);
+        }
+        // FIXME don't add the existing instance again
+        sport.addressPairs().stream().forEach(pair -> {
+            // add instance for the additional address pairs
+            addAdditionalInstance(instance, pair.ip(), pair.mac());
+        });
+        Set<IpAddress> ipAddrs = sport.addressPairs().stream()
+                .map(AddressPair::ip).collect(Collectors.toSet());
+        populateAddressPairRule(instance, ipAddrs, true);
     }
 
     @Override
     public void instanceRemoved(Instance instance) {
-        if (instance.isNestedInstance()) {
+        if (instance.isAdditionalInstance()) {
             return;
         }
         log.info("Instance is removed {}", instance);
 
         ServiceNetwork snet = getServiceNetwork(instance);
         populateDefaultRules(instance, snet, false);
+
+        // FIXME service port might be already removed
+        ServicePort sport = getServicePort(instance);
+        if (sport.vlanId() != null) {
+            populateVlanRule(
+                    instance,
+                    sport.vlanId(),
+                    nodeManager.dataPort(instance.deviceId()),
+                    false);
+        }
+        boolean isOriginalInstance = !instance.isAdditionalInstance();
+        Set<IpAddress> ipAddrs = sport.addressPairs().stream()
+                .map(AddressPair::ip).collect(Collectors.toSet());
+        populateAddressPairRule(
+                instance,
+                isOriginalInstance ? ImmutableSet.of() : ipAddrs,
+                false);
+    }
+
+    @Override
+    public void instanceUpdated(Instance instance) {
+        if (!instance.isAdditionalInstance()) {
+            ServicePort sport = getServicePort(instance);
+            Set<MacAddress> macAddrs = sport.addressPairs().stream()
+                    .map(AddressPair::mac)
+                    .collect(Collectors.toSet());
+            hostService.getConnectedHosts(instance.host().location()).stream()
+                    .filter(h -> !h.mac().equals(instance.mac()))
+                    .filter(h -> !macAddrs.contains(h.mac()))
+                    .forEach(h -> instanceService.removeInstance(h.id()));
+        }
+        instanceDetected(instance);
+    }
+
+    private void addAdditionalInstance(Instance instance, IpAddress ip, MacAddress mac) {
+        HostId hostId = HostId.hostId(mac);
+        DefaultAnnotations.Builder annotations = DefaultAnnotations.builder()
+                .set(Instance.NETWORK_TYPE, instance.netType().toString())
+                .set(Instance.NETWORK_ID, instance.netId().id())
+                .set(Instance.PORT_ID, instance.portId().id())
+                .set(Instance.ORIGINAL_HOST_ID, instance.host().id().toString())
+                .set(Instance.CREATE_TIME, String.valueOf(System.currentTimeMillis()));
+
+        HostDescription hostDesc = new DefaultHostDescription(
+                mac,
+                VlanId.NONE,
+                instance.host().location(),
+                Sets.newHashSet(ip),
+                annotations.build());
+
+        instanceService.addInstance(hostId, hostDesc);
     }
 
     private void populateDefaultRules(Instance instance, ServiceNetwork snet, boolean install) {
@@ -276,5 +375,129 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
 
             pipeline.processFlowRule(install, flowRuleDirect);
         });
+    }
+
+    private void populateVlanRule(Instance instance, VlanId vlanId, PortNumber dataPort,
+                                  boolean install) {
+        TrafficSelector selector = DefaultTrafficSelector.builder()
+                .matchInPort(dataPort)
+                .matchVlanId(vlanId)
+                .matchEthDst(instance.mac())
+                .build();
+
+        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+                .setOutput(instance.portNumber())
+                .build();
+
+        FlowRule flowRule = DefaultFlowRule.builder()
+                .fromApp(appId)
+                .withSelector(selector)
+                .withTreatment(treatment)
+                .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
+                .forDevice(instance.deviceId())
+                .forTable(CordVtnPipeline.TABLE_VLAN)
+                .makePermanent()
+                .build();
+
+        pipeline.processFlowRule(install, flowRule);
+
+        selector = DefaultTrafficSelector.builder()
+                .matchInPort(instance.portNumber())
+                .matchVlanId(vlanId)
+                .build();
+
+        treatment = DefaultTrafficTreatment.builder()
+                .setOutput(dataPort)
+                .build();
+
+        flowRule = DefaultFlowRule.builder()
+                .fromApp(appId)
+                .withSelector(selector)
+                .withTreatment(treatment)
+                .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
+                .forDevice(instance.deviceId())
+                .forTable(CordVtnPipeline.TABLE_VLAN)
+                .makePermanent()
+                .build();
+
+        pipeline.processFlowRule(install, flowRule);
+    }
+
+    private void populateAddressPairRule(Instance instance, Set<IpAddress> ipAddrs,
+                                         boolean install) {
+        // for traffic coming from WAN, tag 500 and take through the vSG VM
+        // based on destination ip
+        ipAddrs.stream().forEach(wanIp -> {
+            // for traffic coming from WAN, tag 500 and take through the vSG VM
+            TrafficSelector downstream = DefaultTrafficSelector.builder()
+                    .matchEthType(Ethernet.TYPE_IPV4)
+                    .matchIPDst(wanIp.toIpPrefix())
+                    .build();
+
+            TrafficTreatment downstreamTreatment = DefaultTrafficTreatment.builder()
+                    .pushVlan()
+                    .setVlanId(CordVtnPipeline.VLAN_WAN)
+                    .setEthDst(instance.mac())
+                    .setOutput(instance.portNumber())
+                    .build();
+
+            FlowRule downstreamFlowRule = DefaultFlowRule.builder()
+                    .fromApp(appId)
+                    .withSelector(downstream)
+                    .withTreatment(downstreamTreatment)
+                    .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
+                    .forDevice(instance.deviceId())
+                    .forTable(CordVtnPipeline.TABLE_DST)
+                    .makePermanent()
+                    .build();
+
+            pipeline.processFlowRule(install, downstreamFlowRule);
+        });
+
+        // remove downstream flow rules for the vSG not shown in vsgWanIps
+        for (FlowRule rule : flowRuleService.getFlowRulesById(appId)) {
+            if (!rule.deviceId().equals(instance.deviceId())) {
+                continue;
+            }
+            PortNumber output = getOutputFromTreatment(rule);
+            if (output == null || !output.equals(instance.portNumber()) ||
+                    !isVlanPushFromTreatment(rule)) {
+                continue;
+            }
+
+            IpPrefix dstIp = getDstIpFromSelector(rule);
+            if (dstIp != null && !ipAddrs.contains(dstIp.address())) {
+                pipeline.processFlowRule(false, rule);
+            }
+        }
+    }
+
+    private PortNumber getOutputFromTreatment(FlowRule flowRule) {
+        Instruction instruction = flowRule.treatment().allInstructions().stream()
+                .filter(inst -> inst instanceof Instructions.OutputInstruction)
+                .findFirst()
+                .orElse(null);
+        if (instruction == null) {
+            return null;
+        }
+        return ((Instructions.OutputInstruction) instruction).port();
+    }
+
+    private IpPrefix getDstIpFromSelector(FlowRule flowRule) {
+        Criterion criterion = flowRule.selector().getCriterion(IPV4_DST);
+        if (criterion != null && criterion instanceof IPCriterion) {
+            IPCriterion ip = (IPCriterion) criterion;
+            return ip.ip();
+        } else {
+            return null;
+        }
+    }
+
+    private boolean isVlanPushFromTreatment(FlowRule flowRule) {
+        return flowRule.treatment().allInstructions().stream()
+                .filter(inst -> inst instanceof L2ModificationInstruction)
+                .filter(inst -> ((L2ModificationInstruction) inst).subtype().equals(VLAN_PUSH))
+                .findAny()
+                .isPresent();
     }
 }

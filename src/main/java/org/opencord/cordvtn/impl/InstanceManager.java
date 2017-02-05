@@ -197,20 +197,8 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     }
 
     @Override
-    public void addNestedInstance(HostId hostId, HostDescription description) {
-        DefaultAnnotations annotations  = DefaultAnnotations.builder()
-                .set(Instance.NESTED_INSTANCE, Instance.TRUE)
-                .build();
-        annotations = annotations.merge(annotations, description.annotations());
-
-        HostDescription nestedHost = new DefaultHostDescription(
-                description.hwAddress(),
-                description.vlan(),
-                description.location(),
-                description.ipAddress(),
-                annotations);
-
-        hostProvider.hostDetected(hostId, nestedHost, false);
+    public void addInstance(HostId hostId, HostDescription description) {
+        hostProvider.hostDetected(hostId, description, false);
     }
 
     @Override
@@ -222,7 +210,7 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     }
 
     @Override
-    public void removeNestedInstance(HostId hostId) {
+    public void removeInstance(HostId hostId) {
         hostProvider.hostVanished(hostId);
     }
 

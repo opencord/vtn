@@ -36,9 +36,8 @@ public final class Instance {
     public static final String NETWORK_ID = "networkId";
     public static final String NETWORK_TYPE = "networkType";
     public static final String PORT_ID = "portId";
+    public static final String ORIGINAL_HOST_ID = "originalHostId";
     public static final String CREATE_TIME = "createTime";
-    public static final String NESTED_INSTANCE = "nestedInstance";
-    public static final String TRUE = "true";
 
     private final Host host;
 
@@ -107,12 +106,12 @@ public final class Instance {
     }
 
     /**
-     * Returns if the instance is nested container or not.
+     * Returns if the instance is original instance or additional one.
      *
-     * @return true if it's nested container; false otherwise
+     * @return true if it's additional instance; false otherwise
      */
-    public boolean isNestedInstance() {
-        return host.annotations().value(NESTED_INSTANCE) != null;
+    public boolean isAdditionalInstance() {
+        return host.annotations().value(ORIGINAL_HOST_ID) != null;
     }
 
     /**

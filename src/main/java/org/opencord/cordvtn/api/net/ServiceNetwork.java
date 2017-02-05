@@ -32,6 +32,7 @@ public interface ServiceNetwork {
         PUBLIC,
         MANAGEMENT_HOST,
         MANAGEMENT_LOCAL,
+        @Deprecated
         VSG,
         ACCESS_AGENT
     }

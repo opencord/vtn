@@ -35,6 +35,14 @@ public interface InstanceService {
     void addInstance(ConnectPoint connectPoint);
 
     /**
+     * Adds a host with a given host ID and host description.
+     *
+     * @param hostId      host id
+     * @param description host description
+     */
+    void addInstance(HostId hostId, HostDescription description);
+
+    /**
      * Removes a service instance from a given connect point.
      *
      * @param connectPoint connect point
@@ -42,19 +50,9 @@ public interface InstanceService {
     void removeInstance(ConnectPoint connectPoint);
 
     /**
-     * Adds a nested instance with given host ID and host description.
-     * Nested instance can be a container inside a virtual machine, for example.
-     * DHCP is not supported for the nested instance.
-     *
-     * @param hostId host id
-     * @param description host description
-     */
-    void addNestedInstance(HostId hostId, HostDescription description);
-
-    /**
-     * Removes nested instance with a given host ID.
+     * Removes host with host ID.
      *
      * @param hostId host id
      */
-    void removeNestedInstance(HostId hostId);
+    void removeInstance(HostId hostId);
 }
