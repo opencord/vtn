@@ -134,14 +134,14 @@ class SyncVTNService(SyncStep):
             if not network.id:
                 continue
 
+            if (network.type=="PRIVATE") and (not network.providerNetworks):
+                logger.info("Skipping network %s because it has no relevant state" % network.id)
+                continue
+
             valid_ids.append(network.id)
 
             if (glo_saved_networks.get(network.id, None) != network.to_dict()):
                 (exists, url, method, req_func) = self.get_method("http://" + self.get_vtn_addr() +  ":" + self.get_vtn_port() + "/onos/cordvtn/serviceNetworks", network.id)
-
-                if (network.type=="PRIVATE") and (not network.providerNetworks):
-                    logger.info("Skipping network %s because it has no relevant state" % network.id)
-                    continue
 
                 logger.info("%sing VTN API for network %s" % (method, network.id))
 
