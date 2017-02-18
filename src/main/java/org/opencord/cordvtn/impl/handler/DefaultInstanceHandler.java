@@ -382,7 +382,6 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchInPort(dataPort)
                 .matchVlanId(vlanId)
-                .matchEthDst(instance.mac())
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
