@@ -15,8 +15,6 @@
  */
 package org.opencord.cordvtn.api;
 
-import org.onlab.packet.Ip4Address;
-
 /**
  * Provides constants used in CORD VTN services.
  */
@@ -37,6 +35,5 @@ public final class Constants {
     public static final String DEFAULT_OF_PROTOCOL = "tcp";
     public static final int DEFAULT_OF_PORT = 6653;
     public static final int DEFAULT_OVSDB_PORT = 6640;
-    public static final Ip4Address DEFAULT_DNS = Ip4Address.valueOf("8.8.8.8");
-    public static final int DHCP_INFINITE_LEASE = -1;
+    public static final String DEFAULT_GATEWAY_MAC_STR = "00:00:00:00:00:01";
 }

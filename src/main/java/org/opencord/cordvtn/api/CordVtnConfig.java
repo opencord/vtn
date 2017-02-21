@@ -54,6 +54,7 @@ public class CordVtnConfig extends Config<ApplicationId> {
 
     protected final Logger log = getLogger(getClass());
 
+    @Deprecated
     private static final String PRIVATE_GATEWAY_MAC = "privateGatewayMac";
     private static final String PUBLIC_GATEWAYS = "publicGateways";
     private static final String GATEWAY_IP = "gatewayIp";
@@ -106,7 +107,6 @@ public class CordVtnConfig extends Config<ApplicationId> {
         }
 
         // check all mandatory fields are present and valid
-        result = result && isMacAddress(PRIVATE_GATEWAY_MAC, MANDATORY);
         result = result && isIpPrefix(LOCAL_MANAGEMENT_IP, MANDATORY);
 
         for (JsonNode node : object.get(CORDVTN_NODES)) {
@@ -239,16 +239,6 @@ public class CordVtnConfig extends Config<ApplicationId> {
     private String getConfig(JsonNode jsonNode, String path) {
         jsonNode = jsonNode.path(path);
         return jsonNode.asText();
-    }
-
-    /**
-     * Returns private network gateway MAC address.
-     *
-     * @return mac address
-     */
-    public MacAddress privateGatewayMac() {
-        JsonNode jsonNode = object.get(PRIVATE_GATEWAY_MAC);
-        return MacAddress.valueOf(jsonNode.asText());
     }
 
     /**
