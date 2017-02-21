@@ -15,11 +15,14 @@
  */
 package org.opencord.cordvtn.impl;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Bytes;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
+import org.apache.felix.scr.annotations.Modified;
+import org.apache.felix.scr.annotations.Property;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.DHCP;
@@ -32,14 +35,13 @@ import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.TpPort;
 import org.onlab.packet.UDP;
+import org.onlab.util.Tools;
+import org.onosproject.cfg.ComponentConfigService;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.Host;
 import org.onosproject.net.HostId;
-import org.onosproject.net.config.NetworkConfigEvent;
-import org.onosproject.net.config.NetworkConfigListener;
-import org.onosproject.net.config.NetworkConfigService;
 import org.onosproject.net.flow.DefaultTrafficSelector;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficSelector;
@@ -51,24 +53,25 @@ import org.onosproject.net.packet.PacketPriority;
 import org.onosproject.net.packet.PacketProcessor;
 import org.onosproject.net.packet.PacketService;
 import org.opencord.cordvtn.api.Constants;
-import org.opencord.cordvtn.api.CordVtnConfig;
 import org.opencord.cordvtn.api.core.Instance;
 import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.NetworkId;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Dictionary;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static org.onlab.packet.DHCP.DHCPOptionCode.*;
 import static org.onlab.packet.DHCPPacketType.DHCPACK;
 import static org.onlab.packet.DHCPPacketType.DHCPOFFER;
+import static org.opencord.cordvtn.api.Constants.DEFAULT_GATEWAY_MAC_STR;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType.BIDIRECTIONAL;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.MANAGEMENT_HOST;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.MANAGEMENT_LOCAL;
@@ -82,11 +85,13 @@ public class CordVtnDhcpProxy {
 
     protected final Logger log = getLogger(getClass());
 
-    private static final Ip4Address DEFAULT_DNS = Ip4Address.valueOf("8.8.8.8");
-    private static final byte PACKET_TTL = (byte) 127;
-    // TODO add MTU, static route option codes to ONOS DHCP and remove here
+    private static final String DHCP_SERVER_MAC = "dhcpServerMac";
+
     private static final byte DHCP_OPTION_MTU = (byte) 26;
     private static final byte DHCP_OPTION_CLASSLESS_STATIC_ROUTE = (byte) 121;
+
+    private static final Ip4Address DEFAULT_DNS = Ip4Address.valueOf("8.8.8.8");
+    private static final byte DEFAULT_PACKET_TTL = (byte) 127;
     private static final byte[] DHCP_DATA_LEASE_INFINITE =
             ByteBuffer.allocate(4).putInt(-1).array();
     private static final byte[] DHCP_DATA_MTU_DEFAULT =
@@ -96,7 +101,7 @@ public class CordVtnDhcpProxy {
     protected CoreService coreService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected NetworkConfigService configService;
+    protected ComponentConfigService configService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected PacketService packetService;
@@ -107,29 +112,44 @@ public class CordVtnDhcpProxy {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected ServiceNetworkService snetService;
 
+    @Property(name = DHCP_SERVER_MAC, value = DEFAULT_GATEWAY_MAC_STR,
+            label = "Fake MAC address for DHCP server interface")
+    private String dhcpServerMac = DEFAULT_GATEWAY_MAC_STR;
+
     private final PacketProcessor packetProcessor = new InternalPacketProcessor();
-    private final NetworkConfigListener configListener = new InternalConfigListener();
 
     private ApplicationId appId;
-    private MacAddress dhcpServerMac = MacAddress.NONE;
 
     @Activate
     protected void activate() {
         appId = coreService.registerApplication(Constants.CORDVTN_APP_ID);
-        configService.addListener(configListener);
-        readConfiguration();
-
+        configService.registerProperties(getClass());
         packetService.addProcessor(packetProcessor, PacketProcessor.director(0));
         requestPackets();
+
         log.info("Started");
     }
 
     @Deactivate
     protected void deactivate() {
-        configService.removeListener(configListener);
         packetService.removeProcessor(packetProcessor);
+        configService.unregisterProperties(getClass(), false);
         cancelPackets();
+
         log.info("Stopped");
+    }
+
+    @Modified
+    protected void modified(ComponentContext context) {
+        Dictionary<?, ?> properties = context.getProperties();
+        String updatedMac;
+
+        updatedMac = Tools.get(properties, DHCP_SERVER_MAC);
+        if (!Strings.isNullOrEmpty(updatedMac) && !updatedMac.equals(dhcpServerMac)) {
+            dhcpServerMac = updatedMac;
+        }
+
+        log.info("Modified");
     }
 
     private void requestPackets() {
@@ -245,9 +265,6 @@ public class CordVtnDhcpProxy {
 
         private Ethernet buildReply(Ethernet ethRequest, byte packetType,
                                     Instance reqInstance) {
-            checkArgument(!dhcpServerMac.equals(MacAddress.NONE),
-                          "DHCP server MAC is not set");
-
             ServiceNetwork snet = snetService.serviceNetwork(reqInstance.netId());
             Ip4Address serverIp = snet.serviceIp().getIp4Address();
 
@@ -260,7 +277,7 @@ public class CordVtnDhcpProxy {
             IPv4 ipv4Reply = new IPv4();
             ipv4Reply.setSourceAddress(serverIp.toInt());
             ipv4Reply.setDestinationAddress(reqInstance.ipAddress().toInt());
-            ipv4Reply.setTtl(PACKET_TTL);
+            ipv4Reply.setTtl(DEFAULT_PACKET_TTL);
 
             UDP udpRequest = (UDP) ipv4Request.getPayload();
             UDP udpReply = new UDP();
@@ -402,7 +419,7 @@ public class CordVtnDhcpProxy {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
 
-            providers.stream().forEach(provider -> {
+            providers.forEach(provider -> {
                 result.add((byte) provider.subnet().prefixLength());
                 result.addAll(getSignificantOctets(provider.subnet()));
                 result.addAll(router);
@@ -413,7 +430,7 @@ public class CordVtnDhcpProxy {
                     .filter(net -> isBidirectionalProvider(net, snet.id()))
                     .collect(Collectors.toSet());
 
-            subscribers.stream().forEach(subscriber -> {
+            subscribers.forEach(subscriber -> {
                 result.add((byte) subscriber.subnet().prefixLength());
                 result.addAll(getSignificantOctets(subscriber.subnet()));
                 result.addAll(router);
@@ -425,8 +442,7 @@ public class CordVtnDhcpProxy {
         private boolean isBidirectionalProvider(ServiceNetwork snet, NetworkId targetNetId) {
             return snet.providers().entrySet().stream()
                     .filter(p -> Objects.equals(p.getKey(), targetNetId))
-                    .filter(p -> p.getValue() == BIDIRECTIONAL)
-                    .findAny().isPresent();
+                    .anyMatch(p -> p.getValue() == BIDIRECTIONAL);
         }
 
         private List<Byte> getSignificantOctets(IpPrefix ipPrefix) {
@@ -436,37 +452,6 @@ public class CordVtnDhcpProxy {
             }
             byte[] result = Arrays.copyOfRange(ipPrefix.address().toOctets(), 0, numOfOctets);
             return Bytes.asList(result);
-        }
-    }
-
-    private void readConfiguration() {
-        CordVtnConfig config = configService.getConfig(appId, CordVtnConfig.class);
-        if (config == null) {
-            log.debug("No configuration found");
-            return;
-        }
-        dhcpServerMac = config.privateGatewayMac();
-        log.debug("Set default DHCP server MAC address {}", dhcpServerMac);
-    }
-
-    private class InternalConfigListener implements NetworkConfigListener {
-
-        @Override
-        public boolean isRelevant(NetworkConfigEvent event) {
-            return event.configClass().equals(CordVtnConfig.class);
-        }
-
-        @Override
-        public void event(NetworkConfigEvent event) {
-
-            switch (event.type()) {
-                case CONFIG_ADDED:
-                case CONFIG_UPDATED:
-                    readConfiguration();
-                    break;
-                default:
-                    break;
-            }
         }
     }
 }

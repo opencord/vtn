@@ -15,10 +15,13 @@
  */
 package org.opencord.cordvtn.impl;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
+import org.apache.felix.scr.annotations.Modified;
+import org.apache.felix.scr.annotations.Property;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.ARP;
@@ -27,6 +30,8 @@ import org.onlab.packet.Ethernet;
 import org.onlab.packet.Ip4Address;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
+import org.onlab.util.Tools;
+import org.onosproject.cfg.ComponentConfigService;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.net.DeviceId;
@@ -52,15 +57,18 @@ import org.opencord.cordvtn.api.core.ServiceNetworkEvent;
 import org.opencord.cordvtn.api.core.ServiceNetworkListener;
 import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 
 import java.nio.ByteBuffer;
+import java.util.Dictionary;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.opencord.cordvtn.api.Constants.DEFAULT_GATEWAY_MAC_STR;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -70,6 +78,8 @@ import static org.slf4j.LoggerFactory.getLogger;
 @Component(immediate = true)
 public class CordVtnArpProxy {
     protected final Logger log = getLogger(getClass());
+
+    private static final String PRIVATE_GATEWAY_MAC = "privateGatewayMac";
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected PacketService packetService;
@@ -81,7 +91,10 @@ public class CordVtnArpProxy {
     protected HostService hostService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected NetworkConfigService configService;
+    protected NetworkConfigService netConfigService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected ComponentConfigService compConfigService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnNodeManager nodeManager;
@@ -89,10 +102,14 @@ public class CordVtnArpProxy {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected ServiceNetworkService snetService;
 
+    @Property(name = PRIVATE_GATEWAY_MAC, value = DEFAULT_GATEWAY_MAC_STR,
+            label = "Fake MAC address for virtual network gateway")
+    private String privateGatewayMacStr = DEFAULT_GATEWAY_MAC_STR;
+    private MacAddress privateGatewayMac = MacAddress.valueOf(privateGatewayMacStr);
+
     private final PacketProcessor packetProcessor = new InternalPacketProcessor();
     private final Map<IpAddress, MacAddress> gateways = Maps.newConcurrentMap();
 
-    private MacAddress privateGatewayMac = MacAddress.NONE;
     private NetworkConfigListener configListener = new InternalConfigListener();
     private ServiceNetworkListener snetListener = new InternalServiceNetworkListener();
     private ApplicationId appId;
@@ -100,24 +117,42 @@ public class CordVtnArpProxy {
     @Activate
     protected void activate() {
         appId = coreService.registerApplication(Constants.CORDVTN_APP_ID);
-        configService.addListener(configListener);
-        readConfiguration();
+        compConfigService.registerProperties(getClass());
+
+        netConfigService.addListener(configListener);
+        readPublicGateways();
+        snetService.addListener(snetListener);
+        readPrivateGateways();
 
         packetService.addProcessor(packetProcessor, PacketProcessor.director(0));
         requestPacket();
 
-        snetService.addListener(snetListener);
-        snetService.serviceNetworks().stream()
-                .filter(net -> net.type() == PRIVATE || net.type() == VSG)
-                .filter(net -> net.serviceIp() != null)
-                .forEach(net -> addGateway(net.serviceIp(), privateGatewayMac));
+        log.info("Started");
     }
 
     @Deactivate
     protected void deactivate() {
-        snetService.removeListener(snetListener);
         packetService.removeProcessor(packetProcessor);
-        configService.removeListener(configListener);
+        snetService.removeListener(snetListener);
+        netConfigService.removeListener(configListener);
+        compConfigService.unregisterProperties(getClass(), false);
+
+        log.info("Stopped");
+    }
+
+    @Modified
+    protected void modified(ComponentContext context) {
+        Dictionary<?, ?> properties = context.getProperties();
+        String updatedMac;
+
+        updatedMac = Tools.get(properties, PRIVATE_GATEWAY_MAC);
+        if (!Strings.isNullOrEmpty(updatedMac) &&
+                !updatedMac.equals(privateGatewayMacStr)) {
+            privateGatewayMacStr = updatedMac;
+            privateGatewayMac = MacAddress.valueOf(privateGatewayMacStr);
+        }
+
+        log.info("Modified");
     }
 
     /**
@@ -150,6 +185,13 @@ public class CordVtnArpProxy {
                 Optional.empty());
     }
 
+    private void readPrivateGateways() {
+        snetService.serviceNetworks().stream()
+                .filter(net -> net.type() == PRIVATE || net.type() == VSG)
+                .filter(net -> net.serviceIp() != null)
+                .forEach(net -> addGateway(net.serviceIp(), privateGatewayMac));
+    }
+
     /**
      * Adds a given gateway IP and MAC address to this ARP proxy.
      *
@@ -157,9 +199,9 @@ public class CordVtnArpProxy {
      * @param gatewayMac gateway mac address
      */
     private void addGateway(IpAddress gatewayIp, MacAddress gatewayMac) {
-        checkNotNull(gatewayIp);
+        checkNotNull(gatewayIp, "Gateway IP address cannot be null");
         checkArgument(gatewayMac != null && gatewayMac != MacAddress.NONE,
-                      "privateGatewayMac is not configured");
+                      "Gateway MAC address cannot be null or NONE");
 
         MacAddress existing = gateways.get(gatewayIp);
         if (existing != null && !existing.equals(privateGatewayMac) &&
@@ -300,7 +342,7 @@ public class CordVtnArpProxy {
         }
 
         Ethernet ethArp = buildGratuitousArp(gatewayIp.getIp4Address(), gatewayMac);
-        instances.stream().forEach(instance -> {
+        instances.forEach(instance -> {
             TrafficTreatment treatment = DefaultTrafficTreatment.builder()
                     .setOutput(instance.portNumber())
                     .build();
@@ -420,17 +462,14 @@ public class CordVtnArpProxy {
         }
     }
 
-    private void readConfiguration() {
-        CordVtnConfig config = configService.getConfig(appId, CordVtnConfig.class);
+    private void readPublicGateways() {
+        CordVtnConfig config = netConfigService.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
             log.debug("No configuration found");
             return;
         }
-        // TODO handle the case that private gateway MAC is changed
-        privateGatewayMac = config.privateGatewayMac();
-        log.debug("Set default service IP MAC address {}", privateGatewayMac);
 
-        config.publicGateways().entrySet().stream().forEach(entry -> {
+        config.publicGateways().entrySet().forEach(entry -> {
             addGateway(entry.getKey(), entry.getValue());
         });
         // TODO send gratuitous arp in case the MAC is changed
@@ -449,7 +488,7 @@ public class CordVtnArpProxy {
             switch (event.type()) {
                 case CONFIG_ADDED:
                 case CONFIG_UPDATED:
-                    readConfiguration();
+                    readPublicGateways();
                     break;
                 default:
                     break;
