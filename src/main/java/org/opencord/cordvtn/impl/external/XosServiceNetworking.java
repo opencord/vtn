@@ -160,7 +160,7 @@ public final class XosServiceNetworking extends AbstractWebResource
         try {
             Response response = builder.get();
             if (response.getStatus() != HTTP_OK) {
-                log.warn("Failed to get resource {}", endpoint + path);
+                log.warn("Failed to get resource {}", endpoint + URL_BASE + path);
                 return EMPTY_JSON_STRING;
             }
         } catch (javax.ws.rs.ProcessingException e) {
