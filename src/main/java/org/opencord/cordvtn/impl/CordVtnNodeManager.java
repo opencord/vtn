@@ -804,7 +804,9 @@ public class CordVtnNodeManager {
                     eventExecutor.execute(() -> bridgeHandler.portAdded(event.port()));
                     break;
                 case PORT_UPDATED:
-                    if (!event.port().isEnabled()) {
+                    if (event.port().isEnabled()) {
+                        eventExecutor.execute(() -> bridgeHandler.portAdded(event.port()));
+                    } else {
                         eventExecutor.execute(() -> bridgeHandler.portRemoved(event.port()));
                     }
                     break;
