@@ -805,11 +805,18 @@ public class CordVtnNodeManager {
                     });
                     break;
                 case PORT_UPDATED:
-                    if (!event.port().isEnabled()) {
+                    if (event.port().isEnabled()) {
+                        eventExecutor.execute(() -> {
+                            log.info("Port {} is added to {}",
+                                    event.port().annotations().value(PORT_NAME),
+                                    event.subject().id());
+                            bridgeHandler.portAdded(event.port());
+                        });
+                    } else {
                         eventExecutor.execute(() -> {
                             log.info("Port {} is removed from {}",
-                                     event.port().annotations().value(PORT_NAME),
-                                     event.subject().id());
+                                    event.port().annotations().value(PORT_NAME),
+                                    event.subject().id());
                             bridgeHandler.portRemoved(event.port());
                         });
                     }
