@@ -131,12 +131,18 @@ class VTNPort(object):
         return None
 
     def get_vsg_tenants(self):
-        from services.vsg.models import VSGTenant
-        vsg_tenants=[]
-        for tenant in VSGTenant.get_tenant_objects().all():
-            if tenant.instance == self.xos_port.instance:
-                vsg_tenants.append(tenant)
-        return vsg_tenants
+        # If the VSG service isn't onboarded, then return an empty list.
+        try:
+            from services.vsg.models import VSGTenant
+            vsg_tenants=[]
+            for tenant in VSGTenant.get_tenant_objects().all():
+                if tenant.instance == self.xos_port.instance:
+                    vsg_tenants.append(tenant)
+            return vsg_tenants
+        except ImportError:
+            # TODO: Set up logging for this library...
+            print "Failed to import VSG, returning no tenants"
+            return []
 
     @property
     def vlan_id(self):
