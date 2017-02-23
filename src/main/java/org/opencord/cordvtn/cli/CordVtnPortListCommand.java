@@ -39,7 +39,7 @@ import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
         description = "Lists all VTN ports")
 public class CordVtnPortListCommand extends AbstractShellCommand {
 
-    private static final String FORMAT = "%-40s%-20s%-18s%-8s%s";
+    private static final String FORMAT = "%-40s%-30s%-20s%-18s%-10s%s";
 
     @Argument(name = "networkId", description = "Network ID")
     private String networkId = null;
@@ -61,16 +61,17 @@ public class CordVtnPortListCommand extends AbstractShellCommand {
                 print("Failed to list networks in JSON format");
             }
         } else {
-            print(FORMAT, "ID", "MAC", "IP", "VLAN", "WAN IPs");
+            print(FORMAT, "ID", "Name", "MAC", "IP", "VLAN", "WAN IPs");
             for (ServicePort port: ports) {
                 List<String> floatingIps = port.addressPairs().stream()
                         .map(ip -> ip.ip().toString())
                         .collect(Collectors.toList());
                 print(FORMAT, port.id(),
-                      port.mac(),
-                      port.ip(),
-                      port.vlanId() != null ? port.vlanId() : "",
-                      floatingIps.isEmpty() ? "" : floatingIps);
+                        port.name(),
+                        port.mac(),
+                        port.ip(),
+                        port.vlanId() != null ? port.vlanId() : "",
+                        floatingIps.isEmpty() ? "" : floatingIps);
             }
         }
     }
@@ -85,13 +86,14 @@ public class CordVtnPortListCommand extends AbstractShellCommand {
                             .put("mac", pair.mac().toString())));
 
             result.add(mapper().createObjectNode()
-                               .put("id", port.id().id())
-                               .put("networkId", port.networkId().id())
-                               .put("mac", port.mac().toString())
-                               .put("ip", port.ip().toString())
-                               .put("vlan", port.vlanId() != null ?
-                                       port.vlanId().toString() : null)
-                               .set("addressPairs", addrPairs));
+                    .put("id", port.id().id())
+                    .put("name", port.name())
+                    .put("networkId", port.networkId().id())
+                    .put("mac", port.mac().toString())
+                    .put("ip", port.ip().toString())
+                    .put("vlan", port.vlanId() != null ?
+                            port.vlanId().toString() : null)
+                    .set("addressPairs", addrPairs));
         }
         return result;
     }

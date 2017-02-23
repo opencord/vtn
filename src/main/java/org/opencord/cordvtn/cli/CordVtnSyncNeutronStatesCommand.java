@@ -15,7 +15,6 @@
  */
 package org.opencord.cordvtn.cli;
 
-import com.google.common.base.Strings;
 import org.apache.karaf.shell.commands.Argument;
 import org.apache.karaf.shell.commands.Command;
 import org.onlab.packet.IpAddress;
@@ -63,8 +62,9 @@ public class CordVtnSyncNeutronStatesCommand extends AbstractShellCommand {
             required = true, multiValued = false)
     private String password = null;
 
-    private static final String NET_FORMAT = "%-40s%-20s%-20s%-8s%-20s%s";
-    private static final String PORT_FORMAT = "%-40s%-20s%-18s%-8s%s";
+    private static final String PORT_NAME_PREFIX = "tap";
+    private static final String NET_FORMAT = "%-40s%-30s%-20s%-8s%-20s%s";
+    private static final String PORT_FORMAT = "%-40s%-30s%-20s%-18s%-10s%s";
 
     @Override
     protected void execute() {
@@ -127,15 +127,13 @@ public class CordVtnSyncNeutronStatesCommand extends AbstractShellCommand {
         });
 
         print("\nSynchronizing service ports...");
-        print(PORT_FORMAT, "ID", "MAC", "IP", "VLAN", "WAN IPs");
+        print(PORT_FORMAT, "ID", "Name", "MAC", "IP", "VLAN", "WAN IPs");
         osClient.networking().port().list().forEach(osPort -> {
             ServicePort.Builder sportBuilder = DefaultServicePort.builder()
                     .id(PortId.of(osPort.getId()))
+                    .name(PORT_NAME_PREFIX + osPort.getId().substring(0, 11))
                     .networkId(NetworkId.of(osPort.getNetworkId()));
 
-            if (!Strings.isNullOrEmpty(osPort.getName())) {
-                sportBuilder.name(osPort.getName());
-            }
             if (osPort.getMacAddress() != null) {
                 sportBuilder.mac(MacAddress.valueOf(osPort.getMacAddress()));
             }
@@ -154,10 +152,11 @@ public class CordVtnSyncNeutronStatesCommand extends AbstractShellCommand {
                     .map(ip -> ip.ip().toString())
                     .collect(Collectors.toList());
             print(PORT_FORMAT, updated.id(),
-                  updated.mac(),
-                  updated.ip(),
-                  updated.vlanId() != null ? updated.vlanId() : "",
-                  floatingIps.isEmpty() ? "" : floatingIps);
+                    updated.name(),
+                    updated.mac(),
+                    updated.ip(),
+                    updated.vlanId() != null ? updated.vlanId() : "",
+                    floatingIps.isEmpty() ? "" : floatingIps);
         });
     }
 }

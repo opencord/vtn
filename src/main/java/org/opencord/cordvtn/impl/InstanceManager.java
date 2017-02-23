@@ -216,7 +216,7 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
     private ServicePort getServicePortByPortName(String portName) {
         Optional<ServicePort> sport = snetService.servicePorts()
                 .stream()
-                .filter(p -> p.id().id().contains(portName.substring(3)))
+                .filter(p -> Objects.equals(p.name(), portName))
                 .findFirst();
         return sport.isPresent() ? sport.get() : null;
     }
