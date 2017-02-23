@@ -203,10 +203,9 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
 
     @Override
     public void removeInstance(ConnectPoint connectPoint) {
-        hostService.getConnectedHosts(connectPoint).stream()
-                .forEach(host -> {
-                    hostProvider.hostVanished(host.id());
-                });
+        hostService.getConnectedHosts(connectPoint).forEach(host -> {
+            hostProvider.hostVanished(host.id());
+        });
     }
 
     @Override

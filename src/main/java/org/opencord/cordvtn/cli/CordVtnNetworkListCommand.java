@@ -24,7 +24,7 @@ import org.onosproject.cli.AbstractShellCommand;
 import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
 
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
@@ -36,13 +36,13 @@ import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
         description = "Lists all VTN networks")
 public class CordVtnNetworkListCommand extends AbstractShellCommand {
 
-    private static final String FORMAT = "%-40s%-20s%-20s%-8s%-20s%s";
+    private static final String FORMAT = "%-40s%-30s%-20s%-8s%-20s%s";
 
     @Override
     protected void execute() {
         ServiceNetworkService service = AbstractShellCommand.get(ServiceNetworkService.class);
         List<ServiceNetwork> networks = Lists.newArrayList(service.serviceNetworks());
-        Collections.sort(networks, ServiceNetwork.SERVICE_NETWORK_COMPARATOR);
+        networks.sort(Comparator.comparing(ServiceNetwork::name));
 
         if (outputJson()) {
             try {

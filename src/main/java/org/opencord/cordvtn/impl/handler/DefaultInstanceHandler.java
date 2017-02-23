@@ -113,7 +113,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                     true);
         }
         // FIXME don't add the existing instance again
-        sport.addressPairs().stream().forEach(pair -> {
+        sport.addressPairs().forEach(pair -> {
             // add instance for the additional address pairs
             addAdditionalInstance(instance, pair.ip(), pair.mac());
         });
@@ -337,7 +337,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                 .build();
 
 
-        nodeManager.completeNodes().stream().forEach(node -> {
+        nodeManager.completeNodes().forEach(node -> {
             FlowRule flowRuleDirect = DefaultFlowRule.builder()
                     .fromApp(appId)
                     .withSelector(selector)
@@ -362,7 +362,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                 .drop()
                 .build();
 
-        nodeManager.completeNodes().stream().forEach(node -> {
+        nodeManager.completeNodes().forEach(node -> {
             FlowRule flowRuleDirect = DefaultFlowRule.builder()
                     .fromApp(appId)
                     .withSelector(selector)
@@ -426,7 +426,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                                          boolean install) {
         // for traffic coming from WAN, tag 500 and take through the vSG VM
         // based on destination ip
-        ipAddrs.stream().forEach(wanIp -> {
+        ipAddrs.forEach(wanIp -> {
             // for traffic coming from WAN, tag 500 and take through the vSG VM
             TrafficSelector downstream = DefaultTrafficSelector.builder()
                     .matchEthType(Ethernet.TYPE_IPV4)

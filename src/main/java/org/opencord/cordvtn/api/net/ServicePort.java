@@ -19,17 +19,12 @@ import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.VlanId;
 
-import java.util.Comparator;
 import java.util.Set;
 
 /**
- * Representation of a service port which holds service specific port information,
- * like vlan tag or additional addresses, to the common network port.
+ * Representation of a service port.
  */
 public interface ServicePort {
-
-    Comparator<ServicePort> SERVICE_PORT_COMPARATOR =
-            (port1, port2) -> port1.networkId().id().compareTo(port2.networkId().id());
 
     /**
      * Returns the port identifier.

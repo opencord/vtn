@@ -234,20 +234,18 @@ public class DependencyHandler extends AbstractInstanceHandler {
     private boolean isProviderInUse(NetworkId providerId) {
         return snetService.serviceNetworks().stream()
                 .flatMap(net -> net.providers().keySet().stream())
-                .filter(provider -> Objects.equals(provider, providerId))
-                .findAny().isPresent();
+                .anyMatch(provider -> Objects.equals(provider, providerId));
     }
 
     private void removeGroup(NetworkId netId) {
         GroupKey groupKey = getGroupKey(netId);
-        nodeManager.completeNodes().stream()
-                .forEach(node -> {
-                    DeviceId deviceId = node.integrationBridgeId();
-                    Group group = groupService.getGroup(deviceId, groupKey);
-                    if (group != null) {
-                        groupService.removeGroup(deviceId, groupKey, appId);
-                    }
-                });
+        nodeManager.completeNodes().forEach(node -> {
+            DeviceId deviceId = node.integrationBridgeId();
+            Group group = groupService.getGroup(deviceId, groupKey);
+            if (group != null) {
+                groupService.removeGroup(deviceId, groupKey, appId);
+            }
+        });
         log.debug("Removed group for network {}", netId);
     }
 
@@ -287,7 +285,7 @@ public class DependencyHandler extends AbstractInstanceHandler {
         Map<DeviceId, GroupId> providerGroups = Maps.newHashMap();
         Map<DeviceId, Set<PortNumber>> subscriberPorts = Maps.newHashMap();
 
-        nodeManager.completeNodes().stream().forEach(node -> {
+        nodeManager.completeNodes().forEach(node -> {
             DeviceId deviceId = node.integrationBridgeId();
             GroupId groupId = getProviderGroup(provider, deviceId);
             providerGroups.put(deviceId, groupId);
@@ -357,7 +355,7 @@ public class DependencyHandler extends AbstractInstanceHandler {
                 .transition(TABLE_DST)
                 .build();
 
-        nodeManager.completeNodes().stream().forEach(node -> {
+        nodeManager.completeNodes().forEach(node -> {
             DeviceId deviceId = node.integrationBridgeId();
             FlowRule flowRuleDirect = DefaultFlowRule.builder()
                     .fromApp(appId)
@@ -383,7 +381,7 @@ public class DependencyHandler extends AbstractInstanceHandler {
             if (groupId == null) {
                 continue;
             }
-            ports.stream().forEach(port -> {
+            ports.forEach(port -> {
                 TrafficSelector selector = DefaultTrafficSelector.builder()
                         .matchInPort(port)
                         .build();
@@ -410,7 +408,7 @@ public class DependencyHandler extends AbstractInstanceHandler {
     private GroupBuckets getProviderGroupBuckets(DeviceId deviceId, long tunnelId,
                                                  Set<Instance> instances) {
         List<GroupBucket> buckets = Lists.newArrayList();
-        instances.stream().forEach(instance -> {
+        instances.forEach(instance -> {
             Ip4Address tunnelIp = nodeManager.dataIp(instance.deviceId()).getIp4Address();
 
             if (deviceId.equals(instance.deviceId())) {
