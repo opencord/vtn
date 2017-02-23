@@ -26,7 +26,7 @@ import org.onosproject.cli.AbstractShellCommand;
 import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.ServicePort;
 
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -49,7 +49,7 @@ public class CordVtnPortListCommand extends AbstractShellCommand {
         ServiceNetworkService service = AbstractShellCommand.get(ServiceNetworkService.class);
 
         List<ServicePort> ports = Lists.newArrayList(service.servicePorts());
-        Collections.sort(ports, ServicePort.SERVICE_PORT_COMPARATOR);
+        ports.sort(Comparator.comparing(port -> port.networkId().id()));
         if (!Strings.isNullOrEmpty(networkId)) {
             ports.removeIf(port -> !port.networkId().id().equals(networkId));
         }

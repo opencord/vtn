@@ -18,7 +18,6 @@ package org.opencord.cordvtn.api.net;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.IpPrefix;
 
-import java.util.Comparator;
 import java.util.Map;
 
 /**
@@ -41,9 +40,6 @@ public interface ServiceNetwork {
         BIDIRECTIONAL,
         UNIDIRECTIONAL
     }
-
-    Comparator<ServiceNetwork> SERVICE_NETWORK_COMPARATOR =
-            (net1, net2) -> net1.id().id().compareTo(net2.id().id());
 
     /**
      * Returns the service network identifier.

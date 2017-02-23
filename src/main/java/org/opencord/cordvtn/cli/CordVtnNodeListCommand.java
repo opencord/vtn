@@ -23,7 +23,7 @@ import org.onosproject.cli.AbstractShellCommand;
 import org.opencord.cordvtn.impl.CordVtnNodeManager;
 import org.opencord.cordvtn.api.node.CordVtnNode;
 
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
@@ -43,7 +43,7 @@ public class CordVtnNodeListCommand extends AbstractShellCommand {
     protected void execute() {
         CordVtnNodeManager nodeManager = AbstractShellCommand.get(CordVtnNodeManager.class);
         List<CordVtnNode> nodes = nodeManager.getNodes();
-        Collections.sort(nodes, CordVtnNode.CORDVTN_NODE_COMPARATOR);
+        nodes.sort(Comparator.comparing(CordVtnNode::hostname));
 
         if (outputJson()) {
             try {
