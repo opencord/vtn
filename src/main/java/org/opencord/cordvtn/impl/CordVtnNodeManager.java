@@ -615,10 +615,7 @@ public class CordVtnNodeManager {
             return false;
         }
         return deviceService.getPorts(node.integrationBridgeId()).stream()
-                .filter(p -> portName(p).contains(ifaceName) &&
-                        p.isEnabled())
-                .findAny()
-                .isPresent();
+                .anyMatch(p -> portName(p).contains(ifaceName) && p.isEnabled());
     }
 
     /**
@@ -868,7 +865,7 @@ public class CordVtnNodeManager {
             return;
         }
         controllers = config.controllers();
-        controllers.stream().forEach(ctrl -> {
+        controllers.forEach(ctrl -> {
             log.debug("Added controller {}:{}", ctrl.ip(), ctrl.port());
         });
     }
