@@ -16,7 +16,6 @@
 package org.opencord.cordvtn.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.base.Strings;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
@@ -61,6 +60,7 @@ public class NeutronMl2PortsWebResource extends AbstractWebResource {
 
     private static final String MESSAGE = "Received ports %s request";
     private static final String PORTS = "ports";
+    private static final String PORT_NAME_PREFIX = "tap";
 
     private final ServiceNetworkAdminService adminService =
             DefaultServiceDirectory.getService(ServiceNetworkAdminService.class);
@@ -105,8 +105,8 @@ public class NeutronMl2PortsWebResource extends AbstractWebResource {
     public Response updatePort(@PathParam("id") String id, InputStream input) {
         log.trace(String.format(MESSAGE, "UPDATE " + id));
 
-        final ServicePort port = readPort(input);
-        adminService.updateServicePort(port);
+        final ServicePort sport = readPort(input);
+        adminService.updateServicePort(sport);
 
         return status(OK).build();
     }
@@ -138,11 +138,9 @@ public class NeutronMl2PortsWebResource extends AbstractWebResource {
 
             ServicePort.Builder sportBuilder = DefaultServicePort.builder()
                     .id(PortId.of(osPort.getId()))
+                    .name(PORT_NAME_PREFIX + osPort.getId().substring(0, 11))
                     .networkId(NetworkId.of(osPort.getNetworkId()));
 
-            if (!Strings.isNullOrEmpty(osPort.getName())) {
-                sportBuilder.name(osPort.getName());
-            }
             if (osPort.getMacAddress() != null) {
                 sportBuilder.mac(MacAddress.valueOf(osPort.getMacAddress()));
             }

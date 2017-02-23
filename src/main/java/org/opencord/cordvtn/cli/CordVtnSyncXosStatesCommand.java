@@ -47,8 +47,8 @@ public class CordVtnSyncXosStatesCommand extends AbstractShellCommand {
             required = true, multiValued = false)
     private String password = null;
 
-    private static final String NET_FORMAT = "%-40s%-20s%-20s%-8s%-20s%s";
-    private static final String PORT_FORMAT = "%-40s%-20s%-18s%-8s%s";
+    private static final String NET_FORMAT = "%-40s%-30s%-20s%-8s%-20s%s";
+    private static final String PORT_FORMAT = "%-40s%-30s%-20s%-18s%-10s%s";
 
     @Override
     protected void execute() {
@@ -80,7 +80,7 @@ public class CordVtnSyncXosStatesCommand extends AbstractShellCommand {
 
         // FIXME creating a port fails until XOS service API provides network ID
         print("\nSynchronizing service ports...");
-        print(PORT_FORMAT, "ID", "MAC", "IP", "VLAN", "WAN IPs");
+        print(PORT_FORMAT, "ID", "Name", "MAC", "IP", "VLAN", "WAN IPs");
         client.servicePorts().forEach(sport -> {
             if (snetService.servicePort(sport.id()) != null) {
                 snetService.updateServicePort(sport);
@@ -92,10 +92,11 @@ public class CordVtnSyncXosStatesCommand extends AbstractShellCommand {
                     .map(ip -> ip.ip().toString())
                     .collect(Collectors.toList());
             print(PORT_FORMAT, updated.id(),
-                  updated.mac(),
-                  updated.ip(),
-                  updated.vlanId() != null ? updated.vlanId() : "",
-                  floatingIps.isEmpty() ? "" : floatingIps);
+                    updated.name(),
+                    updated.mac(),
+                    updated.ip(),
+                    updated.vlanId() != null ? updated.vlanId() : "",
+                    floatingIps.isEmpty() ? "" : floatingIps);
         });
     }
 }

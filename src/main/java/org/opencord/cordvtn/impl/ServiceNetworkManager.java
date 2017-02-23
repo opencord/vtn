@@ -77,6 +77,7 @@ public class ServiceNetworkManager extends ListenerRegistry<ServiceNetworkEvent,
     private static final String ERR_NULL_SERVICE_NET_TYPE  = "Service network type cannot be null";
     private static final String ERR_NULL_SERVICE_PORT = "Service port cannot be null";
     private static final String ERR_NULL_SERVICE_PORT_ID = "Service port ID cannot be null";
+    private static final String ERR_NULL_SERVICE_PORT_NAME = "Service port name cannot be null";
     private static final String ERR_NULL_SERVICE_PORT_NET_ID = "Service port network ID cannot be null";
 
     private static final String ERR_NOT_FOUND = " does not exist";
@@ -218,6 +219,7 @@ public class ServiceNetworkManager extends ListenerRegistry<ServiceNetworkEvent,
     public void createServicePort(ServicePort sport) {
         checkNotNull(sport, ERR_NULL_SERVICE_PORT);
         checkNotNull(sport.id(), ERR_NULL_SERVICE_PORT_ID);
+        checkNotNull(sport.id(), ERR_NULL_SERVICE_PORT_NAME);
         checkNotNull(sport.networkId(), ERR_NULL_SERVICE_PORT_NET_ID);
         synchronized (this) {
             ServiceNetwork existing = snetStore.serviceNetwork(sport.networkId());

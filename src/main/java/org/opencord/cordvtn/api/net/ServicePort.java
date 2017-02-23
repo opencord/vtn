@@ -35,7 +35,9 @@ public interface ServicePort {
     PortId id();
 
     /**
-     * Returns the port name.
+     * Returns the port name on a switch.
+     * This name is used as key for identifying a service port when a port is
+     * added or updated.
      *
      * @return port name
      */
