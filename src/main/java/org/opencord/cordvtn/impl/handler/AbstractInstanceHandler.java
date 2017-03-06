@@ -122,6 +122,10 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
 
         @Override
         public void event(HostEvent event) {
+            eventExecutor.execute(() -> handle(event));
+        }
+
+        private void handle(HostEvent event) {
             Host host = event.subject();
             if (!mastershipService.isLocalMaster(host.location().deviceId())) {
                 // do not allow to proceed without mastership
@@ -135,17 +139,17 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
             }
 
             switch (event.type()) {
-                case HOST_UPDATED:
-                    eventExecutor.execute(() -> instanceUpdated(instance));
-                    break;
-                case HOST_ADDED:
-                    eventExecutor.execute(() -> instanceDetected(instance));
-                    break;
-                case HOST_REMOVED:
-                    eventExecutor.execute(() -> instanceRemoved(instance));
-                    break;
-                default:
-                    break;
+            case HOST_UPDATED:
+                instanceUpdated(instance);
+                break;
+            case HOST_ADDED:
+                instanceDetected(instance);
+                break;
+            case HOST_REMOVED:
+                instanceRemoved(instance);
+                break;
+            default:
+                break;
             }
         }
     }

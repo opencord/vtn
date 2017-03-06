@@ -220,7 +220,7 @@ public class CordVtnNodeManager {
                 .withApplicationId(appId)
                 .build();
 
-        nodeStore.addListener(nodeStoreListener);
+        nodeStore.addListener(nodeStoreListener, eventExecutor);
         deviceService.addListener(deviceListener);
         configService.addListener(configListener);
 
@@ -906,30 +906,30 @@ public class CordVtnNodeManager {
             CordVtnNode newNode;
 
             switch (event.type()) {
-                case UPDATE:
-                    oldNode = event.oldValue().value();
-                    newNode = event.newValue().value();
+            case UPDATE:
+                oldNode = event.oldValue().value();
+                newNode = event.newValue().value();
 
-                    log.info("Reloaded {}", newNode.hostname());
-                    if (!newNode.equals(oldNode)) {
-                        log.debug("New node: {}", newNode);
-                    }
-                    // performs init procedure even if the node is not changed
-                    // for robustness since it's no harm to run init procedure
-                    // multiple times
-                    eventExecutor.execute(() -> initNode(newNode));
-                    break;
-                case INSERT:
-                    newNode = event.newValue().value();
-                    log.info("Added {}", newNode.hostname());
-                    eventExecutor.execute(() -> initNode(newNode));
-                    break;
-                case REMOVE:
-                    oldNode = event.oldValue().value();
-                    log.info("Removed {}", oldNode.hostname());
-                    break;
-                default:
-                    break;
+                log.info("Reloaded {}", newNode.hostname());
+                if (!newNode.equals(oldNode)) {
+                    log.debug("New node: {}", newNode);
+                }
+                // performs init procedure even if the node is not changed
+                // for robustness since it's no harm to run init procedure
+                // multiple times
+                initNode(newNode);
+                break;
+            case INSERT:
+                newNode = event.newValue().value();
+                log.info("Added {}", newNode.hostname());
+                initNode(newNode);
+                break;
+            case REMOVE:
+                oldNode = event.oldValue().value();
+                log.info("Removed {}", oldNode.hostname());
+                break;
+            default:
+                break;
             }
         }
     }
