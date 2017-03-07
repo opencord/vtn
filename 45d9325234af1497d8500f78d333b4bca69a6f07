@@ -22,6 +22,30 @@
       "revId": "45d9325234af1497d8500f78d333b4bca69a6f07",
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da141535_ee64e3e6",
+        "filename": "src/main/java/org/opencord/cordvtn/impl/handler/AbstractInstanceHandler.java",
+        "patchSetId": 1
+      },
+      "lineNbr": 125,
+      "author": {
+        "id": 1000005
+      },
+      "writtenOn": "2017-03-07T02:11:50Z",
+      "side": 1,
+      "message": "No I thought that submit was the one that didn\u0027t swallow exceptions, but I realised later that was wrong. I\u0027ll fix it.",
+      "parentUuid": "da141535_2e73fbb2",
+      "range": {
+        "startLine": 125,
+        "startChar": 26,
+        "endLine": 125,
+        "endChar": 32
+      },
+      "revId": "45d9325234af1497d8500f78d333b4bca69a6f07",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
+      "unresolved": false
     }
   ]
 }
