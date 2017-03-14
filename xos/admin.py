@@ -19,58 +19,8 @@ from django.contrib.admin.views.main import ChangeList
 from django.core.urlresolvers import reverse
 from django.contrib.admin.utils import quote
 
-class VTNServiceForm(forms.ModelForm):
-    privateGatewayMac = forms.CharField(required=False)
-    localManagementIp = forms.CharField(required=False)
-    ovsdbPort = forms.CharField(required=False)
-    sshPort = forms.CharField(required=False)
-    sshUser = forms.CharField(required=False)
-    sshKeyFile = forms.CharField(required=False)
-    mgmtSubnetBits = forms.CharField(required=False)
-    xosEndpoint = forms.CharField(required=False)
-    xosUser = forms.CharField(required=False)
-    xosPassword = forms.CharField(required=False)
-    vtnAPIVersion = forms.IntegerField(required=False)
-    controllerPort = forms.CharField(required=False)
-
-    def __init__(self,*args,**kwargs):
-        super (VTNServiceForm,self ).__init__(*args,**kwargs)
-        if self.instance:
-            self.fields['privateGatewayMac'].initial = self.instance.privateGatewayMac
-            self.fields['localManagementIp'].initial = self.instance.localManagementIp
-            self.fields['ovsdbPort'].initial = self.instance.ovsdbPort
-            self.fields['sshPort'].initial = self.instance.sshPort
-            self.fields['sshUser'].initial = self.instance.sshUser
-            self.fields['sshKeyFile'].initial = self.instance.sshKeyFile
-            self.fields['mgmtSubnetBits'].initial = self.instance.mgmtSubnetBits
-            self.fields['xosEndpoint'].initial = self.instance.xosEndpoint
-            self.fields['xosUser'].initial = self.instance.xosUser
-            self.fields['xosPassword'].initial = self.instance.xosPassword
-            self.fields['vtnAPIVersion'].initial = self.instance.vtnAPIVersion
-            self.fields['controllerPort'].initial = self.instance.controllerPort
-
-    def save(self, commit=True):
-        self.instance.privateGatewayMac = self.cleaned_data.get("privateGatewayMac")
-        self.instance.localManagementIp = self.cleaned_data.get("localManagementIp")
-        self.instance.ovsdbPort = self.cleaned_data.get("ovsdbPort")
-        self.instance.sshPort = self.cleaned_data.get("sshPort")
-        self.instance.sshUser = self.cleaned_data.get("sshUser")
-        self.instance.sshKeyFile = self.cleaned_data.get("sshKeyFile")
-        self.instance.mgmtSubnetBits = self.cleaned_data.get("mgmtSubnetBits")
-        self.instance.xosEndpoint = self.cleaned_data.get("xosEndpoint")
-        self.instance.xosUser = self.cleaned_data.get("xosUser")
-        self.instance.xosPassword = self.cleaned_data.get("xosPassword")
-        self.instance.vtnAPIVersion = self.cleaned_data.get("vtnAPIVersion")
-        self.instance.controllerPort = self.cleaned_data.get("controllerPort")
-        return super(VTNServiceForm, self).save(commit=commit)
-
-    class Meta:
-        model = VTNService
-        fields = '__all__'
-
 class VTNServiceAdmin(ReadOnlyAwareAdmin):
     model = VTNService
-    form = VTNServiceForm
     verbose_name = "VTN Service"
     verbose_name_plural = "VTN Service"
     list_display = ("backend_status_icon", "name", "enabled")
