@@ -4,9 +4,8 @@ import socket
 import sys
 import base64
 import json
-from synchronizers.base.syncstep import SyncStep
-from core.models import Service, Slice, Controller, ControllerSlice, ControllerUser, Node, TenantAttribute, Tag, ModelLink, AddressPool
-from services.vtn.models import VTNService
+from synchronizers.new_base.syncstep import SyncStep
+from synchronizers.new_base.modelaccessor import *
 from xos.logger import Logger, logging
 
 logger = Logger(level=logging.INFO)

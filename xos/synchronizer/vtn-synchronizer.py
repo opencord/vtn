@@ -9,14 +9,6 @@ sys.path.append('/opt/xos')
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "xos.settings")
 
-# Legacy code to support VTN API version 1.
-
-# import synchronizers.base.event_loop
-# if hasattr(synchronizers.base.event_loop, "set_driver"):
-#    # VTN synchronizer needs the OpenStack driver
-#    from openstack_xos.driver import OpenStackDriver
-#    synchronizers.base.event_loop.set_driver(OpenStackDriver())
-
-mod = importlib.import_module("synchronizers.base.xos-synchronizer")
+mod = importlib.import_module("synchronizers.new_base.xos-synchronizer")
 mod.main()
 

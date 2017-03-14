@@ -3,18 +3,10 @@ import requests
 import socket
 import sys
 import base64
-from django.db.models import F, Q
 from xos.config import Config
-from synchronizers.base.syncstep import SyncStep
-from core.models import Service, Port, Controller, Tag, Tenant
-from core.models.service import COARSE_KIND
+from synchronizers.new_base.syncstep import SyncStep
+from synchronizers.new_base.modelaccessor import *
 from xos.logger import Logger, logging
-from requests.auth import HTTPBasicAuth
-from services.vtn.models import VTNService
-
-# hpclibrary will be in steps/..
-parentdir = os.path.join(os.path.dirname(__file__),"..")
-sys.path.insert(0,parentdir)
 
 logger = Logger(level=logging.INFO)
 
@@ -32,7 +24,7 @@ class SyncPortAddresses(SyncStep):
     def call(self, **args):
         global glo_saved_vtn_maps
 
-        vtn_service = VTNService.get_service_objects().all()
+        vtn_service = VTNService.objects.all()
         if not vtn_service:
             raise Exception("SyncPortAddresses: No VTN Service")
         vtn_service = vtn_service[0]
@@ -49,7 +41,7 @@ class SyncPortAddresses(SyncStep):
 
             logger.info("sync'ing vsg tenant to port addresses")
 
-            for vsg in VSGTenant.get_tenant_objects().all():
+            for vsg in VSGTenant.objects.all():
                 if not vsg.instance:
                     logger.info("skipping vsg %s because it has no instance" % vsg)
 

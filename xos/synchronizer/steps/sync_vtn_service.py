@@ -3,19 +3,12 @@ import requests
 import socket
 import sys
 import base64
-from django.db.models import F, Q
 from xos.config import Config
-from synchronizers.base.syncstep import SyncStep
-from core.models import Service, Network, Port
-from core.models.service import COARSE_KIND
 from services.vtn.vtnnetport import VTNNetwork, VTNPort
-from services.vtn.models import VTNService
+from synchronizers.new_base.syncstep import SyncStep
+from synchronizers.new_base.modelaccessor import *
 from xos.logger import Logger, logging
 from requests.auth import HTTPBasicAuth
-
-# hpclibrary will be in steps/..
-parentdir = os.path.join(os.path.dirname(__file__),"..")
-sys.path.insert(0,parentdir)
 
 logger = Logger(level=logging.INFO)
 
@@ -33,9 +26,7 @@ class SyncVTNService(SyncStep):
         SyncStep.__init__(self, **args)
 
     def get_vtn_onos_service(self):
-        from services.onos.models import ONOSService
-
-        vtn_service = ONOSService.get_service_objects().filter(name="ONOS_CORD")  # XXX fixme - harcoded
+        vtn_service = ONOSService.objects.filter(name="ONOS_CORD")  # XXX fixme - harcoded
         if not vtn_service:
             raise "No VTN Onos Service"
 
