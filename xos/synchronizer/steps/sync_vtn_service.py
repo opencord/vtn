@@ -212,7 +212,7 @@ class SyncVTNService(SyncStep):
                     logger.error("Received error from vtn service (%d)" % r.status_code)
 
     def call(self, **args):
-        vtn_service = VTNService.get_service_objects().all()
+        vtn_service = VTNService.objects.all()
         if not vtn_service:
             raise Exception("No VTN Service")
 

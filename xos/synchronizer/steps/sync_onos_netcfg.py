@@ -27,7 +27,9 @@ class SyncONOSNetcfg(SyncStep):
             self.call()
 
     def get_node_tag(self, node, tagname):
-        tags = Tag.select_by_content_object(node).filter(name=tagname)
+        tags = Tag.objects.filter(content_type=model_accessor.get_content_type_id(node),
+                                  object_id=node.id,
+                                  name=tagname)
         return tags[0].value
 
     def get_tenants_who_want_config(self):
@@ -41,7 +43,7 @@ class SyncONOSNetcfg(SyncStep):
         return tenants
 
     def save_tenant_attribute(self, tenant, name, value):
-        tas = TenantAttribute.objects.filter(tenant=tenant, name=name)
+        tas = TenantAttribute.objects.filter(tenant_id=tenant.id, name=name)
         if tas:
             ta = tas[0]
             if ta.value != value:
@@ -145,10 +147,8 @@ class SyncONOSNetcfg(SyncStep):
 
         # Generate apps->org.onosproject.cordvtn->cordvtn->publicGateways
         # Pull the gateway information from vRouter
-        try:
-            from services.vrouter.models import VRouterService
-
-            vrouters = VRouterService.get_service_objects().all()
+        if model_accessor.has_model_class("VRouterService"):
+            vrouters = VRouterService.objects.all()
             if vrouters:
                 for gateway in vrouters[0].get_gateways():
                     gatewayIp = gateway['gateway_ip'].split('/',1)[0]
@@ -158,13 +158,13 @@ class SyncONOSNetcfg(SyncStep):
                         "gatewayMac": gatewayMac
                     }
                     data["apps"]["org.opencord.vtn"]["cordvtn"]["publicGateways"].append(gateway_dict)
-        except:
+        else:
             logger.info("No VRouter service present, not adding publicGateways to config")
 
         return json.dumps(data, indent=4, sort_keys=True)
 
     def call(self, **args):
-        vtn_service = VTNService.get_service_objects().all()
+        vtn_service = VTNService.objects.all()
         if not vtn_service:
             raise Exception("No VTN Service")
 

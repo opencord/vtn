@@ -1,5 +1,19 @@
-from core.models import *
-from services.vtn.models import VTNService
+# This library can be used in two different contexts:
+#    1) From the VTN synchronizer
+#    2) From the handcrafted VTN API endpoint
+#
+# If (1) then the modelaccessor module can provide us with models from the API
+# or django as appropriate. If (2) then we must use django, until we can
+# reconcile what to do about handcrafted API endpoints
+
+import __main__ as main_program
+
+if "synchronizer" in main_program.__file__:
+    from synchronizers.new_base.modelaccessor import *
+    in_synchronizer = True
+else:
+    from core.models import *
+    in_synchronizer = False
 
 VTN_SERVCOMP_KINDS=["PRIVATE","VSG"]
 
@@ -132,29 +146,45 @@ class VTNPort(object):
 
     def get_vsg_tenants(self):
         # If the VSG service isn't onboarded, then return an empty list.
-        try:
-            from services.vsg.models import VSGTenant
-            vsg_tenants=[]
-            for tenant in VSGTenant.get_tenant_objects().all():
-                if tenant.instance == self.xos_port.instance:
-                    vsg_tenants.append(tenant)
-            return vsg_tenants
-        except ImportError:
-            # TODO: Set up logging for this library...
-            print "Failed to import VSG, returning no tenants"
-            return []
+        if (in_synchronizer):
+            if not model_accessor.has_model_class("VSGTenant"):
+                 print "VSGTenant model does not exist. Returning no tenants"
+                 return []
+            VSGTenant = model_accessor.get_model_class("VSGTenant")   # suppress undefined local variable error
+        else:
+            try:
+                from services.vsg.models import VSGTenant
+            except ImportError:
+                # TODO: Set up logging for this library...
+                print "Failed to import VSG, returning no tenants"
+                return []
+
+        vsg_tenants=[]
+        for tenant in VSGTenant.objects.all():
+            if tenant.instance.id == self.xos_port.instance.id:
+                vsg_tenants.append(tenant)
+        return vsg_tenants
 
     @property
     def vlan_id(self):
         if not self.xos_port.instance:
             return None
+
         # Only some kinds of networks can have s-tags associated with them.
         # Currently, only VSG access networks qualify.
         if not self.xos_port.network.template.vtn_kind in ["VSG",]:
             return None
-        tags = Tag.select_by_content_object(self.xos_port.instance).filter(name="s_tag")
+
+        if (in_synchronizer):
+            tags = Tag.objects.filter(content_type=model_accessor.get_content_type_id(self.xos_port.instance),
+                                      object_id=self.xos_port.instance.id,
+                                      name="s_tag")
+        else:
+            tags = Tag.select_by_content_object(self.xos_port.instance).filter(name="s_tag")
+
         if not tags:
             return None
+
         return tags[0].value
 
     @property
