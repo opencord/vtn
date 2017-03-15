@@ -27,7 +27,9 @@ class SyncONOSNetcfg(SyncStep):
             self.call()
 
     def get_node_tag(self, node, tagname):
-        tags = Tag.select_by_content_object(node).filter(name=tagname)
+        tags = Tag.objects.filter(content_type=model_accessor.get_content_type_id(node),
+                                  object_id=node.id,
+                                  name=tagname)
         return tags[0].value
 
     def get_tenants_who_want_config(self):
