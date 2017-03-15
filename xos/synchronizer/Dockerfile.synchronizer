@@ -1,0 +1,9 @@
+FROM xosproject/xos-synchronizer-base
+
+ADD . /opt/xos/synchronizers/vtn
+
+ENTRYPOINT []
+
+WORKDIR "/opt/xos/synchronizers/vtn"
+
+CMD bash -c "cd /opt/xos/synchronizers/vtn; ./run-from-api.sh"

@@ -10,6 +10,8 @@ from xos.logger import Logger, logging
 
 logger = Logger(level=logging.INFO)
 
+# TODO: This file seems obsolete -- evaluate for deletion.
+
 # XXX should save and load this
 glo_saved_vtn_maps = []
 
