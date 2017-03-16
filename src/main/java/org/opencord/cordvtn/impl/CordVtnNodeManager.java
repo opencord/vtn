@@ -818,6 +818,14 @@ public class CordVtnNodeManager {
                         });
                     }
                     break;
+                case PORT_REMOVED:
+                    eventExecutor.execute(() -> {
+                        log.info("Port {} is removed from {}",
+                                event.port().annotations().value(PORT_NAME),
+                                event.subject().id());
+                        bridgeHandler.portRemoved(event.port());
+                    });
+                break;
                 case DEVICE_ADDED:
                 case DEVICE_AVAILABILITY_CHANGED:
                     if (deviceService.isAvailable(device.id())) {
