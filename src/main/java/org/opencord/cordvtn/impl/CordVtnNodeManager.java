@@ -224,8 +224,8 @@ public class CordVtnNodeManager {
         deviceService.addListener(deviceListener);
         configService.addListener(configListener);
 
-        // TODO read nodes as well after more tests
         readControllers();
+        readNodes();
         log.info("Started");
     }
 
