@@ -38,6 +38,10 @@ public final class SegmentId extends Identifier<Long> {
      * @return segmentation identifier
      */
     public static SegmentId of(Long id) {
+        if (id <= 0) {
+            throw new IllegalArgumentException("Value 0 or less then 0 is not" +
+                    "allowed for segment ID");
+        }
         return new SegmentId(id);
     }
 }

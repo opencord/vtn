@@ -66,31 +66,40 @@ public final class ServiceNetworkJsonMatcher extends TypeSafeDiagnosingMatcher<J
         }
 
         JsonNode jsonProviders = jsonNet.get("providers");
-        if (jsonProviders == null || jsonProviders == NullNode.getInstance()) {
-            description.appendText("provider networks were empty");
-            return false;
-        }
-
-        if (jsonProviders.size() != network.providers().size()) {
-            return false;
-        }
-
-        for (JsonNode provider : jsonProviders) {
-            NetworkId id = NetworkId.of(provider.get("id").asText());
-            boolean bidirectional = provider.get("bidirectional").asBoolean();
-
-            if (!network.providers().containsKey(id)) {
-                final String msg = String.format("provider id:%s couldn't find", id);
-                description.appendText(msg);
+        if (network.providers().isEmpty()) {
+            if (jsonProviders != null &&
+                    jsonProviders != NullNode.getInstance() &&
+                    jsonProviders.size() != 0) {
+                description.appendText("provider networks did not match");
                 return false;
             }
-
-            if (network.providers().get(id).equals(BIDIRECTIONAL) != bidirectional) {
-                final String msg = String.format(
-                        "mismatch provider id:%s, bidirectional: %s",
-                        id, bidirectional);
-                description.appendText(msg);
+        } else {
+            if (jsonProviders == null ||
+                    jsonProviders == NullNode.getInstance() ||
+                    jsonProviders.size() == 0) {
+                description.appendText("provider networks did not match");
                 return false;
+            } else if (jsonProviders.size() != network.providers().size()) {
+                description.appendText("provider networks did not match");
+                return false;
+            } else {
+                for (JsonNode provider : jsonProviders) {
+                    NetworkId id = NetworkId.of(provider.get("id").asText());
+                    boolean bidirectional = provider.get("bidirectional").asBoolean();
+
+                    if (!network.providers().containsKey(id)) {
+                        final String msg = String.format("provider id:%s couldn't find", id);
+                        description.appendText(msg);
+                        return false;
+                    }
+                    if (network.providers().get(id).equals(BIDIRECTIONAL) != bidirectional) {
+                        final String msg = String.format(
+                                "mismatch provider id:%s, bidirectional: %s",
+                                id, bidirectional);
+                        description.appendText(msg);
+                        return false;
+                    }
+                }
             }
         }
         return true;

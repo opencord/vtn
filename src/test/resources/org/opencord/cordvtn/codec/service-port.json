@@ -1,0 +1,20 @@
+{
+  "servicePort": {
+    "id": "port-1",
+    "network_id": "network-1",
+    "name": "tap1",
+    "floating_address_pairs": [
+      {
+        "ip_address": "192.168.0.1",
+        "mac_address": "02:42:0a:06:01:01"
+      },
+      {
+        "ip_address": "192.168.0.2",
+        "mac_address": "02:42:0a:06:01:02"
+      }
+    ],
+    "ip_address": "10.0.0.1",
+    "mac_address": "00:00:00:00:00:01",
+    "vlan_id": 222
+  }
+}

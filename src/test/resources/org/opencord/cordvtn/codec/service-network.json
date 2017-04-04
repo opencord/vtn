@@ -1,8 +1,16 @@
 {
   "serviceNetwork": {
-    "id": "A",
-    "name": "A",
-    "type": "management_local",
-    "providerNetworks": []
+    "id": "network_1",
+    "name": "network_1",
+    "type": "private",
+    "segment_id": 1,
+    "subnet": "192.168.0.0/24",
+    "service_ip": "192.168.0.1",
+    "providers": [
+      {
+        "id": "provider_1",
+        "bidirectional": true
+      }
+    ]
   }
 }

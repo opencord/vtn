@@ -33,6 +33,7 @@ import org.opencord.cordvtn.impl.DefaultServiceNetwork;
 import java.util.Map;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType.BIDIRECTIONAL;
@@ -87,134 +88,113 @@ public final class ServiceNetworkCodec extends JsonCodec<ServiceNetwork> {
         return result;
     }
 
+    // TODO allow removing existing value when explicit null received
     @Override
     public ServiceNetwork decode(ObjectNode json, CodecContext context) {
-        validateJson(json);
+        checkArgument(json != null && json.isObject(), ERR_JSON);
+        checkArgument(!json.path(ID).isMissingNode() && !json.path(ID).isNull(), ERR_ID);
+        checkArgument(!Strings.isNullOrEmpty(json.path(ID).asText()), ERR_ID);
+
         ServiceNetwork.Builder snetBuilder = DefaultServiceNetwork.builder()
                 .id(NetworkId.of(json.get(ID).asText()));
 
-        // TODO remove existing values when explicit null received
-        if (json.get(NAME) != null && !json.get(NAME).isNull()) {
-            snetBuilder.name(json.get(NAME).asText());
-        }
-        if (json.get(TYPE) != null && !json.get(TYPE).isNull()) {
-            snetBuilder.type(valueOf(json.get(TYPE).asText().toUpperCase()));
-        }
-        if (json.get(SEGMENT_ID) != null && !json.get(SEGMENT_ID).isNull()) {
-            snetBuilder.segmentId(SegmentId.of(json.get(SEGMENT_ID).asLong()));
-        }
-        if (json.get(SUBNET) != null && !json.get(SUBNET).isNull()) {
-            snetBuilder.subnet(IpPrefix.valueOf(json.get(SUBNET).asText()));
-        }
-        if (json.get(SERVICE_IP) != null && !json.get(SERVICE_IP).isNull()) {
-            snetBuilder.serviceIp(IpAddress.valueOf(json.get(SERVICE_IP).asText()));
-        }
-        if (json.get(PROVIDERS) != null) {
-            if (json.get(PROVIDERS).isNull()) {
-                snetBuilder.providers(ImmutableMap.of());
-            } else {
-                Map<NetworkId, DependencyType> providers = Maps.newHashMap();
-                json.get(PROVIDERS).forEach(provider -> {
-                    DependencyType type = provider.get(DEP_TYPE).asBoolean() ?
-                            BIDIRECTIONAL : UNIDIRECTIONAL;
-                    providers.put(NetworkId.of(provider.get(ID).asText()), type);
-                });
-                snetBuilder.providers(providers);
-            }
-        }
-        if (json.get(PROVIDER_NETWORKS) != null) {
-            if (json.get(PROVIDER_NETWORKS).isNull()) {
-                snetBuilder.providers(ImmutableMap.of());
-            } else {
-                Map<NetworkId, DependencyType> providers = Maps.newHashMap();
-                json.get(PROVIDER_NETWORKS).forEach(provider -> {
-                    DependencyType type = provider.get(DEP_TYPE).asBoolean() ?
-                            BIDIRECTIONAL : UNIDIRECTIONAL;
-                    providers.put(NetworkId.of(provider.get(ID).asText()), type);
-                });
-                snetBuilder.providers(providers);
-            }
-        }
-        return snetBuilder.build();
-    }
-
-    private void validateJson(ObjectNode json) {
-        checkArgument(json != null && json.isObject(), ERR_JSON);
-        checkArgument(json.get(ID) != null && !json.get(ID).isNull(), ERR_ID);
-        checkArgument(!Strings.isNullOrEmpty(json.get(ID).asText()), ERR_ID);
-
-        // allow explicit null for removing the existing value
-        if (json.get(NAME) != null && !json.get(NAME).isNull()) {
-            if (Strings.isNullOrEmpty(json.get(NAME).asText())) {
+        if (!json.path(NAME).isMissingNode()) {
+            if (json.path(NAME).isNull() || isNullOrEmpty(json.path(NAME).asText())) {
                 final String error = "Null or empty ServiceNetwork name received";
+                throw new IllegalArgumentException(error);
+            } else {
+                snetBuilder.name(json.get(NAME).asText());
+            }
+        }
+
+        if (!json.path(TYPE).isMissingNode()) {
+            try {
+                snetBuilder.type(valueOf(json.get(TYPE).asText().toUpperCase()));
+            } catch (IllegalArgumentException | NullPointerException e) {
+                final String error = "Invalid ServiceNetwork type received";
                 throw new IllegalArgumentException(error);
             }
         }
 
-        if (json.get(TYPE) != null && !json.get(TYPE).isNull()) {
+        if (!json.path(SEGMENT_ID).isMissingNode()) {
             try {
-                valueOf(json.get(TYPE).asText().toUpperCase());
-            } catch (IllegalArgumentException e) {
-                final String error = "Invalid ServiceNetwork type received: ";
-                throw new IllegalArgumentException(error + json.get(TYPE).asText());
+                snetBuilder.segmentId(SegmentId.of(json.path(SEGMENT_ID).asLong()));
+            } catch (IllegalArgumentException | NullPointerException e) {
+                final String error = "Invalid ServiecNetwork segment ID received";
+                throw new IllegalArgumentException(error);
             }
         }
 
-        if (json.get(SEGMENT_ID) != null && !json.get(SEGMENT_ID).isNull()) {
-            if (json.get(SEGMENT_ID).asLong() == 0) {
-                final String error = "Invalid ServiecNetwork segment ID received: ";
-                throw new IllegalArgumentException(error + json.get(SEGMENT_ID).asText());
-            }
-        }
-
-        if (json.get(SUBNET) != null && !json.get(SUBNET).isNull()) {
+        if (!json.path(SUBNET).isMissingNode()) {
             try {
-                IpPrefix.valueOf(json.get(SUBNET).asText());
-            } catch (IllegalArgumentException e) {
-                final String error = "Invalid ServiceNetwork subnet received: ";
-                throw new IllegalArgumentException(error + json.get(SUBNET).asText());
+                snetBuilder.subnet(IpPrefix.valueOf(json.path(SUBNET).asText()));
+            } catch (IllegalArgumentException | NullPointerException e) {
+                final String error = "Invalid ServiceNetwork subnet received";
+                throw new IllegalArgumentException(error);
             }
         }
 
-        if (json.get(SERVICE_IP) != null && !json.get(SERVICE_IP).isNull()) {
+        if (!json.path(SERVICE_IP).isMissingNode()) {
             try {
-                IpAddress.valueOf(json.get(SERVICE_IP).asText());
-            } catch (IllegalArgumentException e) {
-                final String error = "Invalid ServiceNetwork service IP address received: ";
-                throw new IllegalArgumentException(error + json.get(SERVICE_IP).asText());
+                snetBuilder.serviceIp(IpAddress.valueOf(json.path(SERVICE_IP).asText()));
+            } catch (IllegalArgumentException | NullPointerException e) {
+                final String error = "Invalid ServiceNetwork service IP address received";
+                throw new IllegalArgumentException(error);
             }
         }
 
-        if (json.get(PROVIDERS) != null && !json.get(PROVIDERS).isNull()) {
-            json.get(PROVIDERS).forEach(provider -> {
-                if (provider.get(ID) == null || provider.get(ID).isNull() ||
-                        Strings.isNullOrEmpty(provider.get(ID).asText())) {
-                    final String error = "Null or empty provider network ID received";
-                    throw new IllegalArgumentException(error);
+        if (!json.path(PROVIDERS).isMissingNode() && json.path(PROVIDERS).isNull()) {
+            snetBuilder.providers(ImmutableMap.of());
+        } else if (!json.path(PROVIDERS).isMissingNode()) {
+            Map<NetworkId, DependencyType> providers = Maps.newHashMap();
+            json.path(PROVIDERS).forEach(provider -> {
+                if (provider.path(ID).isMissingNode() ||
+                        provider.path(ID).isNull() ||
+                        Strings.isNullOrEmpty(provider.path(ID).asText()) ||
+                        provider.path(DEP_TYPE).isMissingNode() ||
+                        provider.path(DEP_TYPE).isNull()) {
+                    final String error = "Invalid provider received: ";
+                    throw new IllegalArgumentException(error + provider.asText());
                 }
 
-                if (provider.get(DEP_TYPE) == null || provider.get(DEP_TYPE).isNull()
-                        || !provider.get(DEP_TYPE).isBoolean()) {
-                    final String error = "Non-boolean bidirectional received";
-                    throw new IllegalArgumentException(error);
+                try {
+                    DependencyType type = provider.path(DEP_TYPE).asBoolean() ?
+                            BIDIRECTIONAL : UNIDIRECTIONAL;
+                    providers.put(NetworkId.of(provider.path(ID).asText()), type);
+                } catch (IllegalArgumentException e) {
+                    final String error = "Invalid provider received: ";
+                    throw new IllegalArgumentException(error + provider.asText());
                 }
             });
+            snetBuilder.providers(providers);
         }
 
-        if (json.get(PROVIDER_NETWORKS) != null && !json.get(PROVIDER_NETWORKS).isNull()) {
-            json.get(PROVIDER_NETWORKS).forEach(provider -> {
-                if (provider.get(ID) == null || provider.get(ID).isNull() ||
-                        Strings.isNullOrEmpty(provider.get(ID).asText())) {
-                    final String error = "Null or empty provider network ID received";
-                    throw new IllegalArgumentException(error);
+        if (!json.path(PROVIDER_NETWORKS).isMissingNode() &&
+                json.path(PROVIDER_NETWORKS).isNull()) {
+            snetBuilder.providers(ImmutableMap.of());
+        } else if (!json.path(PROVIDER_NETWORKS).isMissingNode()) {
+            Map<NetworkId, DependencyType> providers = Maps.newHashMap();
+            json.path(PROVIDER_NETWORKS).forEach(provider -> {
+                if (provider.path(ID).isMissingNode() ||
+                        provider.path(ID).isNull() ||
+                        Strings.isNullOrEmpty(provider.path(ID).asText()) ||
+                        provider.path(DEP_TYPE).isMissingNode() ||
+                        provider.path(DEP_TYPE).isNull()) {
+                    final String error = "Invalid provider received: ";
+                    throw new IllegalArgumentException(error + provider.asText());
                 }
 
-                if (provider.get(DEP_TYPE) == null || provider.get(DEP_TYPE).isNull()
-                        || !provider.get(DEP_TYPE).isBoolean()) {
-                    final String error = "Non-boolean bidirectional received";
-                    throw new IllegalArgumentException(error);
+                try {
+                    DependencyType type = provider.path(DEP_TYPE).asBoolean() ?
+                            BIDIRECTIONAL : UNIDIRECTIONAL;
+                    providers.put(NetworkId.of(provider.path(ID).asText()), type);
+                } catch (IllegalArgumentException e) {
+                    final String error = "Invalid provider received: ";
+                    throw new IllegalArgumentException(error + provider.asText());
                 }
             });
+            snetBuilder.providers(providers);
         }
+        return snetBuilder.build();
     }
 }

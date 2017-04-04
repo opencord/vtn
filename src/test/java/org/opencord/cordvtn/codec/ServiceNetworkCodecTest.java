@@ -16,15 +16,16 @@
 package org.opencord.cordvtn.codec;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.common.collect.ImmutableMap;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.onlab.packet.IpAddress;
+import org.onlab.packet.IpPrefix;
 import org.onosproject.codec.JsonCodec;
 import org.opencord.cordvtn.api.net.NetworkId;
+import org.opencord.cordvtn.api.net.SegmentId;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
 import org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType;
 import org.opencord.cordvtn.impl.DefaultServiceNetwork;
@@ -38,7 +39,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType.BIDIRECTIONAL;
-import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.MANAGEMENT_LOCAL;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.PRIVATE;
 import static org.opencord.cordvtn.codec.ServiceNetworkJsonMatcher.matchesServiceNetwork;
 
@@ -51,29 +51,34 @@ public final class ServiceNetworkCodecTest {
     private static final String NAME = "name";
     private static final String TYPE = "type";
     private static final String PROVIDERS = "providers";
+    private static final String SEGMENT_ID = "segment_id";
+    private static final String SUBNET = "subnet";
+    private static final String SERVICE_IP = "service_ip";
+    private static final String DEP_TYPE = "bidirectional";
 
-    private final Map<NetworkId, DependencyType> providerA =
+    private static final String NAME_1 = "network_1";
+    private static final NetworkId ID_1 = NetworkId.of("network_1");
+    private static final NetworkId PROVIDER_ID_1 = NetworkId.of("provider_1");
+    private static final SegmentId SEGMENT_ID_1 = SegmentId.of(1L);
+    private static final IpPrefix SUBNET_1 = IpPrefix.valueOf("192.168.0.0/24");
+    private static final IpAddress SERVICE_IP_1 = IpAddress.valueOf("192.168.0.1");
+
+    private static final Map<NetworkId, DependencyType> PROVIDER_1 =
             new HashMap<NetworkId, DependencyType>() {
                 {
-                    put(NetworkId.of("A"), BIDIRECTIONAL);
+                    put(NetworkId.of("provider_1"), BIDIRECTIONAL);
                 }
             };
 
-    private final ServiceNetwork networkA = DefaultServiceNetwork.builder()
-            .id(NetworkId.of("A"))
-            .name("A")
-            .type(MANAGEMENT_LOCAL)
-            .build();
-
-    private final ServiceNetwork networkB = DefaultServiceNetwork.builder()
-            .id(NetworkId.of("B"))
-            .name("B")
+    private static final ServiceNetwork NETWORK_1 = DefaultServiceNetwork.builder()
+            .id(ID_1)
+            .name(NAME_1)
             .type(PRIVATE)
-            .providers(providerA)
+            .segmentId(SEGMENT_ID_1)
+            .subnet(SUBNET_1)
+            .serviceIp(SERVICE_IP_1)
+            .providers(PROVIDER_1)
             .build();
-
-    @Rule
-    public ExpectedException exception = ExpectedException.none();
 
     private JsonCodec<ServiceNetwork> codec;
     private MockCodecContext context;
@@ -89,89 +94,332 @@ public final class ServiceNetworkCodecTest {
         assertThat(codec, notNullValue());
     }
 
+    /**
+     * Checks if encoding service network works properly.
+     */
     @Test
     public void testServiceNetworkEncode() {
-        ObjectNode networkJson = codec.encode(networkA, context);
+        ObjectNode networkJson = codec.encode(NETWORK_1, context);
         assertThat(networkJson, notNullValue());
-        assertThat(networkJson, matchesServiceNetwork(networkA));
-
-        networkJson = codec.encode(networkB, context);
-        assertThat(networkJson, notNullValue());
-        assertThat(networkJson, matchesServiceNetwork(networkB));
+        assertThat(networkJson, matchesServiceNetwork(NETWORK_1));
     }
 
+    /**
+     * Checks if decoding service network works properly.
+     */
     @Test
     public void testServiceNetworkDecode() throws IOException {
-        ServiceNetwork snet = getServiceNetwork("service-network.json");
-        assertThat(snet.id(), is(NetworkId.of("A")));
-        assertThat(snet.name(), is("A"));
-        assertThat(snet.type(), is(MANAGEMENT_LOCAL));
-        assertThat(snet.providers(), is(ImmutableMap.of()));
-
-        snet = getServiceNetwork("service-network-with-provider.json");
-        assertThat(snet.id(), is(NetworkId.of("B")));
-        assertThat(snet.name(), is("B"));
-        assertThat(snet.type(), is(PRIVATE));
-        assertThat(snet.providers(), is(providerA));
+        ServiceNetwork sNet = getServiceNetwork("service-network.json");
+        assertThat(sNet.id(), is(ID_1));
+        assertThat(sNet.name(), is(NAME_1));
+        assertThat(sNet.type(), is(PRIVATE));
+        assertThat(sNet.providers(), is(PROVIDER_1));
     }
 
-    @Test
-    public void testServiceNetworkDecodeMissingId() throws IllegalArgumentException {
+    /**
+     * Checks if decoding service network without ID fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeMissingId() {
         final JsonNode jsonMissingId = context.mapper().createObjectNode()
-                .put(NAME, "A")
+                .put(NAME, NAME_1)
                 .put(TYPE, PRIVATE.name())
-                .put(PROVIDERS, "");
-        exception.expect(IllegalArgumentException.class);
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString());
         codec.decode((ObjectNode) jsonMissingId, context);
     }
 
-    @Test
-    public void testServiceNetworkDecodeEmptyId() throws IllegalArgumentException {
+    /**
+     * Checks if decoding service network with empty ID fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeEmptyId() {
         final JsonNode jsonEmptyId = context.mapper().createObjectNode()
                 .put(ID, "")
-                .put(NAME, "A")
+                .put(NAME, NAME_1)
                 .put(TYPE, PRIVATE.name())
-                .put(PROVIDERS, "");
-        exception.expect(IllegalArgumentException.class);
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString());
         codec.decode((ObjectNode) jsonEmptyId, context);
     }
 
-    @Test
-    public void testServiceNetworkDecodeNullId() throws NullPointerException {
+    /**
+     * Checks if decoding service network with null ID fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeNullId() {
         final JsonNode jsonNullId = context.mapper().createObjectNode()
-                .put(NAME, "A")
+                .put(NAME, NAME_1)
                 .put(TYPE, PRIVATE.name())
-                .put(PROVIDERS, "")
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
                 .set(ID, NullNode.getInstance());
-        exception.expect(IllegalArgumentException.class);
         codec.decode((ObjectNode) jsonNullId, context);
     }
 
-    @Test
-    public void testServiceNetworkDecodeWithMissingProviderId() throws NullPointerException {
-        final JsonNode jsonMissingProviderId = context.mapper().createObjectNode()
-                .put(TYPE, "B");
-        final JsonNode jsonWithProvider = context.mapper().createObjectNode()
-                .put(ID, "A")
-                .put(NAME, "A")
-                .put(TYPE, PRIVATE.name())
-                .set(PROVIDERS, jsonMissingProviderId);
-        exception.expect(IllegalArgumentException.class);
-        codec.decode((ObjectNode) jsonWithProvider, context);
+    /**
+     * Checks if decoding service network with invalid type fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeInvalidType() {
+        final JsonNode jsonInvalidType = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, "type")
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString());
+        codec.decode((ObjectNode) jsonInvalidType, context);
     }
 
-    @Test
-    public void testServiceNetworkDecodeWithWrongProviderType() throws NullPointerException {
-        final JsonNode jsonWrongProviderType = context.mapper().createObjectNode()
-                .put(ID, "B")
-                .put(TYPE, "none");
-        final JsonNode jsonWithProvider = context.mapper().createObjectNode()
-                .put(ID, "A")
-                .put(NAME, "A")
+    /**
+     * Checks if decoding service network with null type fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeNullType() {
+        final JsonNode jsonNullType = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
+                .set(TYPE, NullNode.getInstance());
+        codec.decode((ObjectNode) jsonNullType, context);
+    }
+
+    /**
+     * Checks if decoding service network with invalid segment ID fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeInvalidSegmentId() {
+        final JsonNode jsonInvalidSeg = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
                 .put(TYPE, PRIVATE.name())
-                .set(PROVIDERS, jsonWrongProviderType);
-        exception.expect(IllegalArgumentException.class);
-        codec.decode((ObjectNode) jsonWithProvider, context);
+                .put(SEGMENT_ID, "segmentId")
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString());
+        codec.decode((ObjectNode) jsonInvalidSeg, context);
+    }
+
+    /**
+     * Checks if decoding service network with 0 segment ID fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeZeroSegmentId() {
+        final JsonNode jsonInvalidSeg = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, 0)
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString());
+        codec.decode((ObjectNode) jsonInvalidSeg, context);
+    }
+
+    /**
+     * Checks if decoding service network with 0 segment ID fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeNullSegmentId() {
+        final JsonNode jsonInvalidSeg = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
+                .set(SEGMENT_ID, NullNode.getInstance());
+        codec.decode((ObjectNode) jsonInvalidSeg, context);
+    }
+
+    /**
+     * Checks if decoding service network with invalid subnet fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeInvalidSubnet() {
+        final JsonNode jsonInvalidSubnet = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, "")
+                .put(SERVICE_IP, SERVICE_IP_1.toString());
+        codec.decode((ObjectNode) jsonInvalidSubnet, context);
+    }
+
+    /**
+     * Checks if decoding service network with invalid subnet fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeNullSubnet() {
+        final JsonNode jsonInvalidSubnet = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
+                .set(SUBNET, NullNode.getInstance());
+        codec.decode((ObjectNode) jsonInvalidSubnet, context);
+    }
+
+    /**
+     * Checks if decoding service network with invalid service IP fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeInvalidServiceIp() {
+        final JsonNode jsonInvalidServiceIp = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, "");
+        codec.decode((ObjectNode) jsonInvalidServiceIp, context);
+    }
+
+    /**
+     * Checks if decoding service network with null service IP fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkDecodeNullServiceIp() {
+        final JsonNode jsonInvalidServiceIp = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .set(SERVICE_IP, NullNode.getInstance());
+        codec.decode((ObjectNode) jsonInvalidServiceIp, context);
+    }
+
+    /**
+     * Checks if decoding service network with null and empty providers allowed.
+     */
+    @Test
+    public void testServiceNetworkDecodeNullAndEmptyProviders() {
+        JsonNode jsonInvalidProvider = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
+                .set(PROVIDERS, NullNode.getInstance());
+        codec.decode((ObjectNode) jsonInvalidProvider, context);
+
+        jsonInvalidProvider = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
+                .set(PROVIDERS, context.mapper().createArrayNode());
+        codec.decode((ObjectNode) jsonInvalidProvider, context);
+    }
+
+    /**
+     * Checks if decoding service network with non-array providers value fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkNonArrayProviders() {
+        final JsonNode jsonProvider = context.mapper().createObjectNode()
+                .put(ID, PROVIDER_ID_1.id())
+                .put(DEP_TYPE, true);
+        final JsonNode jsonInvalidProvider = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
+                .set(PROVIDERS, jsonProvider);
+        codec.decode((ObjectNode) jsonInvalidProvider, context);
+    }
+
+    /**
+     * Checks if decoding service network with invalid provider fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkMissingProviderId() {
+        final ArrayNode jsonProviders = context.mapper().createArrayNode();
+        final JsonNode jsonProvider = context.mapper().createObjectNode()
+                .put(DEP_TYPE, true);
+        jsonProviders.add(jsonProvider);
+        final JsonNode jsonInvalidProvider = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
+                .set(PROVIDERS, jsonProvider);
+        codec.decode((ObjectNode) jsonInvalidProvider, context);
+    }
+
+    /**
+     * Checks if decoding service network with invalid provider fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkMissingProviderType() {
+        final ArrayNode jsonProviders = context.mapper().createArrayNode();
+        final JsonNode jsonProvider = context.mapper().createObjectNode()
+                .put(ID, PROVIDER_ID_1.id());
+        jsonProviders.add(jsonProvider);
+        final JsonNode jsonInvalidProvider = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
+                .set(PROVIDERS, jsonProvider);
+        codec.decode((ObjectNode) jsonInvalidProvider, context);
+    }
+
+    /**
+     * Checks if decoding service network with invalid provider fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkNullProviderId() {
+        final ArrayNode jsonProviders = context.mapper().createArrayNode();
+        final JsonNode jsonProvider = context.mapper().createObjectNode()
+                .put(DEP_TYPE, true)
+                .set(ID, NullNode.getInstance());
+        jsonProviders.add(jsonProvider);
+        final JsonNode jsonInvalidProvider = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
+                .set(PROVIDERS, jsonProvider);
+        codec.decode((ObjectNode) jsonInvalidProvider, context);
+    }
+
+    /**
+     * Checks if decoding service network with invalid provider fails.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testServiceNetworkNullProviderType() {
+        final ArrayNode jsonProviders = context.mapper().createArrayNode();
+        final JsonNode jsonProvider = context.mapper().createObjectNode()
+                .put(ID, PROVIDER_ID_1.id())
+                .set(DEP_TYPE, NullNode.getInstance());
+        jsonProviders.add(jsonProvider);
+        final JsonNode jsonInvalidProvider = context.mapper().createObjectNode()
+                .put(ID, ID_1.id())
+                .put(NAME, NAME_1)
+                .put(TYPE, PRIVATE.name())
+                .put(SEGMENT_ID, SEGMENT_ID_1.id())
+                .put(SUBNET, SUBNET_1.toString())
+                .put(SERVICE_IP, SERVICE_IP_1.toString())
+                .set(PROVIDERS, jsonProvider);
+        codec.decode((ObjectNode) jsonInvalidProvider, context);
     }
 
     private ServiceNetwork getServiceNetwork(String resource) throws IOException {
