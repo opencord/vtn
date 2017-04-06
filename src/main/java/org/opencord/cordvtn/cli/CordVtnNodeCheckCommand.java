@@ -23,7 +23,7 @@ import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Port;
 import org.opencord.cordvtn.api.node.CordVtnNode;
-import org.opencord.cordvtn.impl.CordVtnNodeManager;
+import org.opencord.cordvtn.api.node.CordVtnNodeService;
 import org.onosproject.net.Device;
 import org.onosproject.net.device.DeviceService;
 
@@ -44,18 +44,15 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
             required = true, multiValued = false)
     private String hostname = null;
 
-    private static final String COMPLETE = "COMPLETE";
-    private static final String INCOMPLETE = "INCOMPLETE";
-    private static final String HINT = "hint: try init again if the state is INCOMPLETE" +
-            " but all settings OK";
+    private static final String HINT = "hint: try init again if the state is not" +
+            " COMPLETE but all settings are OK";
 
     @Override
     protected void execute() {
-        CordVtnNodeManager nodeManager = AbstractShellCommand.get(CordVtnNodeManager.class);
+        CordVtnNodeService nodeService = AbstractShellCommand.get(CordVtnNodeService.class);
         DeviceService deviceService = AbstractShellCommand.get(DeviceService.class);
 
-        CordVtnNode node = nodeManager.getNodes()
-                .stream()
+        CordVtnNode node = nodeService.nodes().stream()
                 .filter(n -> n.hostname().equals(hostname))
                 .findFirst()
                 .orElse(null);
@@ -64,7 +61,7 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
             print("Cannot find %s from registered nodes", hostname);
             return;
         }
-        print("Current state: %s (%s)", getState(nodeManager, node), HINT);
+        print("Current state: %s (%s)", node.state().name(), HINT);
         print("%n[Integration Bridge Status]");
         Device device = deviceService.getDevice(node.integrationBridgeId());
         if (device != null) {
@@ -75,7 +72,7 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
                   deviceService.isAvailable(device.id()),
                   device.annotations());
 
-            node.systemIfaces().stream().forEach(iface -> print(
+            node.systemInterfaces().forEach(iface -> print(
                     getPortState(deviceService, node.integrationBridgeId(), iface)));
         } else {
             print("%s %s=%s is not available",
@@ -89,7 +86,8 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
         if (session != null) {
             Set<IpAddress> ips = getCurrentIps(session, INTEGRATION_BRIDGE);
             boolean isUp = isInterfaceUp(session, INTEGRATION_BRIDGE);
-            boolean isIp = ips.contains(node.dataIp().ip()) && ips.contains(node.localMgmtIp().ip());
+            boolean isIp = ips.contains(node.dataIp().ip()) &&
+                    ips.contains(node.localManagementIp().ip());
 
             print("%s %s up=%s Ips=%s",
                   isUp && isIp ? MSG_OK : MSG_NO,
@@ -97,9 +95,9 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
                   isUp ? Boolean.TRUE : Boolean.FALSE,
                   getCurrentIps(session, INTEGRATION_BRIDGE));
 
-            print(getSystemIfaceState(session, node.dataIface()));
-            if (node.hostMgmtIface().isPresent()) {
-                print(getSystemIfaceState(session, node.hostMgmtIface().get()));
+            print(getSystemIfaceState(session, node.dataInterface()));
+            if (node.hostManagementInterface() != null) {
+                print(getSystemIfaceState(session, node.hostManagementInterface()));
             }
 
             disconnect(session);
@@ -108,7 +106,8 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
         }
     }
 
-    private String getPortState(DeviceService deviceService, DeviceId deviceId, String portName) {
+    private String getPortState(DeviceService deviceService, DeviceId deviceId,
+                                String portName) {
         Port port = deviceService.getPorts(deviceId).stream()
                 .filter(p -> p.annotations().value(PORT_NAME).equals(portName) &&
                         p.isEnabled())
@@ -116,11 +115,11 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
 
         if (port != null) {
             return String.format("%s %s portNum=%s enabled=%s %s",
-                                 port.isEnabled() ? MSG_OK : MSG_NO,
-                                 portName,
-                                 port.number(),
-                                 port.isEnabled() ? Boolean.TRUE : Boolean.FALSE,
-                                 port.annotations());
+                    port.isEnabled() ? MSG_OK : MSG_NO,
+                    portName,
+                    port.number(),
+                    port.isEnabled() ? Boolean.TRUE : Boolean.FALSE,
+                    port.annotations());
         } else {
             return String.format("%s %s does not exist", MSG_NO, portName);
         }
@@ -134,9 +133,5 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
               iface,
               isUp ? Boolean.TRUE : Boolean.FALSE,
               isIp ? Boolean.TRUE : Boolean.FALSE);
-    }
-
-    private String getState(CordVtnNodeManager nodeManager, CordVtnNode node) {
-        return nodeManager.isNodeInitComplete(node) ? COMPLETE : INCOMPLETE;
     }
 }

@@ -36,10 +36,13 @@ import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Host;
+import org.onosproject.net.HostId;
+import org.onosproject.net.Port;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.config.NetworkConfigEvent;
 import org.onosproject.net.config.NetworkConfigListener;
 import org.onosproject.net.config.NetworkConfigService;
+import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.flow.DefaultTrafficSelector;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficSelector;
@@ -57,6 +60,8 @@ import org.opencord.cordvtn.api.core.ServiceNetworkEvent;
 import org.opencord.cordvtn.api.core.ServiceNetworkListener;
 import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.api.node.CordVtnNode;
+import org.opencord.cordvtn.api.node.CordVtnNodeService;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 
@@ -68,6 +73,7 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.onosproject.net.AnnotationKeys.PORT_NAME;
 import static org.opencord.cordvtn.api.Constants.DEFAULT_GATEWAY_MAC_STR;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.*;
 import static org.slf4j.LoggerFactory.getLogger;
@@ -97,7 +103,10 @@ public class CordVtnArpProxy {
     protected ComponentConfigService compConfigService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnNodeManager nodeManager;
+    protected DeviceService deviceService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnNodeService nodeService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected ServiceNetworkService snetService;
@@ -303,13 +312,11 @@ public class CordVtnArpProxy {
 
     private void forwardManagementArpRequest(PacketContext context, Ethernet ethPacket) {
         DeviceId deviceId = context.inPacket().receivedFrom().deviceId();
-        PortNumber hostMgmtPort = nodeManager.hostManagementPort(deviceId);
-        Host host = hostService.getConnectedHosts(context.inPacket().receivedFrom())
-                .stream()
-                .findFirst().orElse(null);
+        PortNumber hostMgmtPort = hostMgmtPort(deviceId);
+        Host host = hostService.getHost(HostId.hostId(ethPacket.getSourceMAC()));
 
         if (host == null ||
-                !Instance.of(host).netType().name().contains("MANAGEMENT") ||
+                Instance.of(host).netType() != MANAGEMENT_HOST ||
                 hostMgmtPort == null) {
             context.block();
             return;
@@ -324,8 +331,20 @@ public class CordVtnArpProxy {
                 treatment,
                 ByteBuffer.wrap(ethPacket.serialize())));
 
-        log.trace("Forward ARP request to management network");
         context.block();
+    }
+
+    private PortNumber hostMgmtPort(DeviceId deviceId) {
+        CordVtnNode node = nodeService.node(deviceId);
+        if (node == null || node.hostManagementInterface() == null) {
+            return null;
+        }
+        Optional<Port> port = deviceService.getPorts(deviceId).stream()
+                .filter(p -> p.annotations().value(PORT_NAME)
+                        .equals(node.hostManagementInterface()) &&
+                        p.isEnabled())
+                .findAny();
+        return port.isPresent() ? port.get().number() : null;
     }
 
     /**
@@ -465,7 +484,7 @@ public class CordVtnArpProxy {
     private void readPublicGateways() {
         CordVtnConfig config = netConfigService.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
-            log.debug("No configuration found");
+            log.warn("No configuration found");
             return;
         }
 

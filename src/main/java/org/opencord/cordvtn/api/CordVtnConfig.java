@@ -28,12 +28,14 @@ import org.onlab.packet.MacAddress;
 import org.onlab.packet.TpPort;
 import org.onosproject.cluster.ClusterService;
 import org.onosproject.core.ApplicationId;
+import org.onosproject.net.DeviceId;
 import org.onosproject.net.behaviour.ControllerInfo;
 import org.onosproject.net.config.Config;
 import org.onosproject.net.config.InvalidFieldException;
 import org.opencord.cordvtn.api.net.CidrAddr;
 import org.opencord.cordvtn.api.node.CordVtnNode;
 import org.opencord.cordvtn.api.node.SshAccessInfo;
+import org.opencord.cordvtn.impl.DefaultCordVtnNode;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -196,31 +198,31 @@ public class CordVtnConfig extends Config<ApplicationId> {
         String ovsdbPort = getConfig(object, OVSDB_PORT);
 
         object.get(CORDVTN_NODES).forEach(vtnNode -> {
-            CidrAddr localMgmt = CidrAddr.valueOf(get(LOCAL_MANAGEMENT_IP, ""));
-            CidrAddr hostsMgmt = CidrAddr.valueOf(getConfig(vtnNode, HOST_MANAGEMENT_IP));
+            CidrAddr localMgmtIp = CidrAddr.valueOf(get(LOCAL_MANAGEMENT_IP, ""));
+            CidrAddr hostsMgmtIp = CidrAddr.valueOf(getConfig(vtnNode, HOST_MANAGEMENT_IP));
 
             SshAccessInfo sshInfo = new SshAccessInfo(
-                    hostsMgmt.ip().getIp4Address(),
+                    hostsMgmtIp.ip().getIp4Address(),
                     TpPort.tpPort(Integer.parseInt(getConfig(sshNode, SSH_PORT))),
                     getConfig(sshNode, SSH_USER),
                     getConfig(sshNode, SSH_KEY_FILE));
 
-            CordVtnNode.Builder nodeBuilder = CordVtnNode.builder()
+            CordVtnNode.Builder nodeBuilder = DefaultCordVtnNode.builder()
                     .hostname(getConfig(vtnNode, HOSTNAME))
-                    .hostMgmtIp(hostsMgmt)
-                    .localMgmtIp(localMgmt)
-                    .dataIp(getConfig(vtnNode, DATA_IP))
+                    .hostManagementIp(hostsMgmtIp)
+                    .localManagementIp(localMgmtIp)
+                    .dataIp(CidrAddr.valueOf(getConfig(vtnNode, DATA_IP)))
                     .sshInfo(sshInfo)
-                    .integrationBridgeId(getConfig(vtnNode, INTEGRATION_BRIDGE_ID))
-                    .dataIface(getConfig(vtnNode, DATA_IFACE));
+                    .integrationBridgeId(DeviceId.deviceId(getConfig(vtnNode, INTEGRATION_BRIDGE_ID)))
+                    .dataInterface(getConfig(vtnNode, DATA_IFACE));
 
             if (!Strings.isNullOrEmpty(ovsdbPort)) {
-                nodeBuilder.ovsdbPort(Integer.parseInt(ovsdbPort));
+                nodeBuilder.ovsdbPort(TpPort.tpPort(Integer.parseInt(ovsdbPort)));
             }
 
             String hostMgmtIface = getConfig(vtnNode, HOST_MANAGEMENT_IFACE);
             if (!Strings.isNullOrEmpty(hostMgmtIface)) {
-                nodeBuilder.hostMgmtIface(hostMgmtIface);
+                nodeBuilder.hostManagementInterface(hostMgmtIface);
             }
 
             nodes.add(nodeBuilder.build());

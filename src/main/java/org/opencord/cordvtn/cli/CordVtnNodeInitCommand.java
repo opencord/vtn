@@ -19,10 +19,9 @@ package org.opencord.cordvtn.cli;
 import org.apache.karaf.shell.commands.Argument;
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
-import org.opencord.cordvtn.impl.CordVtnNodeManager;
+import org.opencord.cordvtn.api.node.CordVtnNodeAdminService;
 import org.opencord.cordvtn.api.node.CordVtnNode;
-
-import java.util.NoSuchElementException;
+import org.opencord.cordvtn.api.node.CordVtnNodeService;
 
 /**
  * Initializes nodes for CordVtn service.
@@ -37,21 +36,17 @@ public class CordVtnNodeInitCommand extends AbstractShellCommand {
 
     @Override
     protected void execute() {
-        CordVtnNodeManager nodeManager = AbstractShellCommand.get(CordVtnNodeManager.class);
+        CordVtnNodeService nodeService = AbstractShellCommand.get(CordVtnNodeService.class);
+        CordVtnNodeAdminService nodeAdminService =
+                AbstractShellCommand.get(CordVtnNodeAdminService.class);
 
         for (String hostname : hostnames) {
-            CordVtnNode node;
-            try {
-                node = nodeManager.getNodes()
-                        .stream()
-                        .filter(n -> n.hostname().equals(hostname))
-                        .findFirst().get();
-            } catch (NoSuchElementException e) {
+            CordVtnNode node = nodeService.node(hostname);
+            if (node == null) {
                 print("Unable to find %s", hostname);
-                continue;
+            } else {
+                nodeAdminService.updateNode(node);
             }
-
-            nodeManager.addOrUpdateNode(node);
         }
     }
 }

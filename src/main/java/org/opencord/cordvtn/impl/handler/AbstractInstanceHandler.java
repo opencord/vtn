@@ -18,11 +18,21 @@ package org.opencord.cordvtn.impl.handler;
 import com.google.common.collect.ImmutableSet;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onlab.osgi.ServiceDirectory;
+import org.onlab.packet.Ip4Address;
+import org.onlab.packet.IpAddress;
 import org.onlab.util.Tools;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.mastership.MastershipService;
+import org.onosproject.net.Device;
+import org.onosproject.net.DeviceId;
 import org.onosproject.net.Host;
+import org.onosproject.net.Port;
+import org.onosproject.net.PortNumber;
+import org.onosproject.net.behaviour.ExtensionTreatmentResolver;
+import org.onosproject.net.device.DeviceService;
+import org.onosproject.net.flow.instructions.ExtensionPropertyException;
+import org.onosproject.net.flow.instructions.ExtensionTreatment;
 import org.onosproject.net.host.HostEvent;
 import org.onosproject.net.host.HostListener;
 import org.onosproject.net.host.HostService;
@@ -33,15 +43,21 @@ import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.NetworkId;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
 import org.opencord.cordvtn.api.net.ServicePort;
+import org.opencord.cordvtn.api.node.CordVtnNode;
+import org.opencord.cordvtn.api.node.CordVtnNodeService;
 import org.slf4j.Logger;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
+import static org.onosproject.net.AnnotationKeys.PORT_NAME;
+import static org.onosproject.net.flow.instructions.ExtensionTreatmentType.ExtensionTreatmentTypes.NICIRA_SET_TUNNEL_DST;
+import static org.opencord.cordvtn.api.Constants.DEFAULT_TUNNEL;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -53,11 +69,14 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
 
     protected static final String ERR_VTN_NETWORK = "Failed to get VTN network for %s";
     protected static final String ERR_VTN_PORT = "Failed to get VTN port for %s";
+    protected static final String PROPERTY_TUNNEL_DST = "tunnelDst";
 
     protected CoreService coreService;
     protected MastershipService mastershipService;
     protected HostService hostService;
+    protected DeviceService deviceService;
     protected ServiceNetworkService snetService;
+    protected CordVtnNodeService nodeService;
     protected ApplicationId appId;
     protected Set<ServiceNetwork.NetworkType> netTypes = ImmutableSet.of();
 
@@ -71,7 +90,9 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
         coreService = services.get(CoreService.class);
         mastershipService = services.get(MastershipService.class);
         hostService = services.get(HostService.class);
+        deviceService = services.get(DeviceService.class);
         snetService = services.get(ServiceNetworkService.class);
+        nodeService = services.get(CordVtnNodeService.class);
 
         appId = coreService.registerApplication(Constants.CORDVTN_APP_ID);
         hostService.addListener(hostListener);
@@ -116,6 +137,75 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
             throw new IllegalStateException(error);
         }
         return sport;
+    }
+
+    protected PortNumber dataPort(DeviceId deviceId) {
+        CordVtnNode node = nodeService.node(deviceId);
+        if (node == null) {
+            log.debug("Failed to get node for {}", deviceId);
+            return null;
+        }
+        Optional<PortNumber> port = getPortNumber(deviceId, node.dataInterface());
+        return port.isPresent() ? port.get() : null;
+
+    }
+
+    protected PortNumber tunnelPort(DeviceId deviceId) {
+        Optional<PortNumber> port = getPortNumber(deviceId, DEFAULT_TUNNEL);
+        return port.isPresent() ? port.get() : null;
+    }
+
+    protected PortNumber hostManagementPort(DeviceId deviceId) {
+        CordVtnNode node = nodeService.node(deviceId);
+        if (node == null) {
+            log.debug("Failed to get node for {}", deviceId);
+            return null;
+        }
+
+        if (node.hostManagementInterface() != null) {
+            Optional<PortNumber> port =
+                    getPortNumber(deviceId, node.hostManagementInterface());
+            return port.isPresent() ? port.get() : null;
+        } else {
+            return null;
+        }
+    }
+
+    protected ExtensionTreatment tunnelDstTreatment(DeviceId deviceId, Ip4Address remoteIp) {
+        Device device = deviceService.getDevice(deviceId);
+        if (device != null && !device.is(ExtensionTreatmentResolver.class)) {
+            log.error("The extension treatment is not supported");
+            return null;
+        }
+
+        ExtensionTreatmentResolver resolver = device.as(ExtensionTreatmentResolver.class);
+        ExtensionTreatment treatment = resolver.getExtensionInstruction(NICIRA_SET_TUNNEL_DST.type());
+        try {
+            treatment.setPropertyValue(PROPERTY_TUNNEL_DST, remoteIp);
+            return treatment;
+        } catch (ExtensionPropertyException e) {
+            log.warn("Failed to get tunnelDst extension treatment for {}", deviceId);
+            return null;
+        }
+    }
+
+    protected IpAddress dataIp(DeviceId deviceId) {
+        CordVtnNode node = nodeService.node(deviceId);
+        if (node == null) {
+            log.debug("Failed to get node for {}", deviceId);
+            return null;
+        }
+        return node.dataIp().ip();
+    }
+
+    private Optional<PortNumber> getPortNumber(DeviceId deviceId, String portName) {
+        PortNumber port = deviceService.getPorts(deviceId).stream()
+                .filter(p -> p.annotations().value(PORT_NAME).equals(portName) &&
+                        p.isEnabled())
+                .map(Port::number)
+                .findAny()
+                .orElse(null);
+        return Optional.ofNullable(port);
     }
 
     private class InternalHostListener implements HostListener {

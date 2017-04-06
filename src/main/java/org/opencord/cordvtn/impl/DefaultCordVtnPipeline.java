@@ -30,13 +30,12 @@ import org.onlab.packet.VlanId;
 import org.onosproject.net.AnnotationKeys;
 import org.onosproject.net.Port;
 import org.opencord.cordvtn.api.Constants;
+import org.opencord.cordvtn.api.core.CordVtnPipeline;
 import org.opencord.cordvtn.api.node.CordVtnNode;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
-import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
-import org.onosproject.net.behaviour.ExtensionTreatmentResolver;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.flow.DefaultFlowRule;
 import org.onosproject.net.flow.DefaultTrafficSelector;
@@ -47,23 +46,20 @@ import org.onosproject.net.flow.FlowRuleOperationsContext;
 import org.onosproject.net.flow.FlowRuleService;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
-import org.onosproject.net.flow.instructions.ExtensionPropertyException;
-import org.onosproject.net.flow.instructions.ExtensionTreatment;
 import org.slf4j.Logger;
 
-import java.util.Optional;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-import static org.onosproject.net.flow.instructions.ExtensionTreatmentType.ExtensionTreatmentTypes.NICIRA_SET_TUNNEL_DST;
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.opencord.cordvtn.api.Constants.DEFAULT_TUNNEL;
+import static org.opencord.cordvtn.api.node.CordVtnNodeState.COMPLETE;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
- * Provides CORD VTN pipeline.
+ * Implementation of cordvtn pipeline.
  */
 @Component(immediate = true)
-@Service(value = CordVtnPipeline.class)
-public final class CordVtnPipeline {
+@Service
+public class DefaultCordVtnPipeline implements CordVtnPipeline {
 
     protected final Logger log = getLogger(getClass());
 
@@ -76,26 +72,7 @@ public final class CordVtnPipeline {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected DeviceService deviceService;
 
-    // tables
-    public static final int TABLE_ZERO = 0;
-    public static final int TABLE_IN_PORT = 1;
-    public static final int TABLE_ACCESS = 2;
-    public static final int TABLE_IN_SERVICE = 3;
-    public static final int TABLE_DST = 4;
-    public static final int TABLE_TUNNEL_IN = 5;
-    public static final int TABLE_VLAN = 6;
-
-    // priorities
-    public static final int PRIORITY_MANAGEMENT = 55000;
-    public static final int PRIORITY_HIGH = 50000;
-    public static final int PRIORITY_DEFAULT = 5000;
-    public static final int PRIORITY_LOW = 4000;
-    public static final int PRIORITY_ZERO = 0;
-
-    public static final int VXLAN_UDP_PORT = 4789;
-    public static final VlanId VLAN_WAN = VlanId.vlanId((short) 500);
-
-    public static final String PROPERTY_TUNNEL_DST = "tunnelDst";
+    private static final int VXLAN_UDP_PORT = 4789;
 
     private ApplicationId appId;
 
@@ -110,45 +87,45 @@ public final class CordVtnPipeline {
         log.info("Stopped");
     }
 
-    /**
-     * Flush flows installed by this application.
-     */
-    public void flushRules() {
+    @Override
+    public void cleanupPipeline() {
         flowRuleService.getFlowRulesById(appId).forEach(flowRule -> processFlowRule(false, flowRule));
     }
 
-    /**
-     * Installs table miss rule to a give device.
-     *
-     * @param node cordvtn node
-     */
+    @Override
     public void initPipeline(CordVtnNode node) {
-        checkNotNull(node);
+        checkArgument(node.state() == COMPLETE, "Node is not in COMPLETE state");
 
-        Optional<PortNumber> dataPort = getPortNumber(node.integrationBridgeId(), node.dataIface());
-        Optional<PortNumber> tunnelPort = getPortNumber(node.integrationBridgeId(), DEFAULT_TUNNEL);
-        if (!dataPort.isPresent() || !tunnelPort.isPresent()) {
-            log.warn("Node is not in COMPLETE state");
-            return;
-        }
-
-        Optional<PortNumber> hostMgmtPort = Optional.empty();
-        if (node.hostMgmtIface().isPresent()) {
-            hostMgmtPort = getPortNumber(node.integrationBridgeId(), node.hostMgmtIface().get());
-        }
+        PortNumber dataPort = getPortNumber(node.integrationBridgeId(), node.dataInterface());
+        PortNumber tunnelPort = getPortNumber(node.integrationBridgeId(), DEFAULT_TUNNEL);
+        PortNumber hostMgmtPort = node.hostManagementInterface() == null ?
+                null : getPortNumber(node.integrationBridgeId(), node.hostManagementInterface());
 
         processTableZero(node.integrationBridgeId(),
-                         dataPort.get(),
-                         node.dataIp().ip(),
-                         node.localMgmtIp().ip());
+                dataPort,
+                node.dataIp().ip(),
+                node.localManagementIp().ip());
 
         processInPortTable(node.integrationBridgeId(),
-                           tunnelPort.get(),
-                           dataPort.get(),
-                           hostMgmtPort);
+                tunnelPort,
+                dataPort,
+                hostMgmtPort);
 
-        processAccessTypeTable(node.integrationBridgeId(), dataPort.get());
-        processVlanTable(node.integrationBridgeId(), dataPort.get());
+        processAccessTypeTable(node.integrationBridgeId(), dataPort);
+        processVlanTable(node.integrationBridgeId(), dataPort);
+    }
+
+    @Override
+    public void processFlowRule(boolean install, FlowRule rule) {
+        FlowRuleOperations.Builder oBuilder = FlowRuleOperations.builder();
+        oBuilder = install ? oBuilder.add(rule) : oBuilder.remove(rule);
+
+        flowRuleService.apply(oBuilder.build(new FlowRuleOperationsContext() {
+            @Override
+            public void onError(FlowRuleOperations ops) {
+                log.error(String.format("Failed %s, %s", ops.toString(), rule.toString()));
+            }
+        }));
     }
 
     private void processTableZero(DeviceId deviceId, PortNumber dataPort, IpAddress dataIp,
@@ -380,7 +357,7 @@ public final class CordVtnPipeline {
     }
 
     private void processInPortTable(DeviceId deviceId, PortNumber tunnelPort, PortNumber dataPort,
-                                    Optional<PortNumber> hostMgmtPort) {
+                                    PortNumber hostMgmtPort) {
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchInPort(tunnelPort)
                 .build();
@@ -421,9 +398,9 @@ public final class CordVtnPipeline {
 
         processFlowRule(true, flowRule);
 
-        if (hostMgmtPort.isPresent()) {
+        if (hostMgmtPort != null) {
             selector = DefaultTrafficSelector.builder()
-                    .matchInPort(hostMgmtPort.get())
+                    .matchInPort(hostMgmtPort)
                     .build();
 
             treatment = DefaultTrafficTreatment.builder()
@@ -510,43 +487,11 @@ public final class CordVtnPipeline {
         processFlowRule(true, flowRule);
     }
 
-    public void processFlowRule(boolean install, FlowRule rule) {
-        FlowRuleOperations.Builder oBuilder = FlowRuleOperations.builder();
-        oBuilder = install ? oBuilder.add(rule) : oBuilder.remove(rule);
-
-        flowRuleService.apply(oBuilder.build(new FlowRuleOperationsContext() {
-            @Override
-            public void onError(FlowRuleOperations ops) {
-                log.error(String.format("Failed %s, %s", ops.toString(), rule.toString()));
-            }
-        }));
-    }
-
-    public ExtensionTreatment tunnelDstTreatment(DeviceId deviceId, Ip4Address remoteIp) {
-        Device device = deviceService.getDevice(deviceId);
-        if (device != null && !device.is(ExtensionTreatmentResolver.class)) {
-            log.error("The extension treatment is not supported");
-            return null;
-        }
-
-        ExtensionTreatmentResolver resolver = device.as(ExtensionTreatmentResolver.class);
-        ExtensionTreatment treatment = resolver.getExtensionInstruction(NICIRA_SET_TUNNEL_DST.type());
-        try {
-            treatment.setPropertyValue(PROPERTY_TUNNEL_DST, remoteIp);
-            return treatment;
-        } catch (ExtensionPropertyException e) {
-            log.warn("Failed to get tunnelDst extension treatment for {}", deviceId);
-            return null;
-        }
-    }
-
-    private Optional<PortNumber> getPortNumber(DeviceId deviceId, String portName) {
-        PortNumber port = deviceService.getPorts(deviceId).stream()
+    private PortNumber getPortNumber(DeviceId deviceId, String portName) {
+        return deviceService.getPorts(deviceId).stream()
                 .filter(p -> p.annotations().value(AnnotationKeys.PORT_NAME).equals(portName) &&
                         p.isEnabled())
                 .map(Port::number)
-                .findAny()
-                .orElse(null);
-        return Optional.ofNullable(port);
+                .findAny().orElse(null);
     }
 }

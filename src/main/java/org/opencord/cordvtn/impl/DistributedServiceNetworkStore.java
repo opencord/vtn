@@ -95,7 +95,7 @@ public class DistributedServiceNetworkStore extends AbstractStore<ServiceNetwork
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected StorageService storageService;
 
-   private final ExecutorService eventExecutor = newSingleThreadExecutor(
+    private final ExecutorService eventExecutor = newSingleThreadExecutor(
             groupedThreads(this.getClass().getSimpleName(), "event-handler", log));
     private final MapEventListener<PortId, ServicePort> servicePortListener =
             new ServicePortMapListener();
@@ -108,7 +108,6 @@ public class DistributedServiceNetworkStore extends AbstractStore<ServiceNetwork
     @Activate
     protected void activate() {
         ApplicationId appId = coreService.registerApplication(CORDVTN_APP_ID);
-
         serviceNetworkStore = storageService.<NetworkId, ServiceNetwork>consistentMapBuilder()
                 .withSerializer(Serializer.using(SERIALIZER_SERVICE))
                 .withName("cordvtn-servicenetstore")

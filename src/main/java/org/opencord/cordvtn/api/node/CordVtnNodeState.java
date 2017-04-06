@@ -18,13 +18,64 @@ package org.opencord.cordvtn.api.node;
 /**
  * Entity that defines possible init state of the cordvtn node.
  */
-public interface CordVtnNodeState {
+public enum CordVtnNodeState {
+
+    INIT {
+        @Override
+        public void process(CordVtnNodeHandler handler, CordVtnNode node) {
+            handler.processInitState(node);
+        }
+
+        @Override
+        public CordVtnNodeState nextState() {
+            return DEVICE_CREATED;
+        }
+    },
+    DEVICE_CREATED {
+        @Override
+        public void process(CordVtnNodeHandler handler, CordVtnNode node) {
+            handler.processDeviceCreatedState(node);
+        }
+
+        @Override
+        public CordVtnNodeState nextState() {
+            return PORT_CREATED;
+        }
+    },
+    PORT_CREATED {
+        @Override
+        public void process(CordVtnNodeHandler handler, CordVtnNode node) {
+            handler.processPortCreatedState(node);
+        }
+
+        @Override
+        public CordVtnNodeState nextState() {
+            return COMPLETE;
+        }
+    },
+    COMPLETE {
+        @Override
+        public void process(CordVtnNodeHandler handler, CordVtnNode node) {
+            handler.processCompleteState(node);
+        }
+
+        @Override
+        public CordVtnNodeState nextState() {
+            // last state
+            return COMPLETE;
+        }
+    };
+
     /**
-     * Returns null for no state.
+     * Processes the current node state to proceed to the next state.
      *
-     * @return null
+     * @param handler cordvtn node state handler
+     * @param node    cordvtn node
      */
-    static CordVtnNodeState noState() {
-        return null;
-    }
+    public abstract void process(CordVtnNodeHandler handler, CordVtnNode node);
+
+    /**
+     * Returns the next node state.
+     */
+    public abstract CordVtnNodeState nextState();
 }

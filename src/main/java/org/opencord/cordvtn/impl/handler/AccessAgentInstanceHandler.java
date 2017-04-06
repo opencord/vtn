@@ -28,10 +28,11 @@ import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.FlowRule;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
+import org.opencord.cordvtn.api.core.CordVtnPipeline;
 import org.opencord.cordvtn.api.core.Instance;
 import org.opencord.cordvtn.api.core.InstanceHandler;
-import org.opencord.cordvtn.impl.CordVtnNodeManager;
-import org.opencord.cordvtn.impl.CordVtnPipeline;
+import org.opencord.cordvtn.api.core.ServiceNetworkService;
+import org.opencord.cordvtn.api.node.CordVtnNodeService;
 
 import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.ACCESS_AGENT;
 
@@ -42,10 +43,13 @@ import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.ACCESS_AGE
 public class AccessAgentInstanceHandler extends AbstractInstanceHandler implements InstanceHandler {
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnPipeline pipeline;
+    protected ServiceNetworkService snetService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnNodeManager nodeManager;
+    protected CordVtnNodeService nodeService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnPipeline pipeline;
 
     @Activate
     protected void activate() {
@@ -96,7 +100,7 @@ public class AccessAgentInstanceHandler extends AbstractInstanceHandler implemen
                 .build();
 
         treatment = DefaultTrafficTreatment.builder()
-                .setOutput(nodeManager.dataPort(instance.deviceId()))
+                .setOutput(dataPort(instance.deviceId()))
                 .build();
 
         flowRule = DefaultFlowRule.builder()
