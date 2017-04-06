@@ -17,7 +17,7 @@ package org.opencord.cordvtn.cli;
 
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
-import org.opencord.cordvtn.impl.CordVtnPipeline;
+import org.opencord.cordvtn.api.core.CordVtnPipeline;
 
 /**
  * Purges all flow rules installed by CORD VTN service.
@@ -29,6 +29,6 @@ public class CordVtnPurgeRulesCommand extends AbstractShellCommand {
     @Override
     protected void execute() {
         CordVtnPipeline pipeline = AbstractShellCommand.get(CordVtnPipeline.class);
-        pipeline.flushRules();
+        pipeline.cleanupPipeline();
     }
 }

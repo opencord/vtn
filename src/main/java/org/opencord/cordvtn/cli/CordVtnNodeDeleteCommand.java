@@ -19,10 +19,8 @@ package org.opencord.cordvtn.cli;
 import org.apache.karaf.shell.commands.Argument;
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
-import org.opencord.cordvtn.impl.CordVtnNodeManager;
+import org.opencord.cordvtn.api.node.CordVtnNodeAdminService;
 import org.opencord.cordvtn.api.node.CordVtnNode;
-
-import java.util.NoSuchElementException;
 
 /**
  * Deletes nodes from the service.
@@ -37,21 +35,14 @@ public class CordVtnNodeDeleteCommand extends AbstractShellCommand {
 
     @Override
     protected void execute() {
-        CordVtnNodeManager nodeManager = AbstractShellCommand.get(CordVtnNodeManager.class);
+        CordVtnNodeAdminService nodeAdminService =
+                AbstractShellCommand.get(CordVtnNodeAdminService.class);
 
         for (String hostname : hostnames) {
-            CordVtnNode node;
-            try {
-                node = nodeManager.getNodes()
-                        .stream()
-                        .filter(n -> n.hostname().equals(hostname))
-                        .findFirst().get();
-            } catch (NoSuchElementException e) {
+            CordVtnNode node = nodeAdminService.removeNode(hostname);
+            if (node == null) {
                 print("Unable to find %s", hostname);
-                continue;
             }
-
-            nodeManager.deleteNode(node);
         }
     }
 }

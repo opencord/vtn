@@ -18,9 +18,10 @@ package org.opencord.cordvtn.cli;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.google.common.collect.Lists;
 import org.apache.karaf.shell.commands.Command;
 import org.onosproject.cli.AbstractShellCommand;
-import org.opencord.cordvtn.impl.CordVtnNodeManager;
+import org.opencord.cordvtn.api.node.CordVtnNodeService;
 import org.opencord.cordvtn.api.node.CordVtnNode;
 
 import java.util.Comparator;
@@ -35,19 +36,17 @@ import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
         description = "Lists all nodes registered in CORD VTN service")
 public class CordVtnNodeListCommand extends AbstractShellCommand {
 
-    private static final String COMPLETE = "COMPLETE";
-    private static final String INCOMPLETE = "INCOMPLETE";
     private static final String FORMAT = "%-30s%-20s%-20s%-15s%-24s%s";
 
     @Override
     protected void execute() {
-        CordVtnNodeManager nodeManager = AbstractShellCommand.get(CordVtnNodeManager.class);
-        List<CordVtnNode> nodes = nodeManager.getNodes();
+        CordVtnNodeService nodeService = AbstractShellCommand.get(CordVtnNodeService.class);
+        List<CordVtnNode> nodes = Lists.newArrayList(nodeService.nodes());
         nodes.sort(Comparator.comparing(CordVtnNode::hostname));
 
         if (outputJson()) {
             try {
-                print("%s", mapper().writeValueAsString(json(nodeManager, nodes)));
+                print("%s", mapper().writeValueAsString(json(nodes)));
             } catch (JsonProcessingException e) {
                 print("Failed to list networks in JSON format");
             }
@@ -57,31 +56,27 @@ public class CordVtnNodeListCommand extends AbstractShellCommand {
 
             for (CordVtnNode node : nodes) {
                 print(FORMAT, node.hostname(),
-                      node.hostMgmtIp().cidr(),
+                      node.hostManagementIp().cidr(),
                       node.dataIp().cidr(),
-                      node.dataIface(),
+                      node.dataInterface(),
                       node.integrationBridgeId().toString(),
-                      getState(nodeManager, node));
+                      node.state().name());
             }
-            print("Total %s nodes", nodeManager.getNodeCount());
+            print("Total %s nodes", nodes.size());
         }
     }
 
-    private JsonNode json(CordVtnNodeManager nodeManager, List<CordVtnNode> nodes) {
+    private JsonNode json(List<CordVtnNode> nodes) {
         ArrayNode result = mapper().enable(INDENT_OUTPUT).createArrayNode();
         for (CordVtnNode node : nodes) {
             result.add(mapper().createObjectNode()
                                .put("hostname", node.hostname())
-                               .put("managementIp", node.hostMgmtIp().cidr())
+                               .put("managementIp", node.hostManagementIp().cidr())
                                .put("dataIp", node.dataIp().cidr())
-                               .put("dataInterface", node.dataIface())
+                               .put("dataInterface", node.dataInterface())
                                .put("bridgeId", node.integrationBridgeId().toString())
-                               .put("state", getState(nodeManager, node)));
+                               .put("state", node.state().name()));
         }
         return result;
-    }
-
-    private String getState(CordVtnNodeManager nodeManager, CordVtnNode node) {
-        return nodeManager.isNodeInitComplete(node) ? COMPLETE : INCOMPLETE;
     }
 }
