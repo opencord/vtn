@@ -50,16 +50,16 @@ import org.onosproject.net.group.GroupBuckets;
 import org.onosproject.net.group.GroupDescription;
 import org.onosproject.net.group.GroupKey;
 import org.onosproject.net.group.GroupService;
+import org.opencord.cordvtn.api.core.CordVtnPipeline;
 import org.opencord.cordvtn.api.core.Instance;
-import org.opencord.cordvtn.api.core.ServiceNetworkAdminService;
 import org.opencord.cordvtn.api.core.ServiceNetworkEvent;
 import org.opencord.cordvtn.api.core.ServiceNetworkListener;
+import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.NetworkId;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
 import org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType;
 import org.opencord.cordvtn.api.node.CordVtnNode;
-import org.opencord.cordvtn.impl.CordVtnNodeManager;
-import org.opencord.cordvtn.impl.CordVtnPipeline;
+import org.opencord.cordvtn.api.node.CordVtnNodeService;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -69,9 +69,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.onosproject.net.group.DefaultGroupBucket.createSelectGroupBucket;
+import static org.opencord.cordvtn.api.core.CordVtnPipeline.*;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType.BIDIRECTIONAL;
 import static org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType.*;
-import static org.opencord.cordvtn.impl.CordVtnPipeline.*;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -97,13 +97,13 @@ public class DependencyHandler extends AbstractInstanceHandler {
     protected ClusterService clusterService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected ServiceNetworkService snetService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnNodeService nodeService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CordVtnPipeline pipeline;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnNodeManager nodeManager;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected ServiceNetworkAdminService snetService;
 
     private final ServiceNetworkListener snetListener = new InternalServiceNetworkListener();
     private NodeId localNodeId;
@@ -172,7 +172,7 @@ public class DependencyHandler extends AbstractInstanceHandler {
     }
 
     private void updateProviderInstances(ServiceNetwork provider) {
-        Set<DeviceId> devices = nodeManager.completeNodes().stream()
+        Set<DeviceId> devices = nodeService.completeNodes().stream()
                 .map(CordVtnNode::integrationBridgeId)
                 .collect(Collectors.toSet());
 
@@ -239,7 +239,7 @@ public class DependencyHandler extends AbstractInstanceHandler {
 
     private void removeGroup(NetworkId netId) {
         GroupKey groupKey = getGroupKey(netId);
-        nodeManager.completeNodes().forEach(node -> {
+        nodeService.completeNodes().forEach(node -> {
             DeviceId deviceId = node.integrationBridgeId();
             Group group = groupService.getGroup(deviceId, groupKey);
             if (group != null) {
@@ -285,7 +285,7 @@ public class DependencyHandler extends AbstractInstanceHandler {
         Map<DeviceId, GroupId> providerGroups = Maps.newHashMap();
         Map<DeviceId, Set<PortNumber>> subscriberPorts = Maps.newHashMap();
 
-        nodeManager.completeNodes().forEach(node -> {
+        nodeService.completeNodes().forEach(node -> {
             DeviceId deviceId = node.integrationBridgeId();
             GroupId groupId = getProviderGroup(provider, deviceId);
             providerGroups.put(deviceId, groupId);
@@ -355,7 +355,7 @@ public class DependencyHandler extends AbstractInstanceHandler {
                 .transition(TABLE_DST)
                 .build();
 
-        nodeManager.completeNodes().forEach(node -> {
+        nodeService.completeNodes().forEach(node -> {
             DeviceId deviceId = node.integrationBridgeId();
             FlowRule flowRuleDirect = DefaultFlowRule.builder()
                     .fromApp(appId)
@@ -409,7 +409,7 @@ public class DependencyHandler extends AbstractInstanceHandler {
                                                  Set<Instance> instances) {
         List<GroupBucket> buckets = Lists.newArrayList();
         instances.forEach(instance -> {
-            Ip4Address tunnelIp = nodeManager.dataIp(instance.deviceId()).getIp4Address();
+            Ip4Address tunnelIp = dataIp(instance.deviceId()).getIp4Address();
 
             if (deviceId.equals(instance.deviceId())) {
                 TrafficTreatment treatment = DefaultTrafficTreatment.builder()
@@ -418,13 +418,12 @@ public class DependencyHandler extends AbstractInstanceHandler {
                         .build();
                 buckets.add(createSelectGroupBucket(treatment));
             } else {
-                ExtensionTreatment tunnelDst =
-                        pipeline.tunnelDstTreatment(deviceId, tunnelIp);
+                ExtensionTreatment tunnelDst = tunnelDstTreatment(deviceId, tunnelIp);
                 TrafficTreatment treatment = DefaultTrafficTreatment.builder()
                         .setEthDst(instance.mac())
                         .extension(tunnelDst, deviceId)
                         .setTunnelId(tunnelId)
-                        .setOutput(nodeManager.tunnelPort(instance.deviceId()))
+                        .setOutput(tunnelPort(instance.deviceId()))
                         .build();
                 buckets.add(createSelectGroupBucket(treatment));
             }
@@ -435,33 +434,30 @@ public class DependencyHandler extends AbstractInstanceHandler {
     private class InternalServiceNetworkListener implements ServiceNetworkListener {
 
         @Override
-        public boolean isRelevant(ServiceNetworkEvent event) {
-            // do not allow to proceed without leadership
-            NodeId leader = leadershipService.getLeader(appId.name());
-            return Objects.equals(localNodeId, leader);
+        public void event(ServiceNetworkEvent event) {
+            eventExecutor.execute(() -> {
+                NodeId leader = leadershipService.getLeader(appId.name());
+                if (!Objects.equals(localNodeId, leader)) {
+                    // do not allow to proceed without leadership
+                    return;
+                }
+                handle(event);
+            });
         }
 
-        @Override
-        public void event(ServiceNetworkEvent event) {
-
+        private void handle(ServiceNetworkEvent event) {
             switch (event.type()) {
                 case SERVICE_NETWORK_PROVIDER_ADDED:
                     log.debug("Dependency added: {}", event);
-                    eventExecutor.execute(() -> {
-                        dependencyAdded(
-                                event.subject(),
-                                event.provider().provider(),
-                                event.provider().type());
-                    });
+                    dependencyAdded(event.subject(),
+                            event.provider().provider(),
+                            event.provider().type());
                     break;
                 case SERVICE_NETWORK_PROVIDER_REMOVED:
                     log.debug("Dependency removed: {}", event);
-                    eventExecutor.execute(() -> {
-                        dependencyRemoved(
-                                event.subject(),
-                                event.provider().provider(),
-                                event.provider().type());
-                    });
+                    dependencyRemoved(event.subject(),
+                            event.provider().provider(),
+                            event.provider().type());
                     break;
                 case SERVICE_NETWORK_CREATED:
                 case SERVICE_NETWORK_UPDATED:

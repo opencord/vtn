@@ -268,23 +268,26 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
 
         @Override
         public void event(ServiceNetworkEvent event) {
-            NodeId leader = leadershipService.getLeader(appId.name());
-            if (!Objects.equals(localNodeId, leader)) {
-                // do not allow to proceed without leadership
-                return;
-            }
+            eventExecutor.execute(() -> {
+                NodeId leader = leadershipService.getLeader(appId.name());
+                if (!Objects.equals(localNodeId, leader)) {
+                    // do not allow to proceed without leadership
+                    return;
+                }
+                handle(event);
+            });
+        }
 
+        private void handle(ServiceNetworkEvent event) {
             switch (event.type()) {
                 case SERVICE_PORT_CREATED:
                 case SERVICE_PORT_UPDATED:
                     log.debug("Processing service port {}", event.servicePort());
                     PortId portId = event.servicePort().id();
-                    eventExecutor.execute(() -> {
-                        Instance instance = getInstance(portId);
-                        if (instance != null) {
-                            addInstance(instance.host().location());
-                        }
-                    });
+                    Instance instance = getInstance(portId);
+                    if (instance != null) {
+                        addInstance(instance.host().location());
+                    }
                     break;
                 case SERVICE_PORT_REMOVED:
                 case SERVICE_NETWORK_CREATED:

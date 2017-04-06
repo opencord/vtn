@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-present Open Networking Laboratory
+ * Copyright 2017-present Open Networking Laboratory
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,22 +15,10 @@
  */
 package org.opencord.cordvtn.api.node;
 
+import org.onosproject.store.StoreDelegate;
+
 /**
- * Entity capable of handling a subject connected and disconnected situation.
+ * CordVtn Node store delegate.
  */
-public interface ConnectionHandler<T> {
-
-    /**
-     * Processes the connected subject.
-     *
-     * @param subject subject
-     */
-    void connected(T subject);
-
-    /**
-     * Processes the disconnected subject.
-     *
-     * @param subject subject.
-     */
-    void disconnected(T subject);
+public interface CordVtnNodeStoreDelegate extends StoreDelegate<CordVtnNodeEvent> {
 }

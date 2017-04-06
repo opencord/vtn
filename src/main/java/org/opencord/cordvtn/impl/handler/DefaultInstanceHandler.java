@@ -47,15 +47,16 @@ import org.onosproject.net.flow.instructions.Instructions;
 import org.onosproject.net.flow.instructions.L2ModificationInstruction;
 import org.onosproject.net.host.DefaultHostDescription;
 import org.onosproject.net.host.HostDescription;
+import org.opencord.cordvtn.api.core.CordVtnPipeline;
 import org.opencord.cordvtn.api.core.Instance;
 import org.opencord.cordvtn.api.core.InstanceHandler;
 import org.opencord.cordvtn.api.core.InstanceService;
+import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.AddressPair;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
 import org.opencord.cordvtn.api.net.ServicePort;
 import org.opencord.cordvtn.api.node.CordVtnNode;
-import org.opencord.cordvtn.impl.CordVtnNodeManager;
-import org.opencord.cordvtn.impl.CordVtnPipeline;
+import org.opencord.cordvtn.api.node.CordVtnNodeService;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -74,10 +75,13 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
     protected FlowRuleService flowRuleService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnPipeline pipeline;
+    protected ServiceNetworkService snetService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CordVtnNodeManager nodeManager;
+    protected CordVtnNodeService nodeService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected CordVtnPipeline pipeline;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected InstanceService instanceService;
@@ -95,10 +99,10 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
 
     @Override
     public void instanceDetected(Instance instance) {
+        log.info("Instance is detected or updated {}", instance);
         if (instance.isAdditionalInstance()) {
             return;
         }
-        log.info("Instance is detected or updated {}", instance);
 
         ServiceNetwork snet = getServiceNetwork(instance);
         populateDefaultRules(instance, snet, true);
@@ -109,7 +113,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
             populateVlanRule(
                     instance,
                     sport.vlanId(),
-                    nodeManager.dataPort(instance.deviceId()),
+                    dataPort(instance.deviceId()),
                     true);
         }
         // FIXME don't add the existing instance again
@@ -138,7 +142,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
             populateVlanRule(
                     instance,
                     sport.vlanId(),
-                    nodeManager.dataPort(instance.deviceId()),
+                    dataPort(instance.deviceId()),
                     false);
         }
         boolean isOriginalInstance = !instance.isAdditionalInstance();
@@ -246,7 +250,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
     }
 
     private void populateDstIpRule(Instance instance, long vni, boolean install) {
-        Ip4Address tunnelIp = nodeManager.dataIp(instance.deviceId()).getIp4Address();
+        Ip4Address tunnelIp = dataIp(instance.deviceId()).getIp4Address();
 
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(Ethernet.TYPE_IPV4)
@@ -270,13 +274,13 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
 
         pipeline.processFlowRule(install, flowRule);
 
-        for (CordVtnNode node : nodeManager.completeNodes()) {
+        for (CordVtnNode node : nodeService.completeNodes()) {
             if (node.integrationBridgeId().equals(instance.deviceId())) {
                 continue;
             }
 
             ExtensionTreatment tunnelDst =
-                    pipeline.tunnelDstTreatment(node.integrationBridgeId(), tunnelIp);
+                    tunnelDstTreatment(node.integrationBridgeId(), tunnelIp);
             if (tunnelDst == null) {
                 continue;
             }
@@ -285,7 +289,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                     .setEthDst(instance.mac())
                     .setTunnelId(vni)
                     .extension(tunnelDst, node.integrationBridgeId())
-                    .setOutput(nodeManager.tunnelPort(node.integrationBridgeId()))
+                    .setOutput(tunnelPort(node.integrationBridgeId()))
                     .build();
 
             flowRule = DefaultFlowRule.builder()
@@ -337,7 +341,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                 .build();
 
 
-        nodeManager.completeNodes().forEach(node -> {
+        nodeService.completeNodes().forEach(node -> {
             FlowRule flowRuleDirect = DefaultFlowRule.builder()
                     .fromApp(appId)
                     .withSelector(selector)
@@ -362,7 +366,7 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
                 .drop()
                 .build();
 
-        nodeManager.completeNodes().forEach(node -> {
+        nodeService.completeNodes().forEach(node -> {
             FlowRule flowRuleDirect = DefaultFlowRule.builder()
                     .fromApp(appId)
                     .withSelector(selector)
