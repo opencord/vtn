@@ -15,7 +15,7 @@ topology_template:
           # base_url is non-null.
           models: models.py
           admin: admin.py
-          django_library: vtnnetport.py
+          django_library: synchronizer/vtnnetport.py
           admin_template: templates/vtnadmin.html
           tosca_resource: tosca/resources/vtnservice.py
           rest_service: api/service/vtn.py

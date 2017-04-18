@@ -4,7 +4,7 @@ ADD . /opt/xos/synchronizers/vtn
 
 ADD __init__.py /opt/xos/services/__init__.py
 ADD __init__.py /opt/xos/services/vtn/__init__.py
-ADD tmp.vtnnetport.py /opt/xos/services/vtn/vtnnetport.py
+ADD vtnnetport.py /opt/xos/services/vtn/vtnnetport.py
 
 ENTRYPOINT []
 
