@@ -16,10 +16,10 @@
 package org.opencord.cordvtn.impl;
 
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.onlab.junit.TestTools;
 import org.onlab.junit.TestUtils;
 import org.onosproject.cluster.ClusterServiceAdapter;
 import org.onosproject.cluster.LeadershipServiceAdapter;
@@ -76,6 +76,7 @@ public class CordVtnNodeManagerTest extends CordVtnNodeTest {
         nodeStore = new DistributedCordVtnNodeStore();
         TestUtils.setField(nodeStore, "coreService", new TestCoreService());
         TestUtils.setField(nodeStore, "storageService", new TestStorageService());
+        TestUtils.setField(nodeStore, "eventExecutor", MoreExecutors.newDirectExecutorService());
         nodeStore.activate();
 
         nodeStore.createNode(NODE_2);
@@ -224,20 +225,17 @@ public class CordVtnNodeManagerTest extends CordVtnNodeTest {
     }
 
     private void clearEvents() {
-        TestTools.delay(100);
         testListener.events.clear();
     }
 
     private void validateEvents(Enum... types) {
-        TestTools.assertAfter(100, () -> {
-            int i = 0;
-            assertEquals("Number of events did not match", types.length, testListener.events.size());
-            for (Event event : testListener.events) {
-                assertEquals("Incorrect event received", types[i], event.type());
-                i++;
-            }
-            testListener.events.clear();
-        });
+        int i = 0;
+        assertEquals("Number of events did not match", types.length, testListener.events.size());
+        for (Event event : testListener.events) {
+            assertEquals("Incorrect event received", types[i], event.type());
+            i++;
+        }
+        testListener.events.clear();
     }
 
     private static class TestCordVtnNodeListener implements CordVtnNodeListener {

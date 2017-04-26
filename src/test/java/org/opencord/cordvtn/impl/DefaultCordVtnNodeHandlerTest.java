@@ -19,12 +19,13 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.jcraft.jsch.Session;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.onlab.junit.TestTools;
+import org.onlab.junit.TestUtils;
 import org.onlab.packet.ChassisId;
 import org.onlab.packet.IpAddress;
 import org.onosproject.cluster.ClusterServiceAdapter;
@@ -85,7 +86,6 @@ import static org.onosproject.net.Device.Type.CONTROLLER;
 import static org.onosproject.net.NetTestTools.injectEventDispatcher;
 import static org.onosproject.net.device.DeviceEvent.Type.*;
 import static org.opencord.cordvtn.api.Constants.INTEGRATION_BRIDGE;
-import static org.opencord.cordvtn.api.node.CordVtnNodeEvent.Type.NODE_CREATED;
 import static org.opencord.cordvtn.api.node.CordVtnNodeEvent.Type.NODE_UPDATED;
 import static org.opencord.cordvtn.api.node.CordVtnNodeState.*;
 import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.*;
@@ -152,8 +152,6 @@ public class DefaultCordVtnNodeHandlerTest extends CordVtnNodeTest {
         this.deviceService.devMap.put(OF_DEVICE_4.id(), OF_DEVICE_4);
 
         // add fake OF ports
-        this.deviceService.portList.add(OF_DEVICE_2_PORT_1);
-        this.deviceService.portList.add(OF_DEVICE_2_PORT_2);
         this.deviceService.portList.add(OF_DEVICE_3_PORT_1);
         this.deviceService.portList.add(OF_DEVICE_3_PORT_2);
         this.deviceService.portList.add(OF_DEVICE_4_PORT_1);
@@ -194,6 +192,7 @@ public class DefaultCordVtnNodeHandlerTest extends CordVtnNodeTest {
         target.nodeAdminService = this.nodeManager;
         target.instanceService = new TestInstanceService();
         target.pipelineService = new TestCordVtnPipeline();
+        TestUtils.setField(target, "eventExecutor", MoreExecutors.newDirectExecutorService());
         injectEventDispatcher(target, new TestEventDispatcher());
         target.activate();
     }
@@ -213,10 +212,8 @@ public class DefaultCordVtnNodeHandlerTest extends CordVtnNodeTest {
     @Test
     public void testProcessInitState() {
         deviceService.addDevice(OF_DEVICE_1);
-        TestTools.assertAfter(100, () -> {
-            CordVtnNode current = nodeManager.node(NODE_1.integrationBridgeId());
-            assertEquals(ERR_STATE, DEVICE_CREATED, current.state());
-        });
+        CordVtnNode current = nodeManager.node(NODE_1.integrationBridgeId());
+        assertEquals(ERR_STATE, DEVICE_CREATED, current.state());
     }
 
     /**
@@ -225,19 +222,18 @@ public class DefaultCordVtnNodeHandlerTest extends CordVtnNodeTest {
      */
     @Test
     public void testProcessDeviceCreatedState() {
-        // Add the data port and check if the state is still in DEVICE_CREAGED
+        CordVtnNode current = nodeManager.node(NODE_2.integrationBridgeId());
+        assertEquals(ERR_STATE, DEVICE_CREATED, current.state());
+
+        // Add the data port and check if the state is still in DEVICE_CREATED
         deviceService.addPort(OF_DEVICE_2, OF_DEVICE_2_PORT_1);
-        TestTools.assertAfter(100, () -> {
-            CordVtnNode current = nodeManager.node(NODE_2.integrationBridgeId());
-            assertEquals(ERR_STATE, DEVICE_CREATED, current.state());
-        });
+        current = nodeManager.node(NODE_2.integrationBridgeId());
+        assertEquals(ERR_STATE, DEVICE_CREATED, current.state());
 
         // Add the vxlan port and check if the state changes to PORT_CREATED
         deviceService.addPort(OF_DEVICE_2, OF_DEVICE_2_PORT_2);
-        TestTools.assertAfter(100, () -> {
-            CordVtnNode current = nodeManager.node(NODE_2.integrationBridgeId());
-            assertEquals(ERR_STATE, PORT_CREATED, current.state());
-        });
+        current = nodeManager.node(NODE_2.integrationBridgeId());
+        assertEquals(ERR_STATE, PORT_CREATED, current.state());
     }
 
     /**
@@ -258,11 +254,9 @@ public class DefaultCordVtnNodeHandlerTest extends CordVtnNodeTest {
 
         // There's no events for IP address changes on the interfaces, so just
         // Set node state updated to trigger node bootstrap
-        nodeManager.updateNode(NODE_3);
-        TestTools.assertAfter(100, () -> {
-            CordVtnNode current = nodeManager.node(NODE_3.integrationBridgeId());
-            assertEquals(ERR_STATE, COMPLETE, current.state());
-        });
+        nodeManager.updateNodeAndMakeEvent(NODE_3);
+        CordVtnNode current = nodeManager.node(NODE_3.integrationBridgeId());
+        assertEquals(ERR_STATE, COMPLETE, current.state());
     }
 
     /**
@@ -273,45 +267,35 @@ public class DefaultCordVtnNodeHandlerTest extends CordVtnNodeTest {
     public void testBackToInitStateWhenDeviceRemoved() {
         // Remove the device from DEVICE_CREATED state node
         deviceService.removeDevice(OF_DEVICE_2);
-        TestTools.assertAfter(100, () -> {
-            CordVtnNode current = nodeManager.node(NODE_2.integrationBridgeId());
-            assertEquals(ERR_STATE, INIT, current.state());
-        });
+        CordVtnNode current = nodeManager.node(NODE_2.integrationBridgeId());
+        assertEquals(ERR_STATE, INIT, current.state());
 
         // Remove the device from PORT_CREATED state node
         deviceService.removeDevice(OF_DEVICE_3);
-        TestTools.assertAfter(100, () -> {
-            CordVtnNode current = nodeManager.node(NODE_3.integrationBridgeId());
-            assertEquals(ERR_STATE, INIT, current.state());
-        });
+        current = nodeManager.node(NODE_3.integrationBridgeId());
+        assertEquals(ERR_STATE, INIT, current.state());
 
         // Remove the device from COMPLETE state node
         deviceService.removeDevice(OF_DEVICE_4);
-        TestTools.assertAfter(100, () -> {
-            CordVtnNode current = nodeManager.node(NODE_4.integrationBridgeId());
-            assertEquals(ERR_STATE, INIT, current.state());
-        });
+        current = nodeManager.node(NODE_4.integrationBridgeId());
+        assertEquals(ERR_STATE, INIT, current.state());
     }
 
     /**
-     * Checks if the node state falls back to DEVICE_CREATED when the ports
+     * Checks if the node state falls back to INIT state when the ports
      * are removed.
      */
     @Test
     public void testBackToDeviceCreatedStateWhenPortRemoved() {
         // Remove the device from PORT_CREATED state node
         deviceService.removePort(OF_DEVICE_3, OF_DEVICE_3_PORT_1);
-        TestTools.assertAfter(100, () -> {
-            CordVtnNode current = nodeManager.node(NODE_3.integrationBridgeId());
-            assertEquals(ERR_STATE, DEVICE_CREATED, current.state());
-        });
+        CordVtnNode current = nodeManager.node(NODE_3.integrationBridgeId());
+        assertEquals(ERR_STATE, INIT, current.state());
 
         // Remove the device from COMPLETE state node
         deviceService.removePort(OF_DEVICE_4, OF_DEVICE_4_PORT_1);
-        TestTools.assertAfter(100, () -> {
-            CordVtnNode current = nodeManager.node(NODE_4.integrationBridgeId());
-            assertEquals(ERR_STATE, DEVICE_CREATED, current.state());
-        });
+        current = nodeManager.node(NODE_4.integrationBridgeId());
+        assertEquals(ERR_STATE, INIT, current.state());
     }
 
     /**
@@ -330,10 +314,8 @@ public class DefaultCordVtnNodeHandlerTest extends CordVtnNodeTest {
         // Just triggers node update event for the PORT_CREATED node and
         // check if it stays in PORT_CREATED state
         nodeManager.updateNode(NODE_3);
-        TestTools.assertAfter(100, () -> {
-            CordVtnNode current = nodeManager.node(NODE_3.integrationBridgeId());
-            assertEquals(ERR_STATE, PORT_CREATED, current.state());
-        });
+        CordVtnNode current = nodeManager.node(NODE_3.integrationBridgeId());
+        assertEquals(ERR_STATE, PORT_CREATED, current.state());
     }
 
     private static final class TestDevice extends DefaultDevice {
@@ -453,12 +435,14 @@ public class DefaultCordVtnNodeHandlerTest extends CordVtnNodeTest {
         @Override
         public void createNode(CordVtnNode node) {
             nodeMap.put(node.integrationBridgeId(), node);
-            CordVtnNodeEvent event = new CordVtnNodeEvent(NODE_CREATED, node);
-            listeners.forEach(l -> l.event(event));
         }
 
         @Override
         public void updateNode(CordVtnNode node) {
+            nodeMap.put(node.integrationBridgeId(), node);
+        }
+
+        public void updateNodeAndMakeEvent(CordVtnNode node) {
             nodeMap.put(node.integrationBridgeId(), node);
             CordVtnNodeEvent event = new CordVtnNodeEvent(NODE_UPDATED, node);
             listeners.forEach(l -> l.event(event));
