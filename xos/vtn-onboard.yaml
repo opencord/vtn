@@ -17,8 +17,6 @@ topology_template:
           admin: admin.py
           django_library: synchronizer/vtnnetport.py
           admin_template: templates/vtnadmin.html
-          synchronizer: synchronizer/manifest
-          synchronizer_run: vtn-synchronizer.py
           tosca_resource: tosca/resources/vtnservice.py
           rest_service: api/service/vtn.py
           #private_key: file:///opt/xos/key_import/vsg_rsa
