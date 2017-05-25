@@ -45,6 +45,6 @@ class VTNServiceAdmin(ReadOnlyAwareAdmin):
                            ) #('hpctools.html', 'top', 'tools') )
 
     def get_queryset(self, request):
-        return VTNService.get_service_objects_by_user(request.user)
+        return VTNService.select_by_user(request.user)
 
 admin.site.register(VTNService, VTNServiceAdmin)
