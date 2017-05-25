@@ -105,7 +105,7 @@ class VTNViewSet(XOSViewSet):
 
     # these are just because ViewSet needs some queryset and model, even if we don't use the
     # default endpoints
-    queryset = VTNService.get_service_objects().all()
+    queryset = VTNService.objects.all()
     model = VTNService
     serializer_class = VTNServiceSerializer
 
