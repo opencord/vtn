@@ -193,7 +193,7 @@ public final class RemoteIpCommandUtil {
 
             return session;
         } catch (JSchException e) {
-            log.debug("Failed to connect to {} due to {}", sshInfo.toString(), e.toString());
+            log.error("Failed to connect to {} due to {}", sshInfo.toString(), e.toString());
             return null;
         }
     }
@@ -234,9 +234,11 @@ public final class RemoteIpCommandUtil {
             String result = CharStreams.toString(new InputStreamReader(output));
             channel.disconnect();
 
+            log.trace("Result of command {} on {}: {}", command, session.getHost(), result);
+
             return result;
         } catch (JSchException | IOException e) {
-            log.debug("Failed to execute command {} due to {}", command, e.toString());
+            log.error("Failed to execute command {} on {} due to {}", command, session.getHost(), e.toString());
             return null;
         }
     }
