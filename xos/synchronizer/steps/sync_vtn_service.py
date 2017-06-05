@@ -3,7 +3,6 @@ import requests
 import socket
 import sys
 import base64
-from xos.config import Config
 from services.vtn.vtnnetport import VTNNetwork, VTNPort
 from synchronizers.new_base.syncstep import SyncStep
 from synchronizers.new_base.modelaccessor import *

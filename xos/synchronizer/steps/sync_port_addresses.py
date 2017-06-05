@@ -3,7 +3,6 @@ import requests
 import socket
 import sys
 import base64
-from xos.config import Config
 from synchronizers.new_base.syncstep import SyncStep
 from synchronizers.new_base.modelaccessor import *
 from xos.logger import Logger, logging

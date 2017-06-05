@@ -1,0 +1,7 @@
+name: openstack-synchronizer
+accessor:
+  username: xosadmin@opencord.org
+  password: "@/opt/xos/services/openstack/credentials/xosadmin@opencord.org"
+dependency_graph: "/opt/xos/synchronizers/openstack/model-deps"
+steps_dir: "/opt/xos/synchronizers/openstack/steps"
+sys_dir: "/opt/xos/synchronizers/openstack/sys"
