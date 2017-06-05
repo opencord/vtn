@@ -1,0 +1,7 @@
+name: vtn-synchronizer
+accessor:
+  username: xosadmin@opencord.org
+  password: "@/opt/xos/services/vtn/credentials/xosadmin@opencord.org"
+dependency_graph: "/opt/xos/synchronizers/vtn/model-deps"
+steps_dir: "/opt/xos/synchronizers/vtn/steps"
+sys_dir: "/opt/xos/synchronizers/vtn/sys"

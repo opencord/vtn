@@ -7,7 +7,6 @@ from django.db import models, transaction
 from django.forms.models import model_to_dict
 import traceback
 from xos.exceptions import *
-from xos.config import Config
 
 class ConfigurationError(Exception):
     pass
