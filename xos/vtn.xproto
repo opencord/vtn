@@ -15,4 +15,5 @@ message VTNService (Service){
      required string xosPassword = 10 [default = "letmein", max_length = 255, content_type = "stripped", blank = False, null = False, db_index = False];
      required int32 vtnAPIVersion = 11 [default = 1, null = False, db_index = False, blank = False];
      required string controllerPort = 12 [default = "onos-cord:6653", max_length = 255, content_type = "stripped", blank = False, null = False, db_index = False];
+     required bool resync = 13 [default = False, null = False, db_index = False, blank = False];
 }

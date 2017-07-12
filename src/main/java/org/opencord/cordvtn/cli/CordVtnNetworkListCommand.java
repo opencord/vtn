@@ -42,7 +42,7 @@ public class CordVtnNetworkListCommand extends AbstractShellCommand {
     protected void execute() {
         ServiceNetworkService service = AbstractShellCommand.get(ServiceNetworkService.class);
         List<ServiceNetwork> networks = Lists.newArrayList(service.serviceNetworks());
-        networks.sort(Comparator.comparing(ServiceNetwork::name));
+        networks.sort(Comparator.comparing(sn -> sn.id().id()));
 
         if (outputJson()) {
             try {

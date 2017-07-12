@@ -211,11 +211,23 @@ class SyncVTNService(SyncStep):
                     logger.error("Received error from vtn service (%d)" % r.status_code)
 
     def call(self, **args):
+        global glo_saved_networks
+        global glo_saved_ports
+
         vtn_service = VTNService.objects.all()
         if not vtn_service:
             raise Exception("No VTN Service")
 
         vtn_service = vtn_service[0]
+
+        if (vtn_service.resync):
+            # If the VTN app requested a full resync, clear our saved network
+            # so we will resync everything, then reset the 'resync' flag
+            glo_saved_networks = {}
+            glo_saved_ports = {}
+
+            vtn_service.resync = False
+            vtn_service.save()
 
         if vtn_service.vtnAPIVersion>=2:
             # version 2 means use new API

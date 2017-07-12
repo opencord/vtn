@@ -19,24 +19,19 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableSet;
 import org.glassfish.jersey.client.ClientProperties;
-import org.onlab.util.Tools;
+import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
 import org.onosproject.rest.AbstractWebResource;
-import org.opencord.cordvtn.api.net.NetworkId;
-import org.opencord.cordvtn.api.net.PortId;
-import org.opencord.cordvtn.api.net.ServiceNetwork;
-import org.opencord.cordvtn.api.net.ServicePort;
 import org.slf4j.Logger;
 
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.net.MediaType.JSON_UTF_8;
@@ -50,17 +45,14 @@ public final class XosVtnNetworkingClient extends AbstractWebResource {
 
     protected final Logger log = getLogger(getClass());
 
-    private static final String URL_BASE = "/api/service/vtn/";
-    private static final String URL_SERVICE_NETWORKS = "serviceNetworks/";
-    private static final String URL_SERVICE_PORTS = "servicePorts/";
+    private static final String URL_BASE = "/xosapi/v1/vtn/";
 
-    private static final String SERVICE_PORTS = "servicePorts";
-    private static final String SERVICE_PORT  = "servicePort";
-    private static final String SERVICE_NETWORKS = "serviceNetworks";
-    private static final String SERVICE_NETWORK  = "serviceNetwork";
     private static final String EMPTY_JSON_STRING = "{}";
 
-    private static final String MSG_RECEIVED = "Received ";
+    private static final String VTN_ID = "id";
+    private static final String VTN_RESYNC = "resync";
+    private static final String VTN_SERVICES = "vtnservices";
+
     private static final String ERR_LOG = "Received %s result with wrong format: %s";
 
     private static final int DEFAULT_TIMEOUT_MS = 2000;
@@ -75,92 +67,69 @@ public final class XosVtnNetworkingClient extends AbstractWebResource {
         this.user = user;
         this.password = password;
 
+        client.register(HttpAuthenticationFeature.basic(user, password));
         client.property(ClientProperties.CONNECT_TIMEOUT, DEFAULT_TIMEOUT_MS);
         client.property(ClientProperties.READ_TIMEOUT, DEFAULT_TIMEOUT_MS);
         mapper().enable(SerializationFeature.INDENT_OUTPUT);
     }
 
-    public Set<ServiceNetwork> serviceNetworks() {
-        String response = restGet(URL_SERVICE_NETWORKS);
-        final String error = String.format(ERR_LOG, SERVICE_NETWORKS, response);
-        try {
-            JsonNode jsonTree = mapper().readTree(response).get(SERVICE_NETWORKS);
-            if (jsonTree == null) {
-                return ImmutableSet.of();
-            }
-            log.trace(MSG_RECEIVED + SERVICE_NETWORKS);
-            log.trace(mapper().writeValueAsString(jsonTree));
-            return Tools.stream(jsonTree).map(snet -> codec(ServiceNetwork.class)
-                    .decode((ObjectNode) snet, this))
-                    .collect(Collectors.toSet());
-        } catch (IOException e) {
-            throw new IllegalArgumentException(error);
-        }
-    }
-
-    public ServiceNetwork serviceNetwork(NetworkId netId) {
-        String response = restGet(URL_SERVICE_NETWORKS + netId.id());
-        final String error = String.format(ERR_LOG, SERVICE_NETWORK, response);
-        try {
-            JsonNode jsonTree = mapper().readTree(response).get(SERVICE_NETWORK);
-            if (jsonTree == null) {
-                throw new IllegalArgumentException(error);
-            }
-            log.trace(MSG_RECEIVED + SERVICE_NETWORK);
-            log.trace(mapper().writeValueAsString(jsonTree));
-            return codec(ServiceNetwork.class).decode((ObjectNode) jsonTree, this);
-        } catch (IOException e) {
-            throw new IllegalArgumentException(error);
-        }
-    }
-
-    public Set<ServicePort> servicePorts() {
-        String response = restGet(URL_SERVICE_PORTS);
-        final String error = String.format(ERR_LOG, SERVICE_PORTS, response);
-        try {
-            JsonNode jsonTree = mapper().readTree(response).get(SERVICE_PORTS);
-            if (jsonTree == null) {
-                ImmutableSet.of();
-            }
-            log.trace(MSG_RECEIVED + SERVICE_PORTS);
-            log.trace(mapper().writeValueAsString(jsonTree));
-            return Tools.stream(jsonTree).map(sport -> codec(ServicePort.class)
-                    .decode((ObjectNode) sport, this))
-                    .collect(Collectors.toSet());
-        } catch (IOException e) {
-            throw new IllegalArgumentException(error);
-        }
-    }
-
-    public ServicePort servicePort(PortId portId) {
-        String response = restGet(URL_SERVICE_PORTS + portId.id());
-        final String error = String.format(ERR_LOG, SERVICE_PORT, response);
-        try {
-            JsonNode jsonTree = mapper().readTree(response).get(SERVICE_PORT);
-            if (jsonTree == null) {
-                throw new IllegalArgumentException(error);
-            }
-            log.trace(MSG_RECEIVED + SERVICE_PORT);
-            log.trace(mapper().writeValueAsString(jsonTree));
-            return codec(ServicePort.class).decode((ObjectNode) jsonTree, this);
-        } catch (IOException e) {
-            throw new IllegalArgumentException(error);
-        }
-    }
-
     private String restGet(String path) {
-        WebTarget wt = client.target(endpoint + URL_BASE).path(path);
+        WebTarget wt = client.target("http://" + endpoint + URL_BASE).path(path);
         Invocation.Builder builder = wt.request(JSON_UTF_8.toString());
         try {
             Response response = builder.get();
             if (response.getStatus() != HTTP_OK) {
                 log.warn("Failed to get resource {}", endpoint + URL_BASE + path);
+                log.warn("reason {}", response.readEntity(String.class));
                 return EMPTY_JSON_STRING;
             }
         } catch (javax.ws.rs.ProcessingException e) {
             return EMPTY_JSON_STRING;
         }
         return builder.get(String.class);
+    }
+
+    private String restPut(String path, JsonNode request) {
+        WebTarget wt = client.target("http://" + endpoint + URL_BASE).path(path);
+        Invocation.Builder builder = wt.request(MediaType.APPLICATION_JSON)
+                .accept(JSON_UTF_8.toString());
+
+        try {
+            Response response = builder.put(Entity.entity(request.toString(),
+                    MediaType.APPLICATION_JSON_TYPE));
+            String strResponse = response.readEntity(String.class);
+            if (response.getStatus() != HTTP_OK) {
+                throw new IllegalArgumentException("Failed to put resource "
+                        + response.getStatus() + ": " + strResponse);
+            }
+            return strResponse;
+        } catch (javax.ws.rs.ProcessingException e) {
+            return EMPTY_JSON_STRING;
+        }
+    }
+
+    public void requestSync() {
+        String response = restGet(VTN_SERVICES);
+        final String error = String.format(ERR_LOG, VTN_SERVICES, response);
+        try {
+            JsonNode jsonTree = mapper().readTree(response).path("items");
+            if (!jsonTree.isArray() || jsonTree.size() < 1) {
+                throw new IllegalArgumentException(error);
+            }
+            JsonNode vtnService = jsonTree.get(0);
+            String vtnServiceId = vtnService.path(VTN_ID).asText();
+            if (vtnServiceId == null || vtnServiceId.equals("")) {
+                throw new IllegalArgumentException(error);
+            }
+            log.info("Requesting sync for VTN service {}", vtnServiceId);
+
+            ObjectNode request = mapper().createObjectNode()
+                    .put(VTN_RESYNC, true);
+
+            restPut(VTN_SERVICES + "/" + vtnServiceId, request);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(error);
+        }
     }
 
     /**
@@ -221,7 +190,6 @@ public final class XosVtnNetworkingClient extends AbstractWebResource {
             checkArgument(!Strings.isNullOrEmpty(user));
             checkArgument(!Strings.isNullOrEmpty(password));
 
-            // TODO perform authentication when XOS provides it
             return new XosVtnNetworkingClient(endpoint, user, password);
         }
 
