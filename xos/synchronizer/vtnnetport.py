@@ -64,6 +64,7 @@ class VTNNetwork(object):
         if not service:
             return []
 
+        raise Exception("This will all need to be redone")
         nets=[]
         for tenant in service.subscribed_tenants.all():
             if tenant.provider_service:
