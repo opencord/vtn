@@ -65,10 +65,10 @@ class VTNNetwork(object):
             return []
 
         nets=[]
-        for tenant in service.subscribed_tenants.all():
-            if tenant.provider_service:
-                bidirectional = tenant.connect_method!="private-unidirectional"
-                for net in tenant.provider_service.get_composable_networks():
+        for dep in service.subscribed_dependencies.all():
+            if dep.provider_service:
+                bidirectional = dep.connect_method!="private-unidirectional"
+                for net in dep.provider_service.get_composable_networks():
                     if not net.controllernetworks.exists():
                         continue
 
@@ -90,10 +90,10 @@ class VTNNetwork(object):
             return []
 
         nets=[]
-        for tenant in service.provided_tenants.all():
-            if tenant.subscriber_service:
-                bidirectional = tenant.connect_method!="private-unidirectional"
-                for net in tenant.subscriber_service.get_composable_networks():
+        for dep in service.provided_dependencies.all():
+            if dep.subscriber_service:
+                bidirectional = dep.connect_method!="private-unidirectional"
+                for net in dep.subscriber_service.get_composable_networks():
                     if not net.controllernetworks.exists():
                         continue
 
