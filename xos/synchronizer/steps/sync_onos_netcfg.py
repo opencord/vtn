@@ -119,7 +119,12 @@ class SyncONOSNetcfg(SyncStep):
         # Generate apps->org.opencord.vtn->cordvtn->nodes
         nodes = Node.objects.all()
         for node in nodes:
-            nodeip = socket.gethostbyname(node.name)
+            try:
+                nodeip = socket.gethostbyname(node.name)
+            except socket.gaierror:
+                logger.warn("unable to resolve hostname %s: node will not be added to config"
+                            % node.name)
+                continue
 
             try:
                 bridgeId = self.get_node_tag(node, "bridgeId")

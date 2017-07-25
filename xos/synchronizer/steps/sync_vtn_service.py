@@ -12,7 +12,6 @@ from requests.auth import HTTPBasicAuth
 logger = Logger(level=logging.INFO)
 
 # XXX should save and load this
-glo_saved_vtn_maps = []
 glo_saved_networks = {}
 glo_saved_ports = {}
 
@@ -65,42 +64,6 @@ class SyncVTNService(SyncStep):
         # probably outdated
 
         raise Exception("Must set rest_port")
-
-    def sync_legacy_vtn_api(self):
-        global glo_saved_vtn_maps
-
-        logger.info("sync'ing vtn services")
-
-        vtn_maps = []
-        for service in Service.objects.all():
-           for id in service.get_vtn_src_ids():
-               dependencies = service.get_vtn_dependencies_ids()
-               if dependencies:
-                   for dependency in dependencies:
-                       vtn_maps.append( (id, dependency) )
-
-        for vtn_map in vtn_maps:
-            if not (vtn_map in glo_saved_vtn_maps):
-                # call vtn rest api to add map
-                url = "http://" + self.get_vtn_addr() + ":" + str(self.get_vtn_port()) + "/onos/cordvtn/service-dependency/%s/%s" % (vtn_map[0], vtn_map[1])
-
-                print "POST %s" % url
-                r = requests.post(url, auth=self.get_vtn_auth() )
-                if (r.status_code != 200):
-                    raise Exception("Received error from vtn service (%d)" % r.status_code)
-
-        for vtn_map in glo_saved_vtn_maps:
-            if not vtn_map in vtn_maps:
-                # call vtn rest api to delete map
-                url = "http://" + self.get_vtn_addr() +  ":" + str(self.get_vtn_port()) + "/onos/cordvtn/service-dependency/%s/%s" % (vtn_map[0],vtn_map[1])
-
-                print "DELETE %s" % url
-                r = requests.delete(url, auth=self.get_vtn_auth() )
-                if (r.status_code != 200):
-                    raise Exception("Received error from vtn service (%d)" % r.status_code)
-
-        glo_saved_vtn_maps = vtn_maps
-        # TODO: save this
 
     def get_method(self, url, id):
         url_with_id = "%s/%s" % (url, id)
@@ -235,9 +198,6 @@ class SyncVTNService(SyncStep):
             self.sync_service_networks()
             self.sync_service_ports()
         else:
-            # default to legacy
-            logger.info("Using Old API")
             raise Exception("VTN API Version 1 is no longer supported by VTN Synchronizer")
-            #self.sync_legacy_vtn_api()
 
 
