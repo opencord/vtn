@@ -196,12 +196,22 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
         populateDstIpRule(instance, vni, install);
         populateTunnelInRule(instance, vni, install);
 
+        // FIXME the following rules are better to be handled when service network
+        // created and removed rather than instance detected or vanished
         if (install) {
             populateDirectAccessRule(serviceIpRange, serviceIpRange, true);
             populateServiceIsolationRule(serviceIpRange, true);
+            if (snet.type() == PUBLIC) {
+                populateGatewayAccessRule(instance,
+                        snet.serviceIp().toIpPrefix().getIp4Prefix(), true);
+            }
         } else if (getInstances(snet.id()).isEmpty()) {
             populateDirectAccessRule(serviceIpRange, serviceIpRange, false);
             populateServiceIsolationRule(serviceIpRange, false);
+            if (snet.type() == PUBLIC) {
+                populateGatewayAccessRule(instance,
+                        snet.serviceIp().toIpPrefix().getIp4Prefix(), false);
+            }
         }
     }
 
@@ -379,6 +389,29 @@ public class DefaultInstanceHandler extends AbstractInstanceHandler implements I
 
             pipeline.processFlowRule(install, flowRuleDirect);
         });
+    }
+
+    private void populateGatewayAccessRule(Instance instance, Ip4Prefix gateway, boolean install) {
+        TrafficSelector selector = DefaultTrafficSelector.builder()
+                .matchEthType(Ethernet.TYPE_IPV4)
+                .matchIPDst(gateway)
+                .build();
+
+        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+                .setOutput(dataPort(instance.deviceId()))
+                .build();
+
+        FlowRule flowRule = DefaultFlowRule.builder()
+                .fromApp(appId)
+                .withSelector(selector)
+                .withTreatment(treatment)
+                .withPriority(CordVtnPipeline.PRIORITY_DEFAULT)
+                .forDevice(instance.deviceId())
+                .forTable(CordVtnPipeline.TABLE_DST)
+                .makePermanent()
+                .build();
+
+        pipeline.processFlowRule(install, flowRule);
     }
 
     private void populateVlanRule(Instance instance, VlanId vlanId, PortNumber dataPort,
