@@ -60,8 +60,10 @@ import org.opencord.cordvtn.api.core.ServiceNetworkEvent;
 import org.opencord.cordvtn.api.core.ServiceNetworkListener;
 import org.opencord.cordvtn.api.core.ServiceNetworkService;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
+import org.opencord.cordvtn.api.net.ServiceNetwork.NetworkType;
 import org.opencord.cordvtn.api.node.CordVtnNode;
 import org.opencord.cordvtn.api.node.CordVtnNodeService;
+import org.opencord.cordvtn.api.node.CordVtnNodeState;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 
@@ -259,8 +261,7 @@ public class CordVtnArpProxy {
                 getMacFromHostService(targetIp);
 
         if (replyMac.equals(MacAddress.NONE)) {
-            log.trace("Failed to find MAC for {}", targetIp);
-            forwardManagementArpRequest(context, ethPacket);
+            forwardArpRequest(context, ethPacket);
             return;
         }
 
@@ -310,33 +311,46 @@ public class CordVtnArpProxy {
         context.block();
     }
 
-    private void forwardManagementArpRequest(PacketContext context, Ethernet ethPacket) {
+    private void forwardArpRequest(PacketContext context, Ethernet ethPacket) {
         DeviceId deviceId = context.inPacket().receivedFrom().deviceId();
-        PortNumber hostMgmtPort = hostMgmtPort(deviceId);
-        Host host = hostService.getHost(HostId.hostId(ethPacket.getSourceMAC()));
+        PortNumber inputPort = context.inPacket().receivedFrom().port();
 
-        if (host == null ||
-                Instance.of(host).netType() != MANAGEMENT_HOST ||
-                hostMgmtPort == null) {
+        Host host = hostService.getHost(HostId.hostId(ethPacket.getSourceMAC()));
+        NetworkType networkType = Instance.of(host).netType();
+        if (host == null || (networkType != MANAGEMENT_HOST &&
+                networkType != FLAT)) {
+            context.block();
+            log.trace("Failed to handle ARP request");
+            return;
+        }
+
+        PortNumber outputPort = networkType == MANAGEMENT_HOST ?
+                hostMgmtPort(deviceId) : dataPort(deviceId);
+        if (inputPort.equals(outputPort)) {
             context.block();
             return;
         }
 
-        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-                .setOutput(hostMgmtPort)
-                .build();
+        if (outputPort != null) {
+            TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+                    .setOutput(outputPort)
+                    .build();
 
-        packetService.emit(new DefaultOutboundPacket(
-                context.inPacket().receivedFrom().deviceId(),
-                treatment,
-                ByteBuffer.wrap(ethPacket.serialize())));
+            packetService.emit(new DefaultOutboundPacket(
+                    context.inPacket().receivedFrom().deviceId(),
+                    treatment,
+                    ByteBuffer.wrap(ethPacket.serialize())));
+        } else {
+            log.trace("Failed to handle ARP request");
+        }
 
         context.block();
     }
 
     private PortNumber hostMgmtPort(DeviceId deviceId) {
         CordVtnNode node = nodeService.node(deviceId);
-        if (node == null || node.hostManagementInterface() == null) {
+        if (node == null || node.state() != CordVtnNodeState.COMPLETE ||
+                node.hostManagementInterface() == null) {
             return null;
         }
         Optional<Port> port = deviceService.getPorts(deviceId).stream()
@@ -344,7 +358,21 @@ public class CordVtnArpProxy {
                         .equals(node.hostManagementInterface()) &&
                         p.isEnabled())
                 .findAny();
-        return port.isPresent() ? port.get().number() : null;
+        return port.map(Port::number).orElse(null);
+    }
+
+    private PortNumber dataPort(DeviceId deviceId) {
+        CordVtnNode node = nodeService.node(deviceId);
+        if (node == null || node.state() != CordVtnNodeState.COMPLETE ||
+                node.dataInterface() == null) {
+            return null;
+        }
+        Optional<Port> port = deviceService.getPorts(deviceId).stream()
+                .filter(p -> p.annotations().value(PORT_NAME)
+                        .equals(node.dataInterface()) &&
+                        p.isEnabled())
+                .findAny();
+        return port.map(Port::number).orElse(null);
     }
 
     /**
@@ -465,8 +493,17 @@ public class CordVtnArpProxy {
             ServiceNetwork snet = event.subject();
             switch (event.type()) {
                 case SERVICE_NETWORK_CREATED:
+                    if (snet.type() == PRIVATE || snet.type() == VSG) {
+                        addGateway(snet.serviceIp(), privateGatewayMac);
+                    }
+                    break;
                 case SERVICE_NETWORK_UPDATED:
-                    addGateway(snet.serviceIp(), privateGatewayMac);
+                    if (snet.type() == PRIVATE || snet.type() == VSG) {
+                        addGateway(snet.serviceIp(), privateGatewayMac);
+                    } else {
+                        // don't service ARP for the other network gateway
+                        removeGateway(snet.serviceIp());
+                    }
                     break;
                 case SERVICE_NETWORK_REMOVED:
                     removeGateway(snet.serviceIp());
@@ -488,9 +525,7 @@ public class CordVtnArpProxy {
             return;
         }
 
-        config.publicGateways().entrySet().forEach(entry -> {
-            addGateway(entry.getKey(), entry.getValue());
-        });
+        config.publicGateways().forEach(this::addGateway);
         // TODO send gratuitous arp in case the MAC is changed
     }
 
