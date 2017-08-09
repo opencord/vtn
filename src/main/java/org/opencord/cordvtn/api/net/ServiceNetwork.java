@@ -26,13 +26,46 @@ import java.util.Map;
 public interface ServiceNetwork {
 
     enum NetworkType {
+        /**
+         * Isolated tenant network.
+         */
         PRIVATE,
+        /**
+         * Provider network that offers connectivity to external network via L3.
+         * This network relies on the physical network infrastructure or vRouter
+         * for gateway and first hop routing service.
+         */
         PUBLIC,
+        /**
+         * Provider network that offers connectivity to the physical network via L2.
+         * This network runs over the physical data network and allows physical
+         * machines and virtual instances in a same broadcast domain.
+         */
+        FLAT,
+        /**
+         * Virtual instance management network that offers connectivity to head node.
+         * This network runs over the physical management network, and cannot be
+         * part of service chain.
+         */
         MANAGEMENT_HOST,
+        /**
+         * Virtual instance management network that offers limited connectivity
+         * between the virtual instance and the host machine.
+         * This network does not span compute nodes, and cannot be part of
+         * service chain.
+         */
         MANAGEMENT_LOCAL,
+        /**
+         * Special network for R-CORD vSG.
+         * This network type is deprecated in favor of ServicePort VLAN.
+         */
         @Deprecated
         VSG,
-        ACCESS_AGENT
+        /**
+         * Special network for R-CORD access agent.
+         * This network cannot be part of service chain.
+         */
+        ACCESS_AGENT,
     }
 
     enum DependencyType {
