@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9a437d4f_b54868cd",
+        "filename": "pom.xml",
+        "patchSetId": 1
+      },
+      "lineNbr": 96,
+      "author": {
+        "id": 1000005
+      },
+      "writtenOn": "2017-08-10T16:40:51Z",
+      "side": 1,
+      "message": "This will work now while the versions are in sync, but now that we\u0027re allowing decoupling I\u0027m thinking we should specify the version explicitly here.",
+      "range": {
+        "startLine": 96,
+        "startChar": 21,
+        "endLine": 96,
+        "endChar": 39
+      },
+      "revId": "2d80c4eb5012f05bbbdd96d4d22ddd1793074589",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
+      "unresolved": false
+    }
+  ]
+}
