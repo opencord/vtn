@@ -30,11 +30,9 @@ topology_template:
           # The following will concatenate with base_url automatically, if
           # base_url is non-null.
           xproto: ./
-          admin: admin.py
           django_library: synchronizer/vtnnetport.py
           admin_template: templates/vtnadmin.html
           tosca_resource: tosca/resources/vtnservice.py
-          rest_service: api/service/vtn.py
           #private_key: file:///opt/xos/key_import/vsg_rsa
           #public_key: file:///opt/xos/key_import/vsg_rsa.pub
 
