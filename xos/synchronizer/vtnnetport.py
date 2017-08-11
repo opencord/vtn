@@ -14,24 +14,8 @@
 # limitations under the License.
 
 
-# This library can be used in two different contexts:
-#    1) From the VTN synchronizer
-#    2) From the handcrafted VTN API endpoint
-#
-# If (1) then the modelaccessor module can provide us with models from the API
-# or django as appropriate. If (2) then we must use django, until we can
-# reconcile what to do about handcrafted API endpoints
-
-import __main__ as main_program
-
-if "synchronizer" in main_program.__file__:
-    from synchronizers.new_base.modelaccessor import *
-    in_synchronizer = True
-else:
-    from core.models import *
-    in_synchronizer = False
-
-VTN_SERVCOMP_KINDS=["PRIVATE","VSG"]
+from synchronizers.new_base.modelaccessor import *
+in_synchronizer = True
 
 class VTNNetwork(object):
     def __init__(self, xos_network=None):
@@ -160,43 +144,102 @@ class VTNPort(object):
             return cn
         return None
 
-    def get_vsg_tenants(self):
-        # If the VSG service isn't onboarded, then return an empty list.
-        if (in_synchronizer):
-            if not model_accessor.has_model_class("VSGTenant"):
-                 print "VSGTenant model does not exist. Returning no tenants"
-                 return []
-            VSGTenant = model_accessor.get_model_class("VSGTenant")   # suppress undefined local variable error
-        else:
-            try:
-                from services.vsg.models import VSGTenant
-            except ImportError:
-                # TODO: Set up logging for this library...
-                print "Failed to import VSG, returning no tenants"
-                return []
+    def is_access_network(self):
+        """ Determines whether this port is attached to an access network. Currently we do this by examining the
+            network template's vtn_kind field. See if there is a better way...
+        """
+        return self.xos_port.network.template.vtn_kind in ["VSG", ]
 
-        vsg_tenants=[]
-        for tenant in VSGTenant.objects.all():
-            if tenant.instance.id == self.xos_port.instance.id:
-                vsg_tenants.append(tenant)
-        return vsg_tenants
+    def get_vm_addresses(self):
+        if not self.is_access_network():
+            # If not an access network, do not apply any addresses
+            return []
+
+        if not self.xos_port.instance:
+            return []
+
+        # See if the Instance has any public address (aka "VrouterTenant) service instances associated with it.
+        # If so, then add each of those to the set of address pairs.
+
+        # TODO: Perhaps this should be implemented as a link instead of a tag...
+
+        tags = Tag.objects.filter(name="vm_public_service_instance", object_id=self.xos_port.instance.id,
+                                            content_type=self.xos_port.instance.self_content_type_id)
+
+        if not tags:
+            # DEPRECATED
+            # Historically, VSG instances are tagged with "vm_vrouter_tenant" instead of "vm_public_service_instance"
+            tags = Tag.objects.filter(name="vm_vrouter_tenant", object_id=self.xos_port.instance.id,
+                                                content_type=self.xos_port.instance.self_content_type_id)
+
+        address_pairs = []
+        for tag in tags:
+            si = ServiceInstance.objects.get(id = int(tag.value))
+
+            # cast from Tenant to descendant class (VRouterTenant, etc)
+            si = si.leaf_model
+
+            if (not hasattr(si, "public_ip")) or (not hasattr(si, "public_mac")):
+                raise Exception("Object %s does not have public_ip and/or public_mac fields" % si)
+            address_pairs.append({"ip_address": si.public_ip,
+                                  "mac_address": si.public_mac})
+
+        return address_pairs
+
+    def get_container_addresses(self):
+        if not self.is_access_network():
+            # If not an access network, do not apply any addresses
+            return []
+
+        if not self.xos_port.instance:
+            return []
+
+        addrs = []
+        for si in ServiceInstance.objects.all():
+            # cast from tenant to its descendant class (VSGTenant, etc)
+            si = si.leaf_model
+
+            if not hasattr(si, "instance_id"):
+                # ignore ServiceInstance that don't have instances
+                continue
+
+            if si.instance_id != self.xos_port.instance.id:
+                # ignore ServiceInstances that don't relate to our instance
+                continue
+
+            # Check to see if there is a link public address (aka VRouterTenant)
+            links = si.subscribed_links.all()
+            for link in links:
+                # cast from ServiceInstance to descendant class (VRouterTenant, etc)
+                pubaddr_si = link.provider_service_instance.leaf_model
+                if hasattr(pubaddr_si, "public_ip") and hasattr(pubaddr_si, "public_mac"):
+                    addrs.append({"ip_address": pubaddr_si.public_ip,
+                                  "mac_address": pubaddr_si.public_mac})
+        return addrs
 
     @property
     def vlan_id(self):
+        """ Return the vlan_id associated with this instance. This assumes the instance was tagged with either a
+            vlan_id or s_tag tag.
+        """
+
+        if not self.is_access_network():
+            # If not an access network, do not apply any tags
+            return []
+
         if not self.xos_port.instance:
             return None
 
-        # Only some kinds of networks can have s-tags associated with them.
-        # Currently, only VSG access networks qualify.
-        if not self.xos_port.network.template.vtn_kind in ["VSG",]:
-            return None
+        tags = Tag.objects.filter(content_type=model_accessor.get_content_type_id(self.xos_port.instance),
+                                  object_id=self.xos_port.instance.id,
+                                  name="vlan_id")
 
-        if (in_synchronizer):
+        if not tags:
+            # DEPRECATED
+            # Historically, VSG instances are tagged with "s_tag" instead of "vlan_id"
             tags = Tag.objects.filter(content_type=model_accessor.get_content_type_id(self.xos_port.instance),
                                       object_id=self.xos_port.instance.id,
                                       name="s_tag")
-        else:
-            tags = Tag.select_by_content_object(self.xos_port.instance).filter(name="s_tag")
 
         if not tags:
             return None
@@ -208,18 +251,10 @@ class VTNPort(object):
         # Floating_address_pairs is the set of WAN addresses that should be
         # applied to this port.
 
-        address_pairs = []
+        # We only want to apply these addresses to an "access" network.
 
-        # only look apply the VSG addresses if the Network is of the VSG vtn_kind
-        if self.xos_port.network.template.vtn_kind in ["VSG", ]:
-            for vsg in self.get_vsg_tenants():
-                if vsg.wan_container_ip and vsg.wan_container_mac:
-                    address_pairs.append({"ip_address": vsg.wan_container_ip,
-                                          "mac_address": vsg.wan_container_mac})
 
-                if vsg.wan_vm_ip and vsg.wan_vm_mac:
-                    address_pairs.append({"ip_address": vsg.wan_vm_ip,
-                                          "mac_address": vsg.wan_vm_mac})
+        address_pairs = self.get_vm_addresses() + self.get_container_addresses()
 
         return address_pairs
 
