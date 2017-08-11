@@ -167,22 +167,25 @@ class SyncONOSNetcfg(SyncStep):
             data["apps"]["org.opencord.vtn"]["cordvtn"]["nodes"].append(node_dict)
 
         # Generate apps->org.onosproject.cordvtn->cordvtn->publicGateways
-        # Pull the gateway information from vRouter
-        if model_accessor.has_model_class("VRouterService"):
-            vrouters = VRouterService.objects.all()
-            if vrouters:
-                for gateway in vrouters[0].get_gateways():
-                    gatewayIp = gateway['gateway_ip'].split('/',1)[0]
-                    gatewayMac = gateway['gateway_mac']
-                    gateway_dict = {
-                        "gatewayIp": gatewayIp,
-                        "gatewayMac": gatewayMac
-                    }
-                    data["apps"]["org.opencord.vtn"]["cordvtn"]["publicGateways"].append(gateway_dict)
-        else:
-            logger.info("No VRouter service present, not adding publicGateways to config")
+        # Pull the gateway information from Address Pool objects
+        for ap in AddressPool.objects.all():
+            if (not ap.gateway_ip) or (not ap.gateway_mac):
+                logger.info("Gateway_ip or gateway_mac is blank for addresspool %s. Skipping." % ap)
+                continue
+
+            gateway_dict = {
+                "gatewayIp": ap.gateway_ip,
+                "gatewayMac": ap.gateway_mac
+            }
+            data["apps"]["org.opencord.vtn"]["cordvtn"]["publicGateways"].append(gateway_dict)
+
+        if not AddressPool.objects.all().exists():
+            logger.info("No Address Pools present, not adding publicGateways to config")
 
         return json.dumps(data, indent=4, sort_keys=True)
+
+    # TODO: Does this step execute every 5 seconds regardless of whether objects have changed?
+    #       If so, what purpose does using watchers serve?
 
     def call(self, **args):
         vtn_service = VTNService.objects.all()

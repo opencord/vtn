@@ -20,7 +20,6 @@ FROM xosproject/xos-synchronizer-base:candidate
 COPY . /opt/xos/synchronizers/vtn
 
 COPY __init__.py /opt/xos/services/__init__.py
-COPY __init__.py vtnnetport.py /opt/xos/services/vtn/
 
 ENTRYPOINT []
 
