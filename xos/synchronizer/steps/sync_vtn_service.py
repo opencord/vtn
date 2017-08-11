@@ -19,7 +19,7 @@ import requests
 import socket
 import sys
 import base64
-from services.vtn.vtnnetport import VTNNetwork, VTNPort
+from synchronizers.vtn.vtnnetport import VTNNetwork, VTNPort
 from synchronizers.new_base.syncstep import SyncStep
 from synchronizers.new_base.modelaccessor import *
 from xos.logger import Logger, logging
@@ -39,51 +39,52 @@ class SyncVTNService(SyncStep):
     def __init__(self, **args):
         SyncStep.__init__(self, **args)
 
-    def get_vtn_onos_service(self):
-        vtn_service = ONOSService.objects.filter(name="ONOS_CORD")  # XXX fixme - harcoded
-        if not vtn_service:
-            raise "No VTN Onos Service"
+    def get_vtn_onos_app(self, vtn_service):
+        links = vtn_service.subscribed_links.all()
+        for link in links:
+            # We're looking for an ONOS App. It's the only ServiceInstance that VTN can be implemented on.
+            if link.provider_service_instance.leaf_model_name != "ONOSApp":
+                continue
 
-        return vtn_service[0]
+            # TODO: Rather than checking model name, check for the right interface
+            # NOTE: Deferred until new Tosca engine is in place.
 
-    def get_vtn_auth(self):
-        return HTTPBasicAuth('karaf', 'karaf') # XXX fixme - hardcoded auth
+            #if not link.provider_service_interface:
+            #    logger.warning("Link %s does not have a provider_service_interface. Skipping" % link)
+            #    continue
+            #
+            #if link.provider_service_interface.interface_type.name != "onos_app_interface":
+            #    logger.warning("Link %s provider_service_interface type is not equal to onos_app_interface" % link)
+            #    continue
 
-    def get_vtn_addr(self):
-        vtn_service = self.get_vtn_onos_service()
+            # cast from ServiceInstance to ONOSApp
+            app = link.provider_service_instance.leaf_model
+            return app
 
-        if vtn_service.rest_hostname:
-            return vtn_service.rest_hostname
+        raise Exception("No ServiceInstanceLink from VTN Service to VTN ONOS App")
 
-        # code below this point is for ONOS running in a slice, and is
-        # probably outdated
+    def get_vtn_endpoint(self, vtn_service):
+        """ Get connection info for the ONOS that is hosting the VTN ONOS App.
 
-        if not vtn_service.slices.exists():
-            raise "VTN Service has no slices"
+            returns (hostname, port, auth)
+        """
+        app = self.get_vtn_onos_app(vtn_service)
+        # cast from Service to ONOSService
+        onos = app.owner.leaf_model
+        if not (onos.rest_hostname):
+            raise Exception("onos.rest_hostname is not set")
+        if not (onos.rest_port):
+            raise Exception("onos.rest_port is not set")
+        if not (onos.rest_password):
+            raise Exception("onos.rest_password is not set")
+        if not (onos.rest_username):
+            raise Exception("onos.rest_username is not set")
+        auth = HTTPBasicAuth(onos.rest_username, onos.rest_password)
+        return (onos.rest_hostname, onos.rest_port, auth)
 
-        vtn_slice = vtn_service.slices.all()[0]
-
-        if not vtn_slice.instances.exists():
-            raise "VTN Slice has no instances"
-
-        vtn_instance = vtn_slice.instances.all()[0]
-
-        return vtn_instance.node.name
-
-    def get_vtn_port(self):
-        vtn_service = self.get_vtn_onos_service()
-
-        if vtn_service.rest_port:
-            return vtn_service.rest_port
-
-        # code below this point is for ONOS running in a slice, and is
-        # probably outdated
-
-        raise Exception("Must set rest_port")
-
-    def get_method(self, url, id):
+    def get_method(self, auth, url, id):
         url_with_id = "%s/%s" % (url, id)
-        r = requests.get(url_with_id, auth=self.get_vtn_auth())
+        r = requests.get(url_with_id, auth=auth)
         if (r.status_code==200):
             method="PUT"
             url = url_with_id
@@ -95,7 +96,9 @@ class SyncVTNService(SyncStep):
             exists=False
         return (exists, url, method, req_func)
 
-    def sync_service_networks(self):
+    def sync_service_networks(self, vtn_service):
+        (onos_hostname, onos_port, onos_auth) = self.get_vtn_endpoint(vtn_service)
+
         valid_ids = []
         for network in Network.objects.all():
             network = VTNNetwork(network)
@@ -110,7 +113,7 @@ class SyncVTNService(SyncStep):
             valid_ids.append(network.id)
 
             if (glo_saved_networks.get(network.id, None) != network.to_dict()):
-                (exists, url, method, req_func) = self.get_method("http://" + self.get_vtn_addr() +  ":" + str(self.get_vtn_port()) + "/onos/cordvtn/serviceNetworks", network.id)
+                (exists, url, method, req_func) = self.get_method(onos_auth, "http://%s:%d/onos/cordvtn/serviceNetworks" % (onos_hostname, onos_port), network.id)
 
                 logger.info("%sing VTN API for network %s" % (method, network.id))
 
@@ -124,7 +127,7 @@ class SyncVTNService(SyncStep):
                         "providerNetworks": providerNetworks} }
                 logger.info("DATA: %s" % str(data))
 
-                r=req_func(url, json=data, auth=self.get_vtn_auth() )
+                r=req_func(url, json=data, auth=onos_auth )
                 if (r.status_code in [200,201]):
                     glo_saved_networks[network.id] = network.to_dict()
                 else:
@@ -135,16 +138,18 @@ class SyncVTNService(SyncStep):
             if network_id not in valid_ids:
                 logger.info("DELETEing VTN API for network %s" % network_id)
 
-                url = "http://" + self.get_vtn_addr() +  ":" + str(self.get_vtn_port()) + "/onos/cordvtn/serviceNetworks/%s" % network_id
+                url = "http://%s:%d/onos/cordvtn/serviceNetworks/%s" % (onos_hostname, onos_port, network_id)
                 logger.info("URL: %s" % url)
 
-                r = requests.delete(url, auth=self.get_vtn_auth() )
+                r = requests.delete(url, auth=onos_auth )
                 if (r.status_code in [200,204]):
                     del glo_saved_networks[network_id]
                 else:
                     logger.error("Received error from vtn service (%d)" % r.status_code)
 
-    def sync_service_ports(self):
+    def sync_service_ports(self, vtn_service):
+        (onos_hostname, onos_port, onos_auth) = self.get_vtn_endpoint(vtn_service)
+
         valid_ids = []
         for port in Port.objects.all():
             port = VTNPort(port)
@@ -159,7 +164,7 @@ class SyncVTNService(SyncStep):
             valid_ids.append(port.id)
 
             if (glo_saved_ports.get(port.id, None) != port.to_dict()):
-                (exists, url, method, req_func) = self.get_method("http://" + self.get_vtn_addr() +  ":" + str(self.get_vtn_port()) + "/onos/cordvtn/servicePorts", port.id)
+                (exists, url, method, req_func) = self.get_method(onos_auth, "http://%s:%d/onos/cordvtn/servicePorts" % (onos_hostname, onos_port), port.id)
 
                 logger.info("%sing VTN API for port %s" % (method, port.id))
 
@@ -170,7 +175,7 @@ class SyncVTNService(SyncStep):
                         "floating_address_pairs": port.floating_address_pairs} }
                 logger.info("DATA: %s" % str(data))
 
-                r=req_func(url, json=data, auth=self.get_vtn_auth() )
+                r=req_func(url, json=data, auth=onos_auth )
                 if (r.status_code in [200,201]):
                     glo_saved_ports[port.id] = port.to_dict()
                 else:
@@ -180,10 +185,10 @@ class SyncVTNService(SyncStep):
             if port_id not in valid_ids:
                 logger.info("DELETEing VTN API for port %s" % port_id)
 
-                url = "http://" + self.get_vtn_addr() +  ":" + str(self.get_vtn_port()) + "/onos/cordvtn/servicePorts/%s" % port_id
+                url = "http://%s:%d/onos/cordvtn/servicePorts/%s" % (onos_hostname, onos_port, port_id)
                 logger.info("URL: %s" % url)
 
-                r = requests.delete(url, auth=self.get_vtn_auth() )
+                r = requests.delete(url, auth=onos_auth )
                 if (r.status_code in [200,204]):
                     del glo_saved_ports[port_id]
                 else:
@@ -199,6 +204,9 @@ class SyncVTNService(SyncStep):
 
         vtn_service = vtn_service[0]
 
+        # TODO: We should check get_vtn_onos_app() and make sure that it has been synced, and that any necessary
+        #       attributes (netcfg, etc) is filled out.
+
         if (vtn_service.resync):
             # If the VTN app requested a full resync, clear our saved network
             # so we will resync everything, then reset the 'resync' flag
@@ -211,8 +219,8 @@ class SyncVTNService(SyncStep):
         if vtn_service.vtnAPIVersion>=2:
             # version 2 means use new API
             logger.info("Using New API")
-            self.sync_service_networks()
-            self.sync_service_ports()
+            self.sync_service_networks(vtn_service)
+            self.sync_service_ports(vtn_service)
         else:
             raise Exception("VTN API Version 1 is no longer supported by VTN Synchronizer")
 
