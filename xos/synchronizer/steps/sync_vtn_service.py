@@ -19,7 +19,7 @@ import requests
 import socket
 import sys
 import base64
-from services.vtn.vtnnetport import VTNNetwork, VTNPort
+from synchronizers.vtn.vtnnetport import VTNNetwork, VTNPort
 from synchronizers.new_base.syncstep import SyncStep
 from synchronizers.new_base.modelaccessor import *
 from xos.logger import Logger, logging
