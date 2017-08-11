@@ -14,22 +14,8 @@
 # limitations under the License.
 
 
-# This library can be used in two different contexts:
-#    1) From the VTN synchronizer
-#    2) From the handcrafted VTN API endpoint
-#
-# If (1) then the modelaccessor module can provide us with models from the API
-# or django as appropriate. If (2) then we must use django, until we can
-# reconcile what to do about handcrafted API endpoints
-
-import __main__ as main_program
-
-if "synchronizer" in main_program.__file__:
-    from synchronizers.new_base.modelaccessor import *
-    in_synchronizer = True
-else:
-    from core.models import *
-    in_synchronizer = False
+from synchronizers.new_base.modelaccessor import *
+in_synchronizer = True
 
 VTN_SERVCOMP_KINDS=["PRIVATE","VSG"]
 
@@ -162,18 +148,10 @@ class VTNPort(object):
 
     def get_vsg_tenants(self):
         # If the VSG service isn't onboarded, then return an empty list.
-        if (in_synchronizer):
-            if not model_accessor.has_model_class("VSGTenant"):
-                 print "VSGTenant model does not exist. Returning no tenants"
-                 return []
-            VSGTenant = model_accessor.get_model_class("VSGTenant")   # suppress undefined local variable error
-        else:
-            try:
-                from services.vsg.models import VSGTenant
-            except ImportError:
-                # TODO: Set up logging for this library...
-                print "Failed to import VSG, returning no tenants"
-                return []
+        if not model_accessor.has_model_class("VSGTenant"):
+             print "VSGTenant model does not exist. Returning no tenants"
+             return []
+        VSGTenant = model_accessor.get_model_class("VSGTenant")
 
         vsg_tenants=[]
         for tenant in VSGTenant.objects.all():
@@ -183,20 +161,22 @@ class VTNPort(object):
 
     @property
     def vlan_id(self):
+        """ Return the vlan_id associated with this instance. This assumes the instance was tagged with either a
+            vlan_id or s_tag tag.
+        """
+
         if not self.xos_port.instance:
             return None
 
-        # Only some kinds of networks can have s-tags associated with them.
-        # Currently, only VSG access networks qualify.
-        if not self.xos_port.network.template.vtn_kind in ["VSG",]:
-            return None
+        tags = Tag.objects.filter(content_type=model_accessor.get_content_type_id(self.xos_port.instance),
+                                  object_id=self.xos_port.instance.id,
+                                  name="vlan_id")
 
-        if (in_synchronizer):
+        if not tags:
+            # Historically, VSG instances are tagged with "s_tag" instead of "vlan_id"
             tags = Tag.objects.filter(content_type=model_accessor.get_content_type_id(self.xos_port.instance),
                                       object_id=self.xos_port.instance.id,
                                       name="s_tag")
-        else:
-            tags = Tag.select_by_content_object(self.xos_port.instance).filter(name="s_tag")
 
         if not tags:
             return None
@@ -210,16 +190,22 @@ class VTNPort(object):
 
         address_pairs = []
 
+        # See if the Instance has any VRouterTenant associated with it. If so, then add each of those to the set of
+        # address pairs
+        if self.xos_port.instance:
+            tags = self.stub.Tag.objects.filter(name="vm_vrouter_tenant", object_id=self.xos_port.instance.id,
+                                                content_type=self.xos_port.instance.self_content_type_id)
+            for tag in tags:
+                tenant = self.stub.VRouterTenant.objects.get(id=int(tags[0].value))
+                address_pairs.append({"ip_address": tenant.public_ip,
+                                      "mac_address": tenant.public_mac})
+
         # only look apply the VSG addresses if the Network is of the VSG vtn_kind
         if self.xos_port.network.template.vtn_kind in ["VSG", ]:
             for vsg in self.get_vsg_tenants():
                 if vsg.wan_container_ip and vsg.wan_container_mac:
                     address_pairs.append({"ip_address": vsg.wan_container_ip,
                                           "mac_address": vsg.wan_container_mac})
-
-                if vsg.wan_vm_ip and vsg.wan_vm_mac:
-                    address_pairs.append({"ip_address": vsg.wan_vm_ip,
-                                          "mac_address": vsg.wan_vm_mac})
 
         return address_pairs
 
