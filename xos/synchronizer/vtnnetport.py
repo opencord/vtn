@@ -14,22 +14,8 @@
 # limitations under the License.
 
 
-# This library can be used in two different contexts:
-#    1) From the VTN synchronizer
-#    2) From the handcrafted VTN API endpoint
-#
-# If (1) then the modelaccessor module can provide us with models from the API
-# or django as appropriate. If (2) then we must use django, until we can
-# reconcile what to do about handcrafted API endpoints
-
-import __main__ as main_program
-
-if "synchronizer" in main_program.__file__:
-    from synchronizers.new_base.modelaccessor import *
-    in_synchronizer = True
-else:
-    from core.models import *
-    in_synchronizer = False
+from synchronizers.new_base.modelaccessor import *
+in_synchronizer = True
 
 VTN_SERVCOMP_KINDS=["PRIVATE","VSG"]
 
@@ -162,18 +148,10 @@ class VTNPort(object):
 
     def get_vsg_tenants(self):
         # If the VSG service isn't onboarded, then return an empty list.
-        if (in_synchronizer):
-            if not model_accessor.has_model_class("VSGTenant"):
-                 print "VSGTenant model does not exist. Returning no tenants"
-                 return []
-            VSGTenant = model_accessor.get_model_class("VSGTenant")   # suppress undefined local variable error
-        else:
-            try:
-                from services.vsg.models import VSGTenant
-            except ImportError:
-                # TODO: Set up logging for this library...
-                print "Failed to import VSG, returning no tenants"
-                return []
+        if not model_accessor.has_model_class("VSGTenant"):
+             print "VSGTenant model does not exist. Returning no tenants"
+             return []
+        VSGTenant = model_accessor.get_model_class("VSGTenant")   # suppress undefined local variable error
 
         vsg_tenants=[]
         for tenant in VSGTenant.objects.all():
@@ -191,12 +169,9 @@ class VTNPort(object):
         if not self.xos_port.network.template.vtn_kind in ["VSG",]:
             return None
 
-        if (in_synchronizer):
-            tags = Tag.objects.filter(content_type=model_accessor.get_content_type_id(self.xos_port.instance),
-                                      object_id=self.xos_port.instance.id,
-                                      name="s_tag")
-        else:
-            tags = Tag.select_by_content_object(self.xos_port.instance).filter(name="s_tag")
+        tags = Tag.objects.filter(content_type=model_accessor.get_content_type_id(self.xos_port.instance),
+                                  object_id=self.xos_port.instance.id,
+                                  name="s_tag")
 
         if not tags:
             return None
