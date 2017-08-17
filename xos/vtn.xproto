@@ -1,8 +1,9 @@
 option kind = "VTN";
 option name = "vtn";
-option verbose_name = "VTN Service";
 
 message VTNService (Service){
+     option verbose_name = "VTN Service";
+     
      required string privateGatewayMac = 1 [default = "00:00:00:00:00:01", max_length = 30, content_type = "stripped", blank = False, null = False, db_index = False];
      required string localManagementIp = 2 [default = "172.27.0.1/24", max_length = 30, content_type = "stripped", blank = False, null = False, db_index = False];
      required int32 ovsdbPort = 3 [default = 6641, null = False, db_index = False, blank = False];
