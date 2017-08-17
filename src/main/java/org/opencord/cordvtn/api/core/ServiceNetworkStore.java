@@ -103,6 +103,7 @@ public interface ServiceNetworkStore extends Store<ServiceNetworkEvent, ServiceN
      * Removes service port.
      *
      * @param portId port id
+     * @return service port removed
      */
     ServicePort removeServicePort(PortId portId);
 }

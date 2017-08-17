@@ -76,6 +76,7 @@ public enum CordVtnNodeState {
 
     /**
      * Returns the next node state.
+     * @return next node state
      */
     public abstract CordVtnNodeState nextState();
 }
