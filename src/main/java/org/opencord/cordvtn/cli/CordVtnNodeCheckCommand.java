@@ -67,7 +67,7 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
         if (device != null) {
             print("%s %s=%s available=%s %s",
                   deviceService.isAvailable(device.id()) ? MSG_OK : MSG_NO,
-                  INTEGRATION_BRIDGE,
+                  node.integrationBridgeName(),
                   device.id(),
                   deviceService.isAvailable(device.id()),
                   device.annotations());
@@ -77,23 +77,23 @@ public class CordVtnNodeCheckCommand extends AbstractShellCommand {
         } else {
             print("%s %s=%s is not available",
                   MSG_NO,
-                  INTEGRATION_BRIDGE,
+                  node.integrationBridgeName(),
                   node.integrationBridgeId());
         }
 
         print("%n[Interfaces and IP setup]");
         Session session = connect(node.sshInfo());
         if (session != null) {
-            Set<IpAddress> ips = getCurrentIps(session, INTEGRATION_BRIDGE);
-            boolean isUp = isInterfaceUp(session, INTEGRATION_BRIDGE);
+            Set<IpAddress> ips = getCurrentIps(session, node.integrationBridgeName());
+            boolean isUp = isInterfaceUp(session, node.integrationBridgeName());
             boolean isIp = ips.contains(node.dataIp().ip()) &&
                     ips.contains(node.localManagementIp().ip());
 
             print("%s %s up=%s Ips=%s",
                   isUp && isIp ? MSG_OK : MSG_NO,
-                  INTEGRATION_BRIDGE,
+                  node.integrationBridgeName(),
                   isUp ? Boolean.TRUE : Boolean.FALSE,
-                  getCurrentIps(session, INTEGRATION_BRIDGE));
+                  getCurrentIps(session, node.integrationBridgeName()));
 
             print(getSystemIfaceState(session, node.dataInterface()));
             if (node.hostManagementInterface() != null) {

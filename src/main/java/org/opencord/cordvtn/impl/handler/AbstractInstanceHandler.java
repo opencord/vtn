@@ -151,7 +151,12 @@ public abstract class AbstractInstanceHandler implements InstanceHandler {
     }
 
     protected PortNumber tunnelPort(DeviceId deviceId) {
-        Optional<PortNumber> port = getPortNumber(deviceId, DEFAULT_TUNNEL);
+        CordVtnNode node = nodeService.node(deviceId);
+        if (node == null) {
+            return null;
+        }
+        Optional<PortNumber> port = getPortNumber(deviceId,
+                node.integrationBridgeName() + DEFAULT_TUNNEL);
         return port.isPresent() ? port.get() : null;
     }
 

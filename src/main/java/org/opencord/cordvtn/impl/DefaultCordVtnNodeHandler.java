@@ -83,12 +83,19 @@ import static org.onosproject.net.Device.Type.SWITCH;
 import static org.onosproject.net.behaviour.TunnelDescription.Type.VXLAN;
 import static org.opencord.cordvtn.api.Constants.CORDVTN_APP_ID;
 import static org.opencord.cordvtn.api.Constants.DEFAULT_TUNNEL;
-import static org.opencord.cordvtn.api.Constants.INTEGRATION_BRIDGE;
-import static org.opencord.cordvtn.api.node.CordVtnNodeState.*;
+import static org.opencord.cordvtn.api.node.CordVtnNodeState.COMPLETE;
+import static org.opencord.cordvtn.api.node.CordVtnNodeState.DEVICE_CREATED;
+import static org.opencord.cordvtn.api.node.CordVtnNodeState.INIT;
+import static org.opencord.cordvtn.api.node.CordVtnNodeState.PORT_CREATED;
 import static org.opencord.cordvtn.impl.DefaultCordVtnNode.updatedState;
-import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.*;
+import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.addIp;
+import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.connect;
+import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.deleteIp;
 import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.disconnect;
+import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.flushIp;
+import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.getCurrentIps;
 import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.isInterfaceUp;
+import static org.opencord.cordvtn.impl.RemoteIpCommandUtil.setInterfaceUp;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -210,13 +217,13 @@ public class DefaultCordVtnNodeHandler implements CordVtnNodeHandler {
 
     @Override
     public void processCompleteState(CordVtnNode node) {
-        OvsdbClientService ovsdbClient = ovsdbController.getOvsdbClient(
+        /*OvsdbClientService ovsdbClient = ovsdbController.getOvsdbClient(
                 new OvsdbNodeId(
                         node.hostManagementIp().ip(),
                         node.ovsdbPort().toInt()));
         if (ovsdbClient != null && ovsdbClient.isConnected()) {
             ovsdbClient.disconnect();
-        }
+        }*/
         // TODO fix postInit to be done in the proper services
         postInit(node);
         log.info("Finished init {}", node.hostname());
@@ -239,7 +246,7 @@ public class DefaultCordVtnNodeHandler implements CordVtnNodeHandler {
         }
         String dpid = node.integrationBridgeId().toString().substring(DPID_BEGIN);
         BridgeDescription bridgeDesc = DefaultBridgeDescription.builder()
-                .name(INTEGRATION_BRIDGE)
+                .name(node.integrationBridgeName())
                 .failMode(BridgeDescription.FailMode.SECURE)
                 .datapathId(dpid)
                 .disableInBand()
@@ -257,7 +264,7 @@ public class DefaultCordVtnNodeHandler implements CordVtnNodeHandler {
             return;
         }
         TunnelDescription tunnelDesc = DefaultTunnelDescription.builder()
-                .deviceId(INTEGRATION_BRIDGE)
+                .deviceId(node.integrationBridgeName())
                 .ifaceName(DEFAULT_TUNNEL)
                 .type(VXLAN)
                 .remote(TunnelEndPoints.flowTunnelEndpoint())
@@ -269,14 +276,14 @@ public class DefaultCordVtnNodeHandler implements CordVtnNodeHandler {
     }
 
     private void addSystemInterface(CordVtnNode node, String ifaceName) {
-        Session session = connect(node.sshInfo());
+        /*Session session = connect(node.sshInfo());
         if (session == null || !isInterfaceUp(session, ifaceName)) {
             log.error("Interface {} is not available on {}", ifaceName, node.hostname());
             disconnect(session);
             return;
         } else {
             disconnect(session);
-        }
+        }*/
 
         Device device = deviceService.getDevice(node.ovsdbId());
         if (!device.is(BridgeConfig.class)) {
@@ -285,7 +292,7 @@ public class DefaultCordVtnNodeHandler implements CordVtnNodeHandler {
         }
 
         BridgeConfig bridgeConfig = device.as(BridgeConfig.class);
-        bridgeConfig.addPort(BridgeName.bridgeName(INTEGRATION_BRIDGE), ifaceName);
+        bridgeConfig.addPort(BridgeName.bridgeName(node.integrationBridgeName()), ifaceName);
     }
 
     private void configureInterface(CordVtnNode node) {
@@ -294,16 +301,16 @@ public class DefaultCordVtnNodeHandler implements CordVtnNodeHandler {
             log.error("Failed to SSH to {}", node.hostname());
             return;
         }
-        getCurrentIps(session, INTEGRATION_BRIDGE).stream()
+        getCurrentIps(session, node.integrationBridgeName()).stream()
                 .filter(ip -> !ip.equals(node.localManagementIp().ip()))
                 .filter(ip -> !ip.equals(node.dataIp().ip()))
-                .forEach(ip -> deleteIp(session, ip, INTEGRATION_BRIDGE));
+                .forEach(ip -> deleteIp(session, ip, node.integrationBridgeName()));
 
         final boolean result = flushIp(session, node.dataInterface()) &&
                 setInterfaceUp(session, node.dataInterface()) &&
-                addIp(session, node.dataIp(), INTEGRATION_BRIDGE) &&
-                addIp(session, node.localManagementIp(), INTEGRATION_BRIDGE) &&
-                setInterfaceUp(session, INTEGRATION_BRIDGE);
+                addIp(session, node.dataIp(), node.integrationBridgeName()) &&
+                addIp(session, node.localManagementIp(), node.integrationBridgeName()) &&
+                setInterfaceUp(session, node.integrationBridgeName());
 
         disconnect(session);
         if (result) {
@@ -494,12 +501,12 @@ public class DefaultCordVtnNodeHandler implements CordVtnNodeHandler {
             log.warn("Failed to SSH to {}", node.hostname());
             return false;
         }
-        Set<IpAddress> intBrIps = getCurrentIps(session, INTEGRATION_BRIDGE);
+        Set<IpAddress> intBrIps = getCurrentIps(session, node.integrationBridgeName());
         boolean result = getCurrentIps(session, node.dataInterface()).isEmpty() &&
                 isInterfaceUp(session, node.dataInterface()) &&
                 intBrIps.contains(node.dataIp().ip()) &&
                 intBrIps.contains(node.localManagementIp().ip()) &&
-                isInterfaceUp(session, INTEGRATION_BRIDGE);
+                isInterfaceUp(session, node.integrationBridgeName());
 
         disconnect(session);
         return result;
@@ -513,7 +520,8 @@ public class DefaultCordVtnNodeHandler implements CordVtnNodeHandler {
                 Set<String> activePorts = activePorts(node.integrationBridgeId());
                 return node.systemInterfaces().stream().allMatch(activePorts::contains);
             case PORT_CREATED:
-                return isIpAddressSet(node);
+                return true;
+                //return isIpAddressSet(node);
             case COMPLETE:
                 return false;
             default:

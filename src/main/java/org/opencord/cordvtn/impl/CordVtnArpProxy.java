@@ -316,6 +316,9 @@ public class CordVtnArpProxy {
         PortNumber inputPort = context.inPacket().receivedFrom().port();
 
         Host host = hostService.getHost(HostId.hostId(ethPacket.getSourceMAC()));
+        if (!Instance.isInstance(host)) {
+            return;
+        }
         NetworkType networkType = Instance.of(host).netType();
         if (host == null || (networkType != MANAGEMENT_HOST &&
                 networkType != FLAT)) {

@@ -70,6 +70,7 @@ public class CordVtnConfig extends Config<ApplicationId> {
     private static final String HOST_MANAGEMENT_IFACE = "hostManagementIface";
     private static final String DATA_IP = "dataPlaneIp";
     private static final String DATA_IFACE = "dataPlaneIntf";
+    private static final String INTEGRATION_BRIDGE_NAME = "bridgeName";
     private static final String INTEGRATION_BRIDGE_ID = "bridgeId";
 
     private static final String SSH = "ssh";
@@ -223,6 +224,11 @@ public class CordVtnConfig extends Config<ApplicationId> {
             String hostMgmtIface = getConfig(vtnNode, HOST_MANAGEMENT_IFACE);
             if (!Strings.isNullOrEmpty(hostMgmtIface)) {
                 nodeBuilder.hostManagementInterface(hostMgmtIface);
+            }
+
+            String integrationBridgeName = getConfig(vtnNode, INTEGRATION_BRIDGE_NAME);
+            if (!Strings.isNullOrEmpty(integrationBridgeName)) {
+                nodeBuilder.integrationBridgeName(integrationBridgeName);
             }
 
             nodes.add(nodeBuilder.build());

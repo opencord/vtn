@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.onlab.packet.TpPort;
 import org.onosproject.net.DeviceId;
+import org.opencord.cordvtn.api.Constants;
 import org.opencord.cordvtn.api.net.CidrAddr;
 import org.opencord.cordvtn.api.node.CordVtnNode;
 import org.opencord.cordvtn.api.node.CordVtnNodeState;
@@ -43,6 +44,7 @@ public final class DefaultCordVtnNode implements CordVtnNode {
     private final CidrAddr hostMgmtIp;
     private final CidrAddr localMgmtIp;
     private final CidrAddr dataIp;
+    private final String integrationBridgeName;
     private final DeviceId integrationBridgeId;
     private final String dataIface;
     private final String hostMgmtIface;
@@ -54,6 +56,7 @@ public final class DefaultCordVtnNode implements CordVtnNode {
                                CidrAddr hostMgmtIp,
                                CidrAddr localMgmtIp,
                                CidrAddr dataIp,
+                               String integrationBridgeName,
                                DeviceId integrationBridgeId,
                                String dataIface,
                                String hostMgmtIface,
@@ -64,6 +67,7 @@ public final class DefaultCordVtnNode implements CordVtnNode {
         this.hostMgmtIp = hostMgmtIp;
         this.localMgmtIp = localMgmtIp;
         this.dataIp = dataIp;
+        this.integrationBridgeName = integrationBridgeName;
         this.integrationBridgeId = integrationBridgeId;
         this.dataIface = dataIface;
         this.hostMgmtIface = hostMgmtIface;
@@ -84,6 +88,7 @@ public final class DefaultCordVtnNode implements CordVtnNode {
                 node.hostManagementIp(),
                 node.localManagementIp(),
                 node.dataIp(),
+                node.integrationBridgeName(),
                 node.integrationBridgeId(),
                 node.dataInterface(),
                 node.hostManagementInterface(),
@@ -110,6 +115,11 @@ public final class DefaultCordVtnNode implements CordVtnNode {
     @Override
     public CidrAddr dataIp() {
         return this.dataIp;
+    }
+
+    @Override
+    public String integrationBridgeName() {
+        return integrationBridgeName;
     }
 
     @Override
@@ -223,6 +233,7 @@ public final class DefaultCordVtnNode implements CordVtnNode {
         private CidrAddr hostMgmtIp;
         private CidrAddr localMgmtIp;
         private CidrAddr dataIp;
+        private String integrationBridgeName = Constants.INTEGRATION_BRIDGE;
         private DeviceId integrationBridgeId;
         private String dataIface;
         private String hostMgmtIface;
@@ -252,6 +263,7 @@ public final class DefaultCordVtnNode implements CordVtnNode {
                     hostMgmtIp,
                     localMgmtIp,
                     dataIp,
+                    integrationBridgeName,
                     integrationBridgeId,
                     dataIface,
                     hostMgmtIface,
@@ -280,6 +292,12 @@ public final class DefaultCordVtnNode implements CordVtnNode {
         @Override
         public Builder dataIp(CidrAddr dataIp) {
             this.dataIp = dataIp;
+            return this;
+        }
+
+        @Override
+        public Builder integrationBridgeName(String name) {
+            this.integrationBridgeName = name;
             return this;
         }
 

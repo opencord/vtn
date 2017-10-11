@@ -75,6 +75,14 @@ public final class Instance {
         return new Instance(host);
     }
 
+    public static boolean isInstance(Host host) {
+        return host != null &&
+            !Strings.isNullOrEmpty(host.annotations().value(NETWORK_ID)) &&
+            !Strings.isNullOrEmpty(host.annotations().value(NETWORK_TYPE)) &&
+            !Strings.isNullOrEmpty(host.annotations().value(PORT_ID)) &&
+            !Strings.isNullOrEmpty(host.annotations().value(CREATE_TIME));
+    }
+
     /**
      * Returns network ID of a given host.
      *

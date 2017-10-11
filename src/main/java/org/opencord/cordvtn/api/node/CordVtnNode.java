@@ -56,6 +56,13 @@ public interface CordVtnNode {
     CidrAddr dataIp();
 
     /**
+     * Returns the name of the integration bridge on this node.
+     *
+     * @return integration bridge name
+     */
+    String integrationBridgeName();
+
+    /**
      * Returns the integration bridge device identifier.
      *
      * @return device id
@@ -155,6 +162,14 @@ public interface CordVtnNode {
          * @return cordvtn node builder
          */
         Builder dataIp(CidrAddr dataIp);
+
+        /**
+         * Returns cordvtn node builder with the supplied integration bridge name.
+         *
+         * @param name integration bridge name
+         * @return cordvtn node builder
+         */
+        Builder integrationBridgeName(String name);
 
         /**
          * Returns cordvtn node builder with the supplied integration bridge identifier.
