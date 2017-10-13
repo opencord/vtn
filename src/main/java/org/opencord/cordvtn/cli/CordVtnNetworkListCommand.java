@@ -36,7 +36,7 @@ import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
         description = "Lists all VTN networks")
 public class CordVtnNetworkListCommand extends AbstractShellCommand {
 
-    private static final String FORMAT = "%-40s%-30s%-20s%-8s%-20s%s";
+    private static final String FORMAT = "%-40s%-30s%-20s%-8s%-20s%-20s%s";
 
     @Override
     protected void execute() {
@@ -51,14 +51,15 @@ public class CordVtnNetworkListCommand extends AbstractShellCommand {
                 print("Failed to list networks in JSON format");
             }
         } else {
-            print(FORMAT, "ID", "Name", "Type", "VNI", "Subnet", "Service IP");
+            print(FORMAT, "ID", "Name", "Type", "VNI", "Subnet", "Service IP", "Providers");
             for (ServiceNetwork net: networks) {
                 print(FORMAT, net.id(),
                       net.name(),
                       net.type(),
                       net.segmentId(),
                       net.subnet(),
-                      net.serviceIp());
+                      net.serviceIp(),
+                      net.providers());
             }
         }
     }

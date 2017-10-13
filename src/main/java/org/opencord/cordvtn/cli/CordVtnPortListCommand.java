@@ -39,7 +39,7 @@ import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
         description = "Lists all VTN ports")
 public class CordVtnPortListCommand extends AbstractShellCommand {
 
-    private static final String FORMAT = "%-40s%-30s%-20s%-18s%-10s%s";
+    private static final String FORMAT = "%-40s%-40s%-30s%-20s%-18s%-10s%s";
 
     @Argument(name = "networkId", description = "Network ID")
     private String networkId = null;
@@ -61,12 +61,13 @@ public class CordVtnPortListCommand extends AbstractShellCommand {
                 print("Failed to list networks in JSON format");
             }
         } else {
-            print(FORMAT, "ID", "Name", "MAC", "IP", "VLAN", "WAN IPs");
+            print(FORMAT, "ID", "Network ID", "Name", "MAC", "IP", "VLAN", "WAN IPs");
             for (ServicePort port: ports) {
                 List<String> floatingIps = port.addressPairs().stream()
                         .map(ip -> ip.ip().toString())
                         .collect(Collectors.toList());
                 print(FORMAT, port.id(),
+                        port.networkId(),
                         port.name(),
                         port.mac(),
                         port.ip(),

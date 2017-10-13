@@ -76,14 +76,11 @@ public final class XosVtnNetworkingClient extends AbstractWebResource {
     private String restGet(String path) {
         WebTarget wt = client.target("http://" + endpoint + URL_BASE).path(path);
         Invocation.Builder builder = wt.request(JSON_UTF_8.toString());
-        try {
-            Response response = builder.get();
-            if (response.getStatus() != HTTP_OK) {
-                log.warn("Failed to get resource {}", endpoint + URL_BASE + path);
-                log.warn("reason {}", response.readEntity(String.class));
-                return EMPTY_JSON_STRING;
-            }
-        } catch (javax.ws.rs.ProcessingException e) {
+
+        Response response = builder.get();
+        if (response.getStatus() != HTTP_OK) {
+            log.warn("Failed to get resource {}", endpoint + URL_BASE + path);
+            log.warn("reason {}", response.readEntity(String.class));
             return EMPTY_JSON_STRING;
         }
         return builder.get(String.class);
@@ -94,18 +91,14 @@ public final class XosVtnNetworkingClient extends AbstractWebResource {
         Invocation.Builder builder = wt.request(MediaType.APPLICATION_JSON)
                 .accept(JSON_UTF_8.toString());
 
-        try {
-            Response response = builder.put(Entity.entity(request.toString(),
-                    MediaType.APPLICATION_JSON_TYPE));
-            String strResponse = response.readEntity(String.class);
-            if (response.getStatus() != HTTP_OK) {
-                throw new IllegalArgumentException("Failed to put resource "
-                        + response.getStatus() + ": " + strResponse);
-            }
-            return strResponse;
-        } catch (javax.ws.rs.ProcessingException e) {
-            return EMPTY_JSON_STRING;
+        Response response = builder.put(Entity.entity(request.toString(),
+                MediaType.APPLICATION_JSON_TYPE));
+        String strResponse = response.readEntity(String.class);
+        if (response.getStatus() != HTTP_OK) {
+            throw new IllegalArgumentException("Failed to put resource "
+                    + response.getStatus() + ": " + strResponse);
         }
+        return strResponse;
     }
 
     public void requestSync() {
