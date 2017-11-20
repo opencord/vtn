@@ -30,6 +30,7 @@ import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.DefaultAnnotations;
+import org.onosproject.net.Device;
 import org.onosproject.net.Host;
 import org.onosproject.net.HostId;
 import org.onosproject.net.HostLocation;
@@ -58,6 +59,7 @@ import org.slf4j.Logger;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.StreamSupport;
 
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.onlab.util.Tools.groupedThreads;
@@ -278,6 +280,11 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
             });
         }
 
+        private boolean hasPort(Device device, String portName) {
+            return deviceService.getPorts(device.id()).stream()
+                    .anyMatch(p -> p.annotations().value(PORT_NAME).equals(portName));
+        }
+
         private void handle(ServiceNetworkEvent event) {
             switch (event.type()) {
                 case SERVICE_PORT_CREATED:
@@ -285,8 +292,22 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
                     log.debug("Processing service port {}", event.servicePort());
                     PortId portId = event.servicePort().id();
                     Instance instance = getInstance(portId);
-                    if (instance != null) {
-                        addInstance(instance.host().location());
+                    if (instance == null) {
+                        String portName = event.servicePort().name();
+
+                        Optional<Device> device =
+                                StreamSupport.stream(deviceService.getAvailableDevices().spliterator(), false)
+                                        .filter(d -> hasPort(d, portName))
+                                        .findAny();
+
+                        Optional<Port> port = device.flatMap(d -> deviceService.getPorts(d.id()).stream()
+                                .filter(p -> p.annotations().value(PORT_NAME) != null)
+                                .filter(p -> p.annotations().value(PORT_NAME).equals(portName))
+                                .findAny());
+
+                        if (device.isPresent() && port.isPresent()) {
+                            addInstance(new ConnectPoint(device.get().id(), port.get().number()));
+                        }
                     }
                     break;
                 case SERVICE_PORT_REMOVED:
