@@ -314,11 +314,17 @@ public class CordVtnArpProxy {
     private void forwardArpRequest(PacketContext context, Ethernet ethPacket) {
         DeviceId deviceId = context.inPacket().receivedFrom().deviceId();
         PortNumber inputPort = context.inPacket().receivedFrom().port();
+        MacAddress hostMac = ethPacket.getSourceMAC();
 
         Host host = hostService.getHost(HostId.hostId(ethPacket.getSourceMAC()));
+        if (host == null) {
+            context.block();
+            log.trace("Failed to handle ARP request: can't get host {} from store", hostMac);
+            return;
+        }
         NetworkType networkType = Instance.of(host).netType();
-        if (host == null || (networkType != MANAGEMENT_HOST &&
-                networkType != FLAT)) {
+
+        if (networkType != MANAGEMENT_HOST && networkType != FLAT) {
             context.block();
             log.trace("Failed to handle ARP request");
             return;
