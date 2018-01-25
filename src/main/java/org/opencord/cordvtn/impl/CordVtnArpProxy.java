@@ -316,9 +316,13 @@ public class CordVtnArpProxy {
         PortNumber inputPort = context.inPacket().receivedFrom().port();
 
         Host host = hostService.getHost(HostId.hostId(ethPacket.getSourceMAC()));
+        if (host == null) {
+            context.block();
+            return;
+        }
+
         NetworkType networkType = Instance.of(host).netType();
-        if (host == null || (networkType != MANAGEMENT_HOST &&
-                networkType != FLAT)) {
+        if (networkType != MANAGEMENT_HOST && networkType != FLAT) {
             context.block();
             log.trace("Failed to handle ARP request");
             return;
