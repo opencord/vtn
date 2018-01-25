@@ -308,6 +308,10 @@ public class InstanceManager extends AbstractProvider implements HostProvider,
                         if (device.isPresent() && port.isPresent()) {
                             addInstance(new ConnectPoint(device.get().id(), port.get().number()));
                         }
+                    } else {
+                        // Re-add the instance in case anything in the service port
+                        // was updated
+                        addInstance(instance.host().location());
                     }
                     break;
                 case SERVICE_PORT_REMOVED:
