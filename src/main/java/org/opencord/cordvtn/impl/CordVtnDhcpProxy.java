@@ -26,8 +26,6 @@ import org.apache.felix.scr.annotations.Property;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.onlab.packet.DHCP;
-import org.onlab.packet.DHCPOption;
-import org.onlab.packet.DHCPPacketType;
 import org.onlab.packet.Ethernet;
 import org.onlab.packet.IPv4;
 import org.onlab.packet.Ip4Address;
@@ -35,6 +33,7 @@ import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.TpPort;
 import org.onlab.packet.UDP;
+import org.onlab.packet.dhcp.DhcpOption;
 import org.onlab.util.Tools;
 import org.onosproject.cfg.ComponentConfigService;
 import org.onosproject.core.ApplicationId;
@@ -68,7 +67,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.onlab.packet.DHCP.DHCPOptionCode.*;
+import static org.onlab.packet.DHCP.DHCPOptionCode.OptionCode_BroadcastAddress;
+import static org.onlab.packet.DHCP.DHCPOptionCode.OptionCode_DHCPServerIp;
+import static org.onlab.packet.DHCP.DHCPOptionCode.OptionCode_DomainServer;
+import static org.onlab.packet.DHCP.DHCPOptionCode.OptionCode_END;
+import static org.onlab.packet.DHCP.DHCPOptionCode.OptionCode_LeaseTime;
+import static org.onlab.packet.DHCP.DHCPOptionCode.OptionCode_MessageType;
+import static org.onlab.packet.DHCP.DHCPOptionCode.OptionCode_RouterAddress;
+import static org.onlab.packet.DHCP.DHCPOptionCode.OptionCode_SubnetMask;
 import static org.onlab.packet.DHCPPacketType.DHCPACK;
 import static org.onlab.packet.DHCPPacketType.DHCPOFFER;
 import static org.opencord.cordvtn.api.Constants.DEFAULT_GATEWAY_MAC_STR;
@@ -184,10 +190,12 @@ public class CordVtnDhcpProxy {
             if (ethPacket == null || ethPacket.getEtherType() != Ethernet.TYPE_IPV4) {
                 return;
             }
+
             IPv4 ipv4Packet = (IPv4) ethPacket.getPayload();
             if (ipv4Packet.getProtocol() != IPv4.PROTOCOL_UDP) {
                 return;
             }
+
             UDP udpPacket = (UDP) ipv4Packet.getPayload();
             if (udpPacket.getDestinationPort() != UDP.DHCP_SERVER_PORT ||
                     udpPacket.getSourcePort() != UDP.DHCP_CLIENT_PORT) {
@@ -204,7 +212,7 @@ public class CordVtnDhcpProxy {
                 return;
             }
 
-            DHCPPacketType inPacketType = getPacketType(dhcpPacket);
+            DHCP.MsgType inPacketType = dhcpPacket.getPacketType();
             if (inPacketType == null || dhcpPacket.getClientHardwareAddress() == null) {
                 log.trace("Malformed DHCP packet received, ignore it");
                 return;
@@ -245,22 +253,9 @@ public class CordVtnDhcpProxy {
                     // do nothing
                     break;
                 default:
+                    log.warn("Unknown packet type {}", inPacketType);
                     break;
             }
-        }
-
-        private DHCPPacketType getPacketType(DHCP dhcpPacket) {
-            DHCPOption optType = dhcpPacket.getOption(OptionCode_MessageType);
-            if (optType == null) {
-                log.trace("DHCP packet with no message type, ignore it");
-                return null;
-            }
-
-            DHCPPacketType inPacketType = DHCPPacketType.getType(optType.getData()[0]);
-            if (inPacketType == null) {
-                log.trace("DHCP packet with no packet type, ignore it");
-            }
-            return inPacketType;
         }
 
         private Ethernet buildReply(Ethernet ethRequest, byte packetType,
@@ -327,9 +322,9 @@ public class CordVtnDhcpProxy {
             dhcpReply.setServerIPAddress(serverIp.toInt());
             dhcpReply.setClientHardwareAddress(request.getClientHardwareAddress());
 
-            List<DHCPOption> options = Lists.newArrayList();
+            List<DhcpOption> options = Lists.newArrayList();
             // message type
-            DHCPOption option = new DHCPOption();
+            DhcpOption option = new DhcpOption();
             option.setCode(OptionCode_MessageType.getValue());
             option.setLength((byte) 1);
             byte[] optionData = {msgType};
@@ -337,14 +332,14 @@ public class CordVtnDhcpProxy {
             options.add(option);
 
             // server identifier
-            option = new DHCPOption();
+            option = new DhcpOption();
             option.setCode(OptionCode_DHCPServerIp.getValue());
             option.setLength((byte) 4);
             option.setData(serverIp.toOctets());
             options.add(option);
 
             // lease time
-            option = new DHCPOption();
+            option = new DhcpOption();
             option.setCode(OptionCode_LeaseTime.getValue());
             option.setLength((byte) 4);
             option.setData(DHCP_DATA_LEASE_INFINITE);
@@ -352,7 +347,7 @@ public class CordVtnDhcpProxy {
 
             // subnet mask
             Ip4Address subnetMask = Ip4Address.makeMaskPrefix(subnetPrefixLen);
-            option = new DHCPOption();
+            option = new DhcpOption();
             option.setCode(OptionCode_SubnetMask.getValue());
             option.setLength((byte) 4);
             option.setData(subnetMask.toOctets());
@@ -360,21 +355,21 @@ public class CordVtnDhcpProxy {
 
             // broadcast address
             Ip4Address broadcast = Ip4Address.makeMaskedAddress(yourIp, subnetPrefixLen);
-            option = new DHCPOption();
+            option = new DhcpOption();
             option.setCode(OptionCode_BroadcastAddress.getValue());
             option.setLength((byte) 4);
             option.setData(broadcast.toOctets());
             options.add(option);
 
             // domain server
-            option = new DHCPOption();
+            option = new DhcpOption();
             option.setCode(OptionCode_DomainServer.getValue());
             option.setLength((byte) 4);
             option.setData(DEFAULT_DNS.toOctets());
             options.add(option);
 
             // TODO fix MTU value to be configurable
-            option = new DHCPOption();
+            option = new DhcpOption();
             option.setCode(DHCP_OPTION_MTU);
             option.setLength((byte) 2);
             option.setData(DHCP_DATA_MTU_DEFAULT);
@@ -382,7 +377,7 @@ public class CordVtnDhcpProxy {
 
             // router address
             if (snet.type() != MANAGEMENT_LOCAL && snet.type() != MANAGEMENT_HOST) {
-                option = new DHCPOption();
+                option = new DhcpOption();
                 option.setCode(OptionCode_RouterAddress.getValue());
                 option.setLength((byte) 4);
                 option.setData(serverIp.toOctets());
@@ -392,7 +387,7 @@ public class CordVtnDhcpProxy {
             // classless static routes
             byte[] data = getClasslessStaticRoutesData(snet);
             if (data.length >= 5) {
-                option = new DHCPOption();
+                option = new DhcpOption();
                 option.setCode(DHCP_OPTION_CLASSLESS_STATIC_ROUTE);
                 option.setLength((byte) data.length);
                 option.setData(data);
@@ -400,7 +395,7 @@ public class CordVtnDhcpProxy {
             }
 
             // end option
-            option = new DHCPOption();
+            option = new DhcpOption();
             option.setCode(OptionCode_END.getValue());
             option.setLength((byte) 1);
             options.add(option);
