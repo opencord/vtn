@@ -31,6 +31,39 @@ public interface ServiceNetworkAdminService extends ServiceNetworkService {
     void purgeStates();
 
     /**
+     * Request state synchronization from XOS. The XOS connection parameters
+     * will be pulled from the netcfg.
+     */
+    void syncXosState();
+
+    /**
+     * Request state synchronization from XOS using the given XOS connection
+     * parameters.
+     *
+     * @param endpoint XOS REST endpoint
+     * @param user XOS username
+     * @param password XOS password
+     */
+    void syncXosState(String endpoint, String user, String password);
+
+    /**
+     * Synchronize state with Neutron. The Neutron connection parameters will be
+     * pulled from the netcfg.
+     */
+    void syncNeutronState();
+
+    /**
+     * Synchronize state with Neutron using the given Neutron connection
+     * parameters.
+     *
+     * @param endpoint Neutron REST endpoint
+     * @param tenant Neutron tenant
+     * @param user Neutron username
+     * @param password Neutron password
+     */
+    void syncNeutronState(String endpoint, String tenant, String user, String password);
+
+    /**
      * Creates a service network with the given information.
      *
      * @param serviceNetwork the new service network
