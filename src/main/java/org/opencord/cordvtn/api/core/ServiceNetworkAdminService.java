@@ -30,6 +30,12 @@ public interface ServiceNetworkAdminService extends ServiceNetworkService {
      */
     void purgeStates();
 
+    void syncXosState();
+    void syncXosState(String endpoint, String user, String password);
+
+    void syncNeutronState();
+    void syncNeutronState(String endpoint, String tenant, String user, String password);
+
     /**
      * Creates a service network with the given information.
      *

@@ -23,6 +23,9 @@ import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.apache.felix.scr.annotations.Service;
+import org.onlab.packet.IpAddress;
+import org.onlab.packet.IpPrefix;
+import org.onlab.packet.MacAddress;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.event.ListenerRegistry;
@@ -42,9 +45,15 @@ import org.opencord.cordvtn.api.core.ServiceNetworkStore;
 import org.opencord.cordvtn.api.core.ServiceNetworkStoreDelegate;
 import org.opencord.cordvtn.api.net.NetworkId;
 import org.opencord.cordvtn.api.net.PortId;
+import org.opencord.cordvtn.api.net.SegmentId;
 import org.opencord.cordvtn.api.net.ServiceNetwork;
 import org.opencord.cordvtn.api.net.ServiceNetwork.DependencyType;
 import org.opencord.cordvtn.api.net.ServicePort;
+import org.opencord.cordvtn.rest.XosVtnNetworkingClient;
+import org.openstack4j.api.OSClient;
+import org.openstack4j.api.exceptions.AuthenticationException;
+import org.openstack4j.model.identity.Access;
+import org.openstack4j.openstack.OSFactory;
 import org.slf4j.Logger;
 
 import java.util.Map;
@@ -95,6 +104,8 @@ public class ServiceNetworkManager extends ListenerRegistry<ServiceNetworkEvent,
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected ServiceNetworkStore snetStore;
 
+    private ApplicationId appId;
+
     // TODO add cordvtn config service and move this
     private static final Class<CordVtnConfig> CONFIG_CLASS = CordVtnConfig.class;
     private final ConfigFactory configFactory =
@@ -110,7 +121,7 @@ public class ServiceNetworkManager extends ListenerRegistry<ServiceNetworkEvent,
 
     @Activate
     protected void activate() {
-        coreService.registerApplication(Constants.CORDVTN_APP_ID);
+        appId = coreService.registerApplication(Constants.CORDVTN_APP_ID);
         configRegistry.registerConfigFactory(configFactory);
         snetStore.setDelegate(delegate);
         log.info("Started");
@@ -126,6 +137,104 @@ public class ServiceNetworkManager extends ListenerRegistry<ServiceNetworkEvent,
     @Override
     public void purgeStates() {
         snetStore.clear();
+    }
+
+    @Override
+    public void syncXosState() {
+        CordVtnConfig config = configRegistry.getConfig(appId, CONFIG_CLASS);
+        if (config == null) {
+            return;
+        }
+        syncXosState(config.getXosEndpoint(), config.getXosUsername(), config.getXosPassword());
+    }
+
+    @Override
+    public void syncXosState(String endpoint, String user, String password) {
+        checkNotNull(endpoint);
+        checkNotNull(user);
+        checkNotNull(password);
+
+        XosVtnNetworkingClient client = XosVtnNetworkingClient.builder()
+                .endpoint(endpoint)
+                .user(user)
+                .password(password)
+                .build();
+
+        client.requestSync();
+    }
+
+    @Override
+    public void syncNeutronState() {
+        CordVtnConfig config = configRegistry.getConfig(appId, CONFIG_CLASS);
+        if (config == null) {
+            return;
+        }
+        syncNeutronState(config.getOpenstackEndpoint(), config.getOpenstackTenant(),
+                config.getOpenstackUser(), config.getOpenstackPassword());
+    }
+
+    @Override
+    public void syncNeutronState(String endpoint, String tenant, String user, String password) {
+        Access osAccess;
+        try {
+            osAccess = OSFactory.builder()
+                    .endpoint(endpoint)
+                    .tenantName(tenant)
+                    .credentials(user, password)
+                    .authenticate()
+                    .getAccess();
+        } catch (AuthenticationException e) {
+            log.warn("Authentication failed");
+            return;
+        } catch (Exception e) {
+            log.warn("OpenStack service endpoint is unreachable");
+            return;
+        }
+
+        OSClient osClient = OSFactory.clientFromAccess(osAccess);
+        osClient.networking().network().list().forEach(osNet -> {
+            ServiceNetwork snet = DefaultServiceNetwork.builder()
+                    .id(NetworkId.of(osNet.getId()))
+                    .name(osNet.getName())
+                    .type(ServiceNetwork.NetworkType.PRIVATE)
+                    .segmentId(SegmentId.of(Long.valueOf(osNet.getProviderSegID())))
+                    .build();
+            if (serviceNetwork(snet.id()) != null) {
+                updateServiceNetwork(snet);
+            } else {
+                createServiceNetwork(snet);
+            }
+        });
+
+        osClient.networking().subnet().list().forEach(osSubnet -> {
+            ServiceNetwork snet = DefaultServiceNetwork.builder()
+                    .id(NetworkId.of(osSubnet.getNetworkId()))
+                    .subnet(IpPrefix.valueOf(osSubnet.getCidr()))
+                    .serviceIp(IpAddress.valueOf(osSubnet.getGateway()))
+                    .build();
+            updateServiceNetwork(snet);
+        });
+
+        osClient.networking().port().list().forEach(osPort -> {
+            ServicePort.Builder sportBuilder = DefaultServicePort.builder()
+                    .id(PortId.of(osPort.getId()))
+                    .name("tap" + osPort.getId().substring(0, 11))
+                    .networkId(NetworkId.of(osPort.getNetworkId()));
+
+            if (osPort.getMacAddress() != null) {
+                sportBuilder.mac(MacAddress.valueOf(osPort.getMacAddress()));
+            }
+            if (!osPort.getFixedIps().isEmpty()) {
+                sportBuilder.ip(IpAddress.valueOf(
+                        osPort.getFixedIps().iterator().next().getIpAddress()));
+            }
+            ServicePort sport = sportBuilder.build();
+            if (servicePort(sport.id()) != null) {
+                updateServicePort(sport);
+            } else {
+                createServicePort(sport);
+            }
+        });
     }
 
     @Override

@@ -17,8 +17,9 @@ package org.opencord.cordvtn.cli;
 
 import org.apache.karaf.shell.commands.Argument;
 import org.apache.karaf.shell.commands.Command;
+import org.apache.karaf.shell.commands.Option;
 import org.onosproject.cli.AbstractShellCommand;
-import org.opencord.cordvtn.rest.XosVtnNetworkingClient;
+import org.opencord.cordvtn.api.core.ServiceNetworkAdminService;
 
 /**
  * Synchronizes network states with XOS VTN service.
@@ -28,6 +29,10 @@ import org.opencord.cordvtn.rest.XosVtnNetworkingClient;
 @Command(scope = "onos", name = "cordvtn-sync-xos-states",
         description = "Synchronizes network states with XOS")
 public class CordVtnSyncXosStatesCommand extends AbstractShellCommand {
+
+    @Option(name = "-c", aliases = "--config", description = "Use connection values from config",
+            required = false, multiValued = false)
+    private boolean config = false;
 
     @Argument(index = 0, name = "endpoint", description = "XOS VTN service endpoint",
             required = true, multiValued = false)
@@ -43,13 +48,12 @@ public class CordVtnSyncXosStatesCommand extends AbstractShellCommand {
 
     @Override
     protected void execute() {
-        XosVtnNetworkingClient client = XosVtnNetworkingClient.builder()
-                .endpoint(endpoint)
-                .user(user)
-                .password(password)
-                .build();
-
         print("Requesting state synchronization");
-        client.requestSync();
+        ServiceNetworkAdminService snService = get(ServiceNetworkAdminService.class);
+        if (config) {
+            snService.syncXosState();
+        } else {
+            snService.syncXosState(endpoint, user, password);
+        }
     }
 }

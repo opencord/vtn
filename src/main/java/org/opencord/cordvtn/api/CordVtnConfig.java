@@ -79,8 +79,15 @@ public class CordVtnConfig extends Config<ApplicationId> {
 
     @Deprecated
     private static final String OPENSTACK = "openstack";
+    private static final String OPENSTACK_ENDPOINT = "endpoint";
+    private static final String OPENSTACK_TENANT = "tenant";
+    private static final String OPENSTACK_USER = "user";
+    private static final String OPENSTACK_PASSWORD = "password";
     @Deprecated
     private static final String XOS = "xos";
+    private static final String XOS_ENDPOINT = "endpoint";
+    private static final String XOS_USER = "user";
+    private static final String XOS_PASSWORD = "password";
 
     private static final String CONTROLLERS = "controllers";
     private static final int INDEX_IP = 0;
@@ -306,5 +313,61 @@ public class CordVtnConfig extends Config<ApplicationId> {
         JsonNode jsonNode = object.get(CONTROLLERS).get(0);
         String[] ctrl = jsonNode.asText().split(":");
         return Integer.parseInt(ctrl[INDEX_PORT]);
+    }
+
+    public String getXosEndpoint() {
+        JsonNode xosObject = object.get(XOS);
+        if (xosObject == null) {
+            return null;
+        }
+        return xosObject.get(XOS_ENDPOINT).asText();
+    }
+
+    public String getXosUsername() {
+        JsonNode xosObject = object.get(XOS);
+        if (xosObject == null) {
+            return null;
+        }
+        return xosObject.get(XOS_USER).asText();
+    }
+
+    public String getXosPassword() {
+        JsonNode xosObject = object.get(XOS);
+        if (xosObject == null) {
+            return null;
+        }
+        return xosObject.get(XOS_PASSWORD).asText();
+    }
+
+    public String getOpenstackEndpoint() {
+        JsonNode xosObject = object.get(OPENSTACK);
+        if (xosObject == null) {
+            return null;
+        }
+        return xosObject.get(OPENSTACK_ENDPOINT).asText();
+    }
+
+    public String getOpenstackTenant() {
+        JsonNode xosObject = object.get(OPENSTACK);
+        if (xosObject == null) {
+            return null;
+        }
+        return xosObject.get(OPENSTACK_TENANT).asText();
+    }
+
+    public String getOpenstackUser() {
+        JsonNode xosObject = object.get(OPENSTACK);
+        if (xosObject == null) {
+            return null;
+        }
+        return xosObject.get(OPENSTACK_USER).asText();
+    }
+
+    public String getOpenstackPassword() {
+        JsonNode xosObject = object.get(OPENSTACK);
+        if (xosObject == null) {
+            return null;
+        }
+        return xosObject.get(OPENSTACK_PASSWORD).asText();
     }
 }
