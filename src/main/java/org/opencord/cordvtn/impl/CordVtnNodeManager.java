@@ -193,7 +193,6 @@ public class CordVtnNodeManager extends ListenerRegistry<CordVtnNodeEvent, CordV
 
         CordVtnConfig config = configService.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
-            log.warn("No configuration found");
             return;
         }
         config.cordVtnNodes().forEach(node -> {

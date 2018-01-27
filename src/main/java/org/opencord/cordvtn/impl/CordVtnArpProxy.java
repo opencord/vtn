@@ -525,7 +525,6 @@ public class CordVtnArpProxy {
     private void readPublicGateways() {
         CordVtnConfig config = netConfigService.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
-            log.warn("No configuration found");
             return;
         }
 
