@@ -571,7 +571,6 @@ public class DefaultCordVtnNodeHandler implements CordVtnNodeHandler {
     private void readControllers() {
         CordVtnConfig config = configService.getConfig(appId, CordVtnConfig.class);
         if (config == null) {
-            log.warn("No configuration found");
             return;
         }
         controllers = config.controllers();
