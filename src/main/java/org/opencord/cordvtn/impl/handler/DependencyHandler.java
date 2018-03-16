@@ -308,6 +308,11 @@ public class DependencyHandler extends AbstractInstanceHandler {
                 provider.serviceIp().getIp4Address(),
                 providerGroups,
                 install);
+        populateIndirectAccessReverseRule(
+                sSubnet,
+                pSubnet,
+                provider.serviceIp().getIp4Address(),
+                install);
         populateDirectAccessRule(sSubnet, pSubnet, install);
         if (type == BIDIRECTIONAL) {
             populateDirectAccessRule(pSubnet, sSubnet, install);
@@ -341,6 +346,36 @@ public class DependencyHandler extends AbstractInstanceHandler {
 
             pipeline.processFlowRule(install, flowRule);
         }
+    }
+
+    private void populateIndirectAccessReverseRule(IpPrefix srcSubnet, IpPrefix dstSubnet,
+                                                   IpAddress serviceIp, boolean install) {
+        // TODO support IPv6
+        TrafficSelector selector = DefaultTrafficSelector.builder()
+                .matchEthType(Ethernet.TYPE_IPV4)
+                .matchIPSrc(dstSubnet)
+                .matchIPDst(srcSubnet)
+                .build();
+
+        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+                .setIpSrc(serviceIp)
+                .transition(TABLE_DST)
+                .build();
+
+        nodeService.completeNodes().forEach(node -> {
+            DeviceId deviceId = node.integrationBridgeId();
+            FlowRule flowRule = DefaultFlowRule.builder()
+                    .fromApp(appId)
+                    .withSelector(selector)
+                    .withTreatment(treatment)
+                    .withPriority(PRIORITY_HIGH)
+                    .forDevice(deviceId)
+                    .forTable(TABLE_ACCESS)
+                    .makePermanent()
+                    .build();
+
+            pipeline.processFlowRule(install, flowRule);
+        });
     }
 
     private void populateDirectAccessRule(IpPrefix srcIp, IpPrefix dstIp, boolean install) {
@@ -414,6 +449,7 @@ public class DependencyHandler extends AbstractInstanceHandler {
             if (deviceId.equals(instance.deviceId())) {
                 TrafficTreatment treatment = DefaultTrafficTreatment.builder()
                         .setEthDst(instance.mac())
+                        .setIpDst(instance.ipAddress())
                         .setOutput(instance.portNumber())
                         .build();
                 buckets.add(createSelectGroupBucket(treatment));
