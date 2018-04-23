@@ -288,6 +288,19 @@ public class CordVtnDhcpProxy {
             DHCP dhcpReply = buildDhcpReply(
                     dhcpRequest, packetType, reqInstance.ipAddress(), snet);
 
+	   // Begining of DHCP Fix.
+           // Overwrite the DstIP and DstMac if broadcast flag is set in DHCP header.
+           // This Fix alligns the ONOS-VTN app with the DHCP RFC
+           // This work has been performed in the framework of the NGPaaS project, funded by the European Commission
+           // under the Horizon 2020 and 5G-PPP Phase2 programmes, 
+           // under Grant Agreement No. 761 557 (http://ngpaas.eu).
+            if ((dhcpRequest.getFlags() & 0x8000) != 0) {
+                Ip4Address broadcastAddress = Ip4Address.valueOf("255.255.255.255");
+                ipv4Reply.setDestinationAddress(broadcastAddress.toInt());
+                ethReply.setDestinationMACAddress(MacAddress.BROADCAST);
+            }
+	    // End of DHCP Fix.
+
             udpReply.setPayload(dhcpReply);
             ipv4Reply.setPayload(udpReply);
             ethReply.setPayload(ipv4Reply);
@@ -323,8 +336,8 @@ public class CordVtnDhcpProxy {
             dhcpReply.setHardwareAddressLength((byte) 6);
             dhcpReply.setTransactionId(request.getTransactionId());
             dhcpReply.setFlags(request.getFlags());
-            dhcpReply.setYourIPAddress(yourIp.toInt());
             dhcpReply.setServerIPAddress(serverIp.toInt());
+            dhcpReply.setYourIPAddress(yourIp.toInt());
             dhcpReply.setClientHardwareAddress(request.getClientHardwareAddress());
 
             List<DHCPOption> options = Lists.newArrayList();
@@ -455,3 +468,4 @@ public class CordVtnDhcpProxy {
         }
     }
 }
+
