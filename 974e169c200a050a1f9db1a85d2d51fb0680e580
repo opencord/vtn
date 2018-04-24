@@ -2,6 +2,29 @@
   "comments": [
     {
       "key": {
+        "uuid": "975be6b2_6b58df91",
+        "filename": "src/main/java/org/opencord/cordvtn/impl/CordVtnDhcpProxy.java",
+        "patchSetId": 1
+      },
+      "lineNbr": 296,
+      "author": {
+        "id": 1000005
+      },
+      "writtenOn": "2018-04-24T15:21:52Z",
+      "side": 1,
+      "message": "I don\u0027t think this comment is needed. You could leave a comment describing what the code does if it is not clear. The information about the where the code came from can be either in the commit message or the Jira ticket if you want to include it.",
+      "range": {
+        "startLine": 291,
+        "startChar": 11,
+        "endLine": 296,
+        "endChar": 67
+      },
+      "revId": "974e169c200a050a1f9db1a85d2d51fb0680e580",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "dad1f084_83c2461d",
         "filename": "src/main/java/org/opencord/cordvtn/impl/CordVtnDhcpProxy.java",
         "patchSetId": 1
