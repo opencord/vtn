@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "dad1f084_83c2461d",
+        "filename": "src/main/java/org/opencord/cordvtn/impl/CordVtnDhcpProxy.java",
+        "patchSetId": 1
+      },
+      "lineNbr": 298,
+      "author": {
+        "id": 1000116
+      },
+      "writtenOn": "2018-04-24T08:06:15Z",
+      "side": 1,
+      "message": "please extract as constant. \nprivate static final Ip4Address IP_BROADCAST \u003d Ip4Address.valueOf(\"255.255.255.255\");",
+      "range": {
+        "startLine": 298,
+        "startChar": 65,
+        "endLine": 298,
+        "endChar": 82
+      },
+      "revId": "974e169c200a050a1f9db1a85d2d51fb0680e580",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388",
+      "unresolved": false
+    }
+  ]
+}
