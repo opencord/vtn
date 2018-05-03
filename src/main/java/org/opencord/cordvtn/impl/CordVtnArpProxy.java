@@ -113,7 +113,7 @@ public class CordVtnArpProxy {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected ServiceNetworkService snetService;
 
-    @Property(name = PRIVATE_GATEWAY_MAC, value = DEFAULT_GATEWAY_MAC_STR,
+    @Property(name = PRIVATE_GATEWAY_MAC, value = "00:00:00:00:00:01",
             label = "Fake MAC address for virtual network gateway")
     private String privateGatewayMacStr = DEFAULT_GATEWAY_MAC_STR;
     private MacAddress privateGatewayMac = MacAddress.valueOf(privateGatewayMacStr);
@@ -147,6 +147,7 @@ public class CordVtnArpProxy {
         snetService.removeListener(snetListener);
         netConfigService.removeListener(configListener);
         compConfigService.unregisterProperties(getClass(), false);
+        cancelPacket();
 
         log.info("Stopped");
     }
