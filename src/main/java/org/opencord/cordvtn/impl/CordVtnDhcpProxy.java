@@ -119,7 +119,7 @@ public class CordVtnDhcpProxy {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected ServiceNetworkService snetService;
 
-    @Property(name = DHCP_SERVER_MAC, value = DEFAULT_GATEWAY_MAC_STR,
+    @Property(name = DHCP_SERVER_MAC, value = "00:00:00:00:00:01",
             label = "Fake MAC address for DHCP server interface")
     private String dhcpServerMac = DEFAULT_GATEWAY_MAC_STR;
 
