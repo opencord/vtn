@@ -51,7 +51,7 @@
             APIs for interacting with the CORD VTN application.
         </api.description>
 	    <api.package>org.opencord.cordvtn.rest</api.package>
-        <cord.config.version>1.4.0-SNAPSHOT</cord.config.version>
+        <cord.config.version>1.4.0</cord.config.version>
     </properties>
 
     <dependencies>
