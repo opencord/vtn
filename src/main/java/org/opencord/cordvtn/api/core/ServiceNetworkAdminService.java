@@ -63,6 +63,15 @@ public interface ServiceNetworkAdminService extends ServiceNetworkService {
      */
     void syncNeutronState(String endpoint, String tenant, String user, String password);
 
+
+    /**
+     * Synchronize state with Kubernetes using the given Kubernetes API server connection
+     * parameters.
+     *
+     * @param endpoint Kubernetes REST endpoint
+     */
+    void syncKubernetesState(String endpoint);
+
     /**
      * Creates a service network with the given information.
      *

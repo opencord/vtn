@@ -64,6 +64,15 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.slf4j.LoggerFactory.getLogger;
 
+import com.google.gson.reflect.TypeToken;
+import io.kubernetes.client.ApiClient;
+import io.kubernetes.client.Configuration;
+import io.kubernetes.client.apis.CoreV1Api;
+import io.kubernetes.client.models.V1Pod;
+import io.kubernetes.client.util.Config;
+import io.kubernetes.client.util.Watch;
+import java.util.concurrent.TimeUnit;
+
 /**
  * Provides implementation of administering and interfacing service network and port.
  */
@@ -235,6 +244,45 @@ public class ServiceNetworkManager extends ListenerRegistry<ServiceNetworkEvent,
                 createServicePort(sport);
             }
         });
+    }
+
+    @Override
+    public void syncKubernetesState(String endpoint) {
+        try {
+
+            // Launch the Kafka consumer thread
+            CordPodDetailsKafkaConsumerUtil cordPodDetailsKafkaConsumerUtil = new CordPodDetailsKafkaConsumerUtil();
+            cordPodDetailsKafkaConsumerUtil.start();
+
+            // Now use the K8S API to extract info independently
+            ApiClient client = Config.defaultClient();
+            client.getHttpClient().setReadTimeout(60, TimeUnit.SECONDS);
+            Configuration.setDefaultApiClient(client);
+
+            CoreV1Api api = new CoreV1Api();
+
+            Watch<V1Pod> watch =
+                Watch.createWatch(
+                    client,
+                    api.listNamespaceCall(
+                        null, null, null, null, null, 5, null, null, Boolean.TRUE, null, null),
+                    new TypeToken<Watch.Response<V1Pod>>() { }.getType());
+
+            try {
+                for (Watch.Response<V1Pod> item : watch) {
+
+                    String podIp = item.object.getStatus().getPodIP();
+                    String podName = item.object.getMetadata().getName();
+
+                    System.out.printf("Pod Name: %s, Pod IP: %s%n", podName, podIp);
+                }
+            } finally {
+                watch.close();
+            }
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
     }
 
     @Override
